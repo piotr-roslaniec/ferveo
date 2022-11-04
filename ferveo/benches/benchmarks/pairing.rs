@@ -21,10 +21,9 @@ pub fn lagrange(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 subproductdomain::SubproductDomain::<Fr>::new(u.clone())
-                    .inverse_lagrange_coefficients()
-                    //.iter()
-                    //.map(|x| x.inverse())
-                    //.collect::<Vec<_>>(),
+                    .inverse_lagrange_coefficients(), //.iter()
+                                                      //.map(|x| x.inverse())
+                                                      //.collect::<Vec<_>>(),
             )
         })
     });
@@ -39,11 +38,12 @@ pub fn lagrange(c: &mut Criterion) {
     group.bench_function("Jubjub Fr 8192*2/3 lagrange coefficients", |b| {
         b.iter(|| {
             black_box(
-                subproductdomain::SubproductDomain::<jubjub::Fr>::new(u.clone())
-                    .inverse_lagrange_coefficients()
-                    //.iter()
-                    //.map(|x| x.inverse())
-                    //.collect::<Vec<_>>(),
+                subproductdomain::SubproductDomain::<jubjub::Fr>::new(
+                    u.clone(),
+                )
+                .inverse_lagrange_coefficients(), //.iter()
+                                                  //.map(|x| x.inverse())
+                                                  //.collect::<Vec<_>>(),
             )
         })
     });

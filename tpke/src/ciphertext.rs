@@ -1,5 +1,5 @@
 use ark_ec::{AffineCurve, PairingEngine};
-use ark_ff::{One, ToBytes, UniformRand};
+use ark_ff::{FromBytes, One, ToBytes, UniformRand};
 use chacha20::cipher::{NewCipher, StreamCipher};
 use chacha20::{ChaCha20, Key, Nonce};
 use rand_core::RngCore;
@@ -22,12 +22,42 @@ impl<E: PairingEngine> Ciphertext<E> {
             (g_inv.clone(), E::G2Prepared::from(self.auth_tag)),
         ]) == E::Fqk::one()
     }
+
     fn construct_tag_hash(&self) -> E::G2Affine {
         let mut hash_input = Vec::<u8>::new();
         self.nonce.write(&mut hash_input).unwrap();
         hash_input.extend_from_slice(&self.ciphertext);
 
         hash_to_g2(&hash_input)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        self.nonce.write(&mut bytes).unwrap();
+        bytes.extend_from_slice(&self.ciphertext);
+        self.auth_tag.write(&mut bytes).unwrap();
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        const NONCE_LEN: usize = 97;
+        let mut nonce_bytes = [0u8; NONCE_LEN];
+        nonce_bytes.copy_from_slice(&bytes[..NONCE_LEN]);
+        let nonce = E::G1Affine::read(&nonce_bytes[..]).unwrap();
+
+        const CIPHERTEXT_LEN: usize = 33;
+        let ciphertext = bytes[NONCE_LEN..NONCE_LEN + CIPHERTEXT_LEN].to_vec();
+
+        const AUTH_TAG_LEN: usize = 193;
+        let mut auth_tag_bytes = [0u8; AUTH_TAG_LEN];
+        auth_tag_bytes.copy_from_slice(&bytes[bytes.len() - AUTH_TAG_LEN..]);
+        let auth_tag = E::G2Affine::read(&auth_tag_bytes[..]).unwrap();
+
+        Self {
+            nonce,
+            ciphertext,
+            auth_tag,
+        }
     }
 }
 

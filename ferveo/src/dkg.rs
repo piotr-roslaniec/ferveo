@@ -28,7 +28,7 @@ pub struct Params {
     pub retry_after: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PvssScheduler {
     Wait,
     Issue,
