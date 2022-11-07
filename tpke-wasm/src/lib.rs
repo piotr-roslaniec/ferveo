@@ -3,6 +3,7 @@ mod utils;
 extern crate group_threshold_cryptography as tpke;
 
 use ark_ff::{FromBytes, ToBytes};
+use serde::{Deserialize, Serialize};
 use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
@@ -19,8 +20,7 @@ type Ciphertext = tpke::Ciphertext<E>;
 pub struct SetupResult {
     public_key: Box<[u8]>,
     private_key: Box<[u8]>,
-    // TODO: Include private contexts
-    // pub private_contexts: Vec<tpke::PrivateContext<E>>,
+    private_contexts: Vec<Box<[u8]>>,
 }
 
 #[wasm_bindgen]
@@ -46,17 +46,52 @@ pub fn setup(
 ) -> SetupResult {
     set_panic_hook();
 
-    let (public_key, private_key, _) =
+    let (public_key, private_key, private_contexts) =
         tpke::setup::<E>(threshold, shares_num, num_entities);
     let mut public_key_bytes = Vec::new();
     public_key.write(&mut public_key_bytes).unwrap();
     let mut private_key_bytes = Vec::new();
     private_key.write(&mut private_key_bytes).unwrap();
+
+    let private_contexts_vec = private_contexts
+        .iter()
+        .map(|context| {
+            let mut bytes = Vec::new();
+            context.write(&mut bytes).unwrap();
+            bytes.into_boxed_slice()
+        })
+        .collect::<Vec<_>>();
+
     SetupResult {
         public_key: public_key_bytes.into_boxed_slice(),
         private_key: private_key_bytes.into_boxed_slice(),
+        private_contexts,
     }
 }
+
+// #[wasm_bindgen]
+// pub fn create_shares(
+//     private_contexts: Vec<u8>,
+//     ciphertext: Vec<u8>,
+// ) -> Vec<Box<[u8]>> {
+//     set_panic_hook();
+
+//     let ciphertext = Ciphertext::read(ciphertext.as_slice()).unwrap();
+
+//     let mut shares: Vec<tpke::DecryptionShare<E>> = vec![];
+//     for context in private_contexts.iter() {
+//         shares.push(context.create_share(&ciphertext));
+//     }
+//     private_contexts
+//         .iter()
+//         .map(|private_context| {
+//             let share = private_context.create_share(&ciphertext);
+//             let share_bytes = Vec::new();
+//             share.write(&mut share_bytes).unwrap();
+//             share_bytes.into_boxed_slice()
+//         })
+//         .collect()
+// }
 
 #[wasm_bindgen]
 pub fn encrypt(message: Vec<u8>, pubkey: Vec<u8>) -> Vec<u8> {

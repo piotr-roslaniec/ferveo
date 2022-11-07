@@ -4,16 +4,23 @@
 use crate::*;
 use ark_ec::ProjectiveCurve;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PublicKeyShares<E: PairingEngine> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub public_key_shares: Vec<E::G1Affine>, // A_{i, \omega_i}
 }
-
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlindedKeyShares<E: PairingEngine> {
-    pub blinding_key: E::G2Affine,            // [b] H
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub blinding_key: E::G2Affine, // [b] H
+    #[serde_as(as = "serialization::SerdeAs")]
     pub blinding_key_prepared: E::G2Prepared, // [b] H
+    #[serde_as(as = "serialization::SerdeAs")]
     pub blinded_key_shares: Vec<E::G2Affine>, // [b] Z_{i, \omega_i}
     pub window_tables: Vec<BlindedKeyShareWindowTable<E>>, // [b*omega_i^-1] Z_{i, \omega_i}
 }
@@ -81,13 +88,17 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
         )
     }
 }
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlindedKeyShareWindowTable<E: PairingEngine> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub window_table: Vec<Vec<E::G2Affine>>,
 }
 
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrivateKeyShare<E: PairingEngine> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub private_key_shares: Vec<E::G2Affine>,
 }
 
