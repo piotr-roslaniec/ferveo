@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
 use crate::hash_to_curve::htp_bls12381_g2;
 use ark_ec::{msm::FixedBaseMSM, AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, ToBytes, UniformRand, Zero};
@@ -15,19 +16,29 @@ use thiserror::Error;
 
 mod ciphertext;
 mod hash_to_curve;
+
 pub use ciphertext::*;
+
 mod key_share;
+
 pub use key_share::*;
+
 mod decryption;
+
 pub use decryption::*;
+
 mod combine;
+
 pub use combine::*;
+
 mod context;
+
 pub use context::*;
 
 pub trait ThresholdEncryptionParameters {
     type E: PairingEngine;
 }
+
 #[derive(Debug, Error)]
 pub enum ThresholdEncryptionError {
     /// Error
@@ -102,10 +113,46 @@ pub fn setup<E: PairingEngine>(
 
     let pubkey_share = g.mul(evals.evals[0]);
     assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
-
     // Y, but only when b = 1
     let privkey_shares =
         subproductdomain::fast_multiexp(&evals.evals, h.into_projective());
+
+    // To show `eprintln!` output, run with `cargo test -- --nocapture`
+    eprintln!("threshold: {}, shares_num: {}, num_entities: {}", threshold, shares_num, num_entities);
+
+    let A_len = pubkey_shares.len();
+    let Y_len = privkey_shares.len();
+    eprintln!("A_len: {}, Y_len: {}", A_len, Y_len);
+
+    let A_bytes_len = A_len * pubkey_shares[0].serialized_size();
+    let Y_bytes_len = Y_len * privkey_shares[0].serialized_size();
+    eprintln!("A_bytes_len: {}, Y_bytes_len: {}", A_bytes_len, Y_bytes_len);
+
+    let A_bytes_len_per_share = A_bytes_len / shares_num;
+    let Y_bytes_len_per_share = Y_bytes_len / shares_num;
+    eprintln!("A_bytes_len_per_share: {}, Y_bytes_len_per_share: {}", A_bytes_len_per_share, Y_bytes_len_per_share);
+
+    let A_bytes_len_per_threshold = A_bytes_len / threshold;
+    let Y_bytes_len_per_threshold = Y_bytes_len / threshold;
+    eprintln!("A_bytes_len_per_threshold: {}, Y_bytes_len_per_threshold: {}", A_bytes_len_per_threshold, Y_bytes_len_per_threshold);
+
+    let A_bytes_len_per_entity = A_bytes_len / num_entities;
+    let Y_bytes_len_per_entity = Y_bytes_len / num_entities;
+    eprintln!("A_bytes_len_per_entity: {}, Y_bytes_len_per_entity: {}", A_bytes_len_per_entity, Y_bytes_len_per_entity);
+
+    // threshold: 3, shares_num: 5, num_entities: 5
+    // A_len: 8, Y_len: 8
+    // A_bytes_len: 384, Y_bytes_len: 768
+    // A_bytes_len_per_share: 76, Y_bytes_len_per_share: 153
+    // A_bytes_len_per_threshold: 128, Y_bytes_len_per_threshold: 256
+    // A_bytes_len_per_entity: 76, Y_bytes_len_per_entity: 153
+    //
+    // threshold: 10, shares_num: 16, num_entities: 5
+    // A_len: 16, Y_len: 16
+    // A_bytes_len: 768, Y_bytes_len: 1536
+    // A_bytes_len_per_share: 48, Y_bytes_len_per_share: 96
+    // A_bytes_len_per_threshold: 76, Y_bytes_len_per_threshold: 153
+    // A_bytes_len_per_entity: 153, Y_bytes_len_per_entity: 307
 
     let x = threshold_poly.coeffs[0];
     let pubkey = g.mul(x);
@@ -120,7 +167,7 @@ pub fn setup<E: PairingEngine>(
         pubkey_shares.chunks(shares_num / num_entities),
         privkey_shares.chunks(shares_num / num_entities)
     )
-    .enumerate()
+        .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
