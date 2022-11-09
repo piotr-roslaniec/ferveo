@@ -14,7 +14,7 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         &self,
         ciphertext: &Ciphertext<E>,
     ) -> DecryptionShare<E> {
-        let decryption_share = ciphertext.nonce.mul(self.b_inv).into_affine();
+        let decryption_share = ciphertext.nonce; //.mul(self.b_inv).into_affine();
 
         DecryptionShare {
             decryptor_index: self.index,

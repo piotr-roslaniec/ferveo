@@ -11,10 +11,16 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         let mut domain = vec![];
         let mut n_0 = E::Fr::one();
         for d_i in shares.iter() {
+            let n = self.public_decryption_contexts[d_i.decryptor_index]
+                .domain.len();
+            let stuff = (0..n).map(|_| E::Fr::one()).collect::<Vec<_>>();
+            let stuff_len = stuff.len();
+            assert!(stuff_len == n);
             domain.extend(
                 self.public_decryption_contexts[d_i.decryptor_index]
                     .domain
                     .iter(),
+                // stuff.iter()
             );
             n_0 *= self.public_decryption_contexts[d_i.decryptor_index]
                 .lagrange_n_0;
@@ -23,6 +29,8 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         let mut lagrange = s.inverse_lagrange_coefficients();
         ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0);
         let mut start = 0usize;
+        
+        
         shares
             .iter()
             .map(|d_i| {
@@ -37,16 +45,17 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
                         decryptor.blinded_key_shares.blinded_key_shares.iter() //decryptor.blinded_key_shares.window_tables.iter()
                     )
                     .map(|(lambda, blinded_key_share)| {
+                        // (blinded key share * domain_inv) * (lambda)
                         blinded_key_share.mul(*lambda)
                     })
-                    /*.map(|(lambda, base_table)| {
-                        FixedBaseMSM::multi_scalar_mul::<E::G2Projective>(
-                            self.scalar_bits,
-                            self.window_size,
-                            &base_table.window_table,
-                            &[*lambda],
-                        )[0]
-                    })*/
+                    // .map(|(lambda, base_table)| {
+                    //     FixedBaseMSM::multi_scalar_mul::<E::G2Projective>(
+                    //         self.scalar_bits,
+                    //         self.window_size,
+                    //         &base_table.window_table,
+                    //         &[*lambda],
+                    //     )[0]
+                    // })
                     .sum::<E::G2Projective>()
                     .into_affine(),
                 )
