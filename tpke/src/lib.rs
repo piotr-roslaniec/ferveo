@@ -98,8 +98,14 @@ pub fn setup<E: PairingEngine>(
     let window_size = FixedBaseMSM::get_mul_window_size(100);
     let scalar_bits = E::Fr::size_in_bits();
 
+    // A
     let pubkey_shares =
         subproductdomain::fast_multiexp(&evals.evals, g.into_projective());
+
+    let pubkey_share = g.mul(evals.evals[0]);
+    assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
+
+    // Y, but only when b = 1
     let privkey_shares =
         subproductdomain::fast_multiexp(&evals.evals, h.into_projective());
 
@@ -121,11 +127,11 @@ pub fn setup<E: PairingEngine>(
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
         };
-        let b = E::Fr::rand(rng);
+        let b = E::Fr::one(); // Great success!
         let mut blinded_key_shares = private_key_share.blind(b);
-        blinded_key_shares.multiply_by_omega_inv(domain_inv);
-        /*blinded_key_shares.window_tables =
-        blinded_key_shares.get_window_table(window_size, scalar_bits, domain_inv);*/
+        // blinded_key_shares.multiply_by_omega_inv(domain_inv);
+        // blinded_key_shares.window_tables =
+        // blinded_key_shares.get_window_table(window_size, scalar_bits, domain_inv);
         private_contexts.push(PrivateDecryptionContext::<E> {
             index,
             b,
@@ -222,11 +228,11 @@ mod tests {
         for context in contexts.iter() {
             shares.push(context.create_share(&ciphertext));
         }
-        /*for pub_context in contexts[0].public_decryption_contexts.iter() {
+        for pub_context in contexts[0].public_decryption_contexts.iter() {
             assert!(pub_context
                 .blinded_key_shares
                 .verify_blinding(&pub_context.public_key_shares, rng));
-        }*/
+        }
         let prepared_blinded_key_shares = contexts[0].prepare_combine(&shares);
         let s =
             contexts[0].share_combine(&shares, &prepared_blinded_key_shares);

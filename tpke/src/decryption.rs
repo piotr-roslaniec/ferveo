@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
 use crate::*;
 use ark_ec::ProjectiveCurve;
 
@@ -14,8 +15,7 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         &self,
         ciphertext: &Ciphertext<E>,
     ) -> DecryptionShare<E> {
-        let decryption_share =
-            ciphertext.commitment.mul(self.b_inv).into_affine();
+        let decryption_share = ciphertext.commitment;//.mul(self.b_inv).into_affine();
 
         DecryptionShare {
             decryptor_index: self.index,
@@ -72,7 +72,7 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         // sum_D_j = { [\sum_j \alpha_{i,j} ] D_i }
         for (d, alpha_j) in izip!(shares.iter(), alpha_ij.iter()) {
             for (sum_alpha_d_i, d_ij, alpha) in
-                izip!(sum_d_j.iter_mut(), d.iter(), alpha_j.iter())
+            izip!(sum_d_j.iter_mut(), d.iter(), alpha_j.iter())
             {
                 *sum_alpha_d_i += d_ij.decryption_share.mul(*alpha);
             }

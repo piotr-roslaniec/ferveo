@@ -25,36 +25,48 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
         rng: &mut R,
     ) -> bool {
         let g = E::G1Affine::prime_subgroup_generator();
-        let _alpha = E::Fr::rand(rng);
-        let alpha_i = generate_random::<_, E>(
-            public_key_shares.public_key_shares.len(),
-            rng,
-        );
-
+        let h = E::G2Affine::prime_subgroup_generator();
+        // let _alpha = E::Fr::rand(rng);
+        // let alpha_i = generate_random::<_, E>(
+        //     public_key_shares.public_key_shares.len(),
+        //     rng,
+        // );
+        
+        // sum of Ai
         let alpha_a_i = E::G1Prepared::from(
-            g + public_key_shares
-                .public_key_shares
-                .iter()
-                .zip_eq(alpha_i.iter())
-                .map(|(key, alpha)| key.mul(*alpha))
-                .sum::<E::G1Projective>()
-                .into_affine(),
+            // g + 
+            // public_key_shares
+            //     .public_key_shares
+            //     .iter()
+            //     // .zip_eq(alpha_i.iter())
+            //     // .map(|key|)| k.into_projective())
+            //     // .sum::<E::G1Projective>()
+            //     .sum()
+            //     // .into_affine();
+            public_key_shares.public_key_shares[0]
         );
 
+
+        // sum of Yi
         let alpha_z_i = E::G2Prepared::from(
-            self.blinding_key
-                + self
-                    .blinded_key_shares
-                    .iter()
-                    .zip_eq(alpha_i.iter())
-                    .map(|(key, alpha)| key.mul(*alpha))
-                    .sum::<E::G2Projective>()
-                    .into_affine(),
+            // // self.blinding_key + 
+            //     self
+            //         .blinded_key_shares // Yi
+            //         .iter()
+            //         // .zip_eq(alpha_i.iter())
+            //         // .map(|(key, alpha)| key.mul(*alpha))
+            //         // .sum::<E::G2Projective>()
+            //         .sum()
+            //         // .into_affine(),
+            self.blinded_key_shares[0]
         );
 
         E::product_of_pairings(&[
+            // e(g, sum(Yi))
             (E::G1Prepared::from(-g), alpha_z_i),
-            (alpha_a_i, E::G2Prepared::from(self.blinding_key)),
+            // (alpha_a_i, E::G2Prepared::from(self.blinding_key)),
+            // e(sum(Ai), H)
+            (alpha_a_i, E::G2Prepared::from(h)),
         ]) == E::Fqk::one()
     }
 
@@ -74,7 +86,9 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
             })
             .collect::<Vec<_>>()
     }
-
+    // key shares = [a, b, c]
+    // domain_inv = [1, 2, 3]
+    // keys_shares = [a * 1, b * 2, c * 3]
     pub fn multiply_by_omega_inv(&mut self, domain_inv: &[E::Fr]) {
         izip!(self.blinded_key_shares.iter_mut(), domain_inv.iter()).for_each(
             |(key, omega_inv)| *key = key.mul(-*omega_inv).into_affine(),
@@ -94,15 +108,17 @@ pub struct PrivateKeyShare<E: PairingEngine> {
 impl<E: PairingEngine> PrivateKeyShare<E> {
     pub fn blind(&self, b: E::Fr) -> BlindedKeyShares<E> {
         let blinding_key =
-            E::G2Affine::prime_subgroup_generator().mul(b).into_affine();
+            E::G2Affine::prime_subgroup_generator();
+            // .mul(b).into_affine();
         BlindedKeyShares::<E> {
             blinding_key,
             blinding_key_prepared: E::G2Prepared::from(blinding_key),
-            blinded_key_shares: self
-                .private_key_shares
-                .iter()
-                .map(|z| z.mul(b).into_affine())
-                .collect::<Vec<_>>(),
+            blinded_key_shares: 
+            self
+                .private_key_shares.clone(),
+                // .iter()
+                // .map(|z| z.mul(b).into_affine())
+                // .collect::<Vec<_>>(),
             window_tables: vec![],
         }
     }
