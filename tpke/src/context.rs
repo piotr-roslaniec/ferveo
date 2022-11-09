@@ -3,6 +3,7 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct PublicDecryptionContext<E: PairingEngine> {
     pub domain: Vec<E::Fr>,
+    pub domain_inv: Vec<E::Fr>,
     pub public_key_shares: PublicKeyShares<E>,
     pub blinded_key_shares: BlindedKeyShares<E>,
     // This decrypter's contribution to N(0), namely (-1)^|domain| * \prod_i omega_i
