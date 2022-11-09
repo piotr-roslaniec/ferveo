@@ -89,7 +89,7 @@ pub fn setup<E: PairingEngine>(
     let mut point_inv = E::Fr::one();
 
     for _ in 0..shares_num {
-        domain_points.push(point);
+        domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar genrator fft_domain.group_gen
         point *= fft_domain.group_gen;
         domain_points_inv.push(point_inv);
         point_inv *= fft_domain.group_gen_inv;
@@ -150,6 +150,7 @@ pub fn setup<E: PairingEngine>(
         }
         public_contexts.push(PublicDecryptionContext::<E> {
             domain: domain.to_vec(),
+            domain_inv: domain_inv.to_vec(), // TODO: Is domain_inv sensitive, or can we share it freely in the PublicDecryptionContext?
             public_key_shares: PublicKeyShares::<E> {
                 public_key_shares: public.to_vec(),
             },

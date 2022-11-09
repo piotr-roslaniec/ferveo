@@ -34,11 +34,13 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         shares
             .iter()
             .map(|d_i| {
-                let decryptor =
-                    &self.public_decryption_contexts[d_i.decryptor_index];
+                let mut decryptor =
+                    self.public_decryption_contexts[d_i.decryptor_index].clone();
                 let end = start + decryptor.domain.len();
                 let lagrange_slice = &lagrange[start..end];
                 start = end;
+                let domain_inv = &self.public_decryption_contexts[d_i.decryptor_index].domain_inv;
+                decryptor.blinded_key_shares.multiply_by_omega_inv(domain_inv);
                 E::G2Prepared::from(
                     izip!(
                         lagrange_slice.iter(),
