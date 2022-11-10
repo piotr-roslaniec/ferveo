@@ -11,11 +11,11 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         let mut domain = vec![];
         let mut n_0 = E::Fr::one();
         for d_i in shares.iter() {
-            let n = self.public_decryption_contexts[d_i.decryptor_index]
-                .domain.len();
-            let stuff = (0..n).map(|_| E::Fr::one()).collect::<Vec<_>>();
-            let stuff_len = stuff.len();
-            assert!(stuff_len == n);
+            // let n = self.public_decryption_contexts[d_i.decryptor_index]
+            //     .domain.len();
+            // let stuff = (0..n).map(|_| E::Fr::one()).collect::<Vec<_>>();
+            // let stuff_len = stuff.len();
+            // assert!(stuff_len == n);
             domain.extend(
                 self.public_decryption_contexts[d_i.decryptor_index]
                     .domain
@@ -30,8 +30,7 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0);
         let mut start = 0usize;
         
-        
-        shares
+        return shares
             .iter()
             .map(|d_i| {
                 let mut decryptor =
@@ -39,9 +38,12 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
                 let end = start + decryptor.domain.len();
                 let lagrange_slice = &lagrange[start..end];
                 start = end;
+                //////// We've added:
                 let domain_inv = &self.public_decryption_contexts[d_i.decryptor_index].domain_inv;
                 decryptor.blinded_key_shares.multiply_by_omega_inv(domain_inv);
-                E::G2Prepared::from(
+                ////////
+                return E::G2Prepared::from(
+                    // (alpha_i, Yi)
                     izip!(
                         lagrange_slice.iter(),
                         decryptor.blinded_key_shares.blinded_key_shares.iter() //decryptor.blinded_key_shares.window_tables.iter()
@@ -59,10 +61,10 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
                     //     )[0]
                     // })
                     .sum::<E::G2Projective>()
-                    .into_affine(),
-                )
+                    .into_affine()
+                );
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
     }
     pub fn share_combine(
         &self,
@@ -70,14 +72,15 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         prepared_key_shares: &[E::G2Prepared],
     ) -> E::Fqk {
         let mut pairing_product: Vec<(E::G1Prepared, E::G2Prepared)> = vec![];
-
-        for (d_i, blinded_key_share) in
+        for (d_i, prepared_key_share) in
             izip!(shares, prepared_key_shares.iter())
         {
             // e(D_i, [b*omega_i^-1] Z_{i,omega_i})
             pairing_product.push((
+                // D_i
                 E::G1Prepared::from(d_i.decryption_share),
-                blinded_key_share.clone(),
+                // Y_i*L_i
+                prepared_key_share.clone(),
             ));
         }
         E::product_of_pairings(&pairing_product)
