@@ -90,6 +90,8 @@ pub fn setup<E: PairingEngine>(
     let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
     let fft_domain =
         ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
+    eprintln!("ftt_domain.size: {}", fft_domain.size());
+    
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
     let mut domain_points = Vec::with_capacity(shares_num);
@@ -140,21 +142,22 @@ pub fn setup<E: PairingEngine>(
     let Y_bytes_len_per_entity = Y_bytes_len / num_entities;
     eprintln!("A_bytes_len_per_entity: {}, Y_bytes_len_per_entity: {}", A_bytes_len_per_entity, Y_bytes_len_per_entity);
 
-    // threshold: 3, shares_num: 5, num_entities: 5
+    // threshold: 6, shares_num: 8, num_entities: 8
     // A_len: 8, Y_len: 8
     // A_bytes_len: 384, Y_bytes_len: 768
-    // A_bytes_len_per_share: 76, Y_bytes_len_per_share: 153
-    // A_bytes_len_per_threshold: 128, Y_bytes_len_per_threshold: 256
-    // A_bytes_len_per_entity: 76, Y_bytes_len_per_entity: 153
-    //
-    // threshold: 10, shares_num: 16, num_entities: 5
-    // A_len: 16, Y_len: 16
-    // A_bytes_len: 768, Y_bytes_len: 1536
     // A_bytes_len_per_share: 48, Y_bytes_len_per_share: 96
-    // A_bytes_len_per_threshold: 76, Y_bytes_len_per_threshold: 153
-    // A_bytes_len_per_entity: 153, Y_bytes_len_per_entity: 307
-
+    // A_bytes_len_per_threshold: 64, Y_bytes_len_per_threshold: 128
+    // A_bytes_len_per_entity: 48, Y_bytes_len_per_entity: 96
+    
+    // threshold: 6, shares_num: 8, num_entities: 8
+    // A_len: 8, Y_len: 8
+    // A_bytes_len: 384, Y_bytes_len: 768
+    // A_bytes_len_per_share: 48, Y_bytes_len_per_share: 96
+    // A_bytes_len_per_threshold: 64, Y_bytes_len_per_threshold: 128
+    // A_bytes_len_per_entity: 48, Y_bytes_len_per_entity: 96
+    
     let x = threshold_poly.coeffs[0];
+    // F_0
     let pubkey = g.mul(x);
     let privkey = h.mul(x);
 
@@ -227,9 +230,9 @@ mod tests {
     #[test]
     fn symmetric_encryption() {
         let mut rng = test_rng();
-        let threshold = 3;
-        let shares_num = 5;
-        let num_entities = 5;
+        let threshold = 6;
+        let shares_num = 8;
+        let num_entities = 8;
 
         let msg: &[u8] = "abc".as_bytes();
 
@@ -246,9 +249,9 @@ mod tests {
     #[test]
     fn threshold_encryption() {
         let rng = &mut test_rng();
-        let threshold = 16 * 2 / 3;
-        let shares_num = 16;
-        let num_entities = 5;
+        let threshold = 6;
+        let shares_num = 8;
+        let num_entities = 8;
         let msg: &[u8] = "abc".as_bytes();
 
         let (pubkey, _privkey, contexts) =
