@@ -21,7 +21,7 @@ pub fn bench_decryption(c: &mut Criterion) {
         let threshold = num_shares * 2 / 3;
 
         let (pubkey, _, contexts) =
-            setup::<E>(threshold, num_shares, num_entities);
+            setup::<E>(threshold, num_shares, num_entities, false);
 
         // let mut messages: Vec<[u8; NUM_OF_TX]> = vec![];
         let mut messages: Vec<Vec<u8>> = vec![];
@@ -71,7 +71,7 @@ pub fn bench_decryption(c: &mut Criterion) {
         let threshold = num_shares * 2 / 3;
 
         let (pubkey, _, contexts) =
-            setup::<E>(threshold, num_shares, num_entities);
+            setup::<E>(threshold, num_shares, num_entities, false);
 
         // let mut messages: Vec<[u8; NUM_OF_TX]> = vec![];
         let mut messages: Vec<Vec<u8>> = vec![];

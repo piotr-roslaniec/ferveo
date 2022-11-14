@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use crate::hash_to_curve::htp_bls12381_g2;
+use crate::util::benchmark_setup;
 use ark_ec::{msm::FixedBaseMSM, AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, ToBytes, UniformRand, Zero};
 use ark_poly::EvaluationDomain;
@@ -16,6 +17,7 @@ use thiserror::Error;
 
 mod ciphertext;
 mod hash_to_curve;
+mod util;
 
 pub use ciphertext::*;
 
@@ -81,6 +83,7 @@ pub fn setup<E: PairingEngine>(
     threshold: usize,
     shares_num: usize,
     num_entities: usize,
+    benchmark: bool,
 ) -> (E::G1Affine, E::G2Affine, Vec<PrivateDecryptionContext<E>>) {
     let rng = &mut ark_std::test_rng();
     let g = E::G1Affine::prime_subgroup_generator();
@@ -92,8 +95,6 @@ pub fn setup<E: PairingEngine>(
     let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
     let fft_domain =
         ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
-    eprintln!("ftt_domain.size: {}", fft_domain.size());
-
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
     let mut domain_points = Vec::with_capacity(shares_num);
@@ -121,42 +122,18 @@ pub fn setup<E: PairingEngine>(
     let privkey_shares =
         subproductdomain::fast_multiexp(&evals.evals, h.into_projective());
 
-    // To show `eprintln!` output, run with `cargo test -- --nocapture`
-    eprintln!("threshold: {}, shares_num: {}, num_entities: {}", threshold, shares_num, num_entities);
-
-    let A_len = pubkey_shares.len();
-    let Y_len = privkey_shares.len();
-    eprintln!("A_len: {}, Y_len: {}", A_len, Y_len);
-
-    let A_bytes_len = A_len * pubkey_shares[0].serialized_size();
-    let Y_bytes_len = Y_len * privkey_shares[0].serialized_size();
-    eprintln!("A_bytes_len: {}, Y_bytes_len: {}", A_bytes_len, Y_bytes_len);
-
-    let A_bytes_len_per_share = A_bytes_len / shares_num;
-    let Y_bytes_len_per_share = Y_bytes_len / shares_num;
-    eprintln!("A_bytes_len_per_share: {}, Y_bytes_len_per_share: {}", A_bytes_len_per_share, Y_bytes_len_per_share);
-
-    let A_bytes_len_per_threshold = A_bytes_len / threshold;
-    let Y_bytes_len_per_threshold = Y_bytes_len / threshold;
-    eprintln!("A_bytes_len_per_threshold: {}, Y_bytes_len_per_threshold: {}", A_bytes_len_per_threshold, Y_bytes_len_per_threshold);
-
-    let A_bytes_len_per_entity = A_bytes_len / num_entities;
-    let Y_bytes_len_per_entity = Y_bytes_len / num_entities;
-    eprintln!("A_bytes_len_per_entity: {}, Y_bytes_len_per_entity: {}", A_bytes_len_per_entity, Y_bytes_len_per_entity);
-
-    // threshold: 6, shares_num: 8, num_entities: 8
-    // A_len: 8, Y_len: 8
-    // A_bytes_len: 384, Y_bytes_len: 768
-    // A_bytes_len_per_share: 48, Y_bytes_len_per_share: 96
-    // A_bytes_len_per_threshold: 64, Y_bytes_len_per_threshold: 128
-    // A_bytes_len_per_entity: 48, Y_bytes_len_per_entity: 96
-
-    // threshold: 6, shares_num: 8, num_entities: 8
-    // A_len: 8, Y_len: 8
-    // A_bytes_len: 384, Y_bytes_len: 768
-    // A_bytes_len_per_share: 48, Y_bytes_len_per_share: 96
-    // A_bytes_len_per_threshold: 64, Y_bytes_len_per_threshold: 128
-    // A_bytes_len_per_entity: 48, Y_bytes_len_per_entity: 96
+    if benchmark {
+        benchmark_setup(
+            threshold,
+            shares_num,
+            num_entities,
+            pubkey_shares.len(),
+            privkey_shares.len(),
+            pubkey_shares[0].serialized_size(),
+            privkey_shares[0].serialized_size(),
+            fft_domain.size(),
+        );
+    }
 
     let x = threshold_poly.coeffs[0];
     // F_0
@@ -172,7 +149,7 @@ pub fn setup<E: PairingEngine>(
         pubkey_shares.chunks(shares_num / num_entities),
         privkey_shares.chunks(shares_num / num_entities)
     )
-        .enumerate()
+    .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
@@ -239,7 +216,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, privkey, _) =
-            setup::<E>(threshold, shares_num, num_entities);
+            setup::<E>(threshold, shares_num, num_entities, false);
 
         let ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
             msg, aad, pubkey, &mut rng,
@@ -272,7 +249,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _privkey, contexts) =
-            setup::<E>(threshold, shares_num, num_entities);
+            setup::<E>(threshold, shares_num, num_entities, false);
         let mut ciphertext = encrypt::<_, E>(msg, aad, pubkey, rng);
 
         let mut shares: Vec<DecryptionShare<E>> = vec![];
@@ -333,5 +310,42 @@ mod tests {
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
         assert!(!check_ciphertext_validity(&ciphertext, aad));
+        let plaintext = decrypt_with_shared_secret(&ciphertext, &s);
+        assert!(plaintext == msg)
+    }
+
+    #[test]
+    fn threshold_encryption_with_arbitrary_parameters() {
+        let rng = &mut test_rng();
+        let num_entities = 8;
+        let msg: &[u8] = "abc".as_bytes();
+
+        // Testing with different threshold and share_num configurations
+        let share_num_vec = [8, 16];
+        for shares_num in share_num_vec {
+            for threshold in 1..shares_num {
+                let (pubkey, _privkey, contexts) =
+                    setup::<E>(threshold, shares_num, num_entities, true);
+                let ciphertext = encrypt::<_, E>(msg, pubkey, rng);
+
+                let mut shares: Vec<DecryptionShare<E>> = vec![];
+                for context in contexts.iter() {
+                    shares.push(context.create_share(&ciphertext));
+                }
+                for pub_context in contexts[0].public_decryption_contexts.iter()
+                {
+                    assert!(pub_context
+                        .blinded_key_shares
+                        .verify_blinding(&pub_context.public_key_shares, rng));
+                }
+                let prepared_blinded_key_shares =
+                    contexts[0].prepare_combine(&shares);
+                let s = contexts[0]
+                    .share_combine(&shares, &prepared_blinded_key_shares);
+
+                let plaintext = decrypt_with_shared_secret(&ciphertext, &s);
+                assert!(plaintext == msg)
+            }
+        }
     }
 }
