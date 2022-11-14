@@ -262,7 +262,7 @@ mod tests {
         // Testing with different threshold and share_num configurations
         let share_num_vec = [8, 16];
         for shares_num in share_num_vec {
-            for threshold in 1..shares_num {
+            for threshold in 1..shares_num + 1 {
                 let (pubkey, _privkey, contexts) =
                     setup::<E>(threshold, shares_num, num_entities, true);
                 let ciphertext = encrypt::<_, E>(msg, pubkey, rng);
