@@ -3,7 +3,6 @@
 
 use crate::*;
 use ark_ec::ProjectiveCurve;
-use itertools::Itertools;
 
 #[derive(Clone, Debug)]
 pub struct PublicKeyShares<E: PairingEngine> {
@@ -22,7 +21,7 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
     pub fn verify_blinding<R: RngCore>(
         &self,
         public_key_shares: &PublicKeyShares<E>,
-        rng: &mut R,
+        _rng: &mut R,
     ) -> bool {
         let g = E::G1Affine::prime_subgroup_generator();
         let h = E::G2Affine::prime_subgroup_generator();
@@ -31,10 +30,10 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
         //     public_key_shares.public_key_shares.len(),
         //     rng,
         // );
-        
+
         // sum of Ai
         let alpha_a_i = E::G1Prepared::from(
-            // g + 
+            // g +
             // public_key_shares
             //     .public_key_shares
             //     .iter()
@@ -43,13 +42,12 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
             //     // .sum::<E::G1Projective>()
             //     .sum()
             //     // .into_affine();
-            public_key_shares.public_key_shares[0]
+            public_key_shares.public_key_shares[0],
         );
-
 
         // sum of Yi
         let alpha_z_i = E::G2Prepared::from(
-            // // self.blinding_key + 
+            // // self.blinding_key +
             //     self
             //         .blinded_key_shares // Yi
             //         .iter()
@@ -58,7 +56,7 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
             //         // .sum::<E::G2Projective>()
             //         .sum()
             //         // .into_affine(),
-            self.blinded_key_shares[0]
+            self.blinded_key_shares[0],
         );
 
         E::product_of_pairings(&[
@@ -106,19 +104,16 @@ pub struct PrivateKeyShare<E: PairingEngine> {
 }
 
 impl<E: PairingEngine> PrivateKeyShare<E> {
-    pub fn blind(&self, b: E::Fr) -> BlindedKeyShares<E> {
-        let blinding_key =
-            E::G2Affine::prime_subgroup_generator();
-            // .mul(b).into_affine();
+    pub fn blind(&self, _b: E::Fr) -> BlindedKeyShares<E> {
+        let blinding_key = E::G2Affine::prime_subgroup_generator();
+        // .mul(b).into_affine();
         BlindedKeyShares::<E> {
             blinding_key,
             blinding_key_prepared: E::G2Prepared::from(blinding_key),
-            blinded_key_shares: 
-            self
-                .private_key_shares.clone(),
-                // .iter()
-                // .map(|z| z.mul(b).into_affine())
-                // .collect::<Vec<_>>(),
+            blinded_key_shares: self.private_key_shares.clone(),
+            // .iter()
+            // .map(|z| z.mul(b).into_affine())
+            // .collect::<Vec<_>>(),
             window_tables: vec![],
         }
     }

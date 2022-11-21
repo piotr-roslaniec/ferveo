@@ -29,20 +29,25 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
         let mut lagrange = s.inverse_lagrange_coefficients();
         ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0);
         let mut start = 0usize;
-        
+
         return shares
             .iter()
             .map(|d_i| {
-                let mut decryptor =
-                    self.public_decryption_contexts[d_i.decryptor_index].clone();
+                let mut decryptor = self.public_decryption_contexts
+                    [d_i.decryptor_index]
+                    .clone();
                 let end = start + decryptor.domain.len();
                 let lagrange_slice = &lagrange[start..end];
                 start = end;
                 //////// We've added:
-                let domain_inv = &self.public_decryption_contexts[d_i.decryptor_index].domain_inv;
-                decryptor.blinded_key_shares.multiply_by_omega_inv(domain_inv);
+                let domain_inv = &self.public_decryption_contexts
+                    [d_i.decryptor_index]
+                    .domain_inv;
+                decryptor
+                    .blinded_key_shares
+                    .multiply_by_omega_inv(domain_inv);
                 ////////
-                return E::G2Prepared::from(
+                E::G2Prepared::from(
                     // (alpha_i, Yi)
                     izip!(
                         lagrange_slice.iter(),
@@ -61,8 +66,8 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
                     //     )[0]
                     // })
                     .sum::<E::G2Projective>()
-                    .into_affine()
-                );
+                    .into_affine(),
+                )
             })
             .collect::<Vec<_>>();
     }

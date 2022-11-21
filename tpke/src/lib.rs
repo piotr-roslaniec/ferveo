@@ -155,7 +155,7 @@ pub fn setup<E: PairingEngine>(
             private_key_shares: private.to_vec(),
         };
         let b = E::Fr::one(); // Great success!
-        let mut blinded_key_shares = private_key_share.blind(b);
+        let blinded_key_shares = private_key_share.blind(b);
         // blinded_key_shares.multiply_by_omega_inv(domain_inv);
         // blinded_key_shares.window_tables =
         // blinded_key_shares.get_window_table(window_size, scalar_bits, domain_inv);
@@ -295,7 +295,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _privkey, _) =
-            setup::<E>(threshold, shares_num, num_entities);
+            setup::<E>(threshold, shares_num, num_entities, false);
         let mut ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
             msg, aad, pubkey, &mut rng,
         );
@@ -310,8 +310,6 @@ mod tests {
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
         assert!(!check_ciphertext_validity(&ciphertext, aad));
-        let plaintext = decrypt_with_shared_secret(&ciphertext, &s);
-        assert!(plaintext == msg)
     }
 
     #[test]
@@ -319,6 +317,7 @@ mod tests {
         let rng = &mut test_rng();
         let num_entities = 8;
         let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "aad".as_bytes();
 
         // Testing with different threshold and share_num configurations
         let share_num_vec = [8, 16];
@@ -326,7 +325,7 @@ mod tests {
             for threshold in 1..shares_num + 1 {
                 let (pubkey, _privkey, contexts) =
                     setup::<E>(threshold, shares_num, num_entities, true);
-                let ciphertext = encrypt::<_, E>(msg, pubkey, rng);
+                let ciphertext = encrypt::<_, E>(msg, aad, pubkey, rng);
 
                 let mut shares: Vec<DecryptionShare<E>> = vec![];
                 for context in contexts.iter() {
@@ -343,7 +342,8 @@ mod tests {
                 let s = contexts[0]
                     .share_combine(&shares, &prepared_blinded_key_shares);
 
-                let plaintext = decrypt_with_shared_secret(&ciphertext, &s);
+                let plaintext =
+                    checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
                 assert!(plaintext == msg)
             }
         }
