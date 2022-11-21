@@ -107,7 +107,14 @@ pub fn htp_bls12381_g1(msg: &[u8]) -> ark_bls12_381::G1Affine {
 
 pub fn htp_bls12381_g2(msg: &[u8]) -> ark_bls12_381::G2Affine {
     let dst = "QUUX-V01-CS02-with-BLS12381G2_XMD:SHA-256_SSWU_RO_".as_bytes();
-    let u = hash_to_field2_bls12381(hmac::MC_SHA2, ecp::HASH_TYPE, dst, msg, 2);
+    // Using SHA-256 here:
+    let u = hash_to_field2_bls12381(
+        hmac::MC_SHA2,  // SHA2
+        ecp::HASH_TYPE, // 32 bytes
+        dst,
+        msg,
+        2,
+    );
     let mut P = ECP2::map2point(&u[0]);
     let P1 = ECP2::map2point(&u[1]);
     P.add(&P1);
