@@ -41,6 +41,7 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
                 .into_affine(),
         );
 
+        // Sum of Yi
         let alpha_z_i = E::G2Prepared::from(
             self.blinding_key
                 + self
@@ -52,6 +53,7 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
                     .into_affine(),
         );
 
+        // e(g, sum(Yi)) == e(sum(Ai), [b] H)
         E::product_of_pairings(&[
             (E::G1Prepared::from(-g), alpha_z_i),
             (alpha_a_i, E::G2Prepared::from(self.blinding_key)),
@@ -75,6 +77,9 @@ impl<E: PairingEngine> BlindedKeyShares<E> {
             .collect::<Vec<_>>()
     }
 
+    // key shares = [a, b, c]
+    // domain_inv = [1, 2, 3]
+    // output = [a * 1, b * 2, c * 3]
     pub fn multiply_by_omega_inv(&mut self, domain_inv: &[E::Fr]) {
         izip!(self.blinded_key_shares.iter_mut(), domain_inv.iter()).for_each(
             |(key, omega_inv)| *key = key.mul(-*omega_inv).into_affine(),
