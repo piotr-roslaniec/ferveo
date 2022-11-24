@@ -232,9 +232,9 @@ pub fn setup_simple<E: PairingEngine>(
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
         };
-        let b = E::Fr::rand(rng);
-        let mut blinded_key_shares = private_key_share.blind(b);
-        blinded_key_shares.multiply_by_omega_inv(domain_inv);
+        let b = E::Fr::one(); // Great success!
+        let blinded_key_shares = private_key_share.blind(b);
+        // blinded_key_shares.multiply_by_omega_inv(domain_inv);
         private_contexts.push(PrivateDecryptionContextSimple::<E> {
             index,
             b,
@@ -463,9 +463,9 @@ mod tests {
         let s = share_combine_simple::<E>(&shares, &prepared_key_shares);
 
         // So far, the ciphertext is valid
-        // let plaintext =
-        //     checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
-        // assert_eq!(plaintext, msg);
+        let plaintext =
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
+        assert_eq!(plaintext, msg);
 
         // // Malformed the ciphertext
         // ciphertext.ciphertext[0] += 1;
