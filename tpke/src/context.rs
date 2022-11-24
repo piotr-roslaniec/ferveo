@@ -22,3 +22,15 @@ pub struct PrivateDecryptionContext<E: PairingEngine> {
     pub scalar_bits: usize,
     pub window_size: usize,
 }
+
+#[derive(Clone, Debug)]
+pub struct PrivateDecryptionContextSimple<E: PairingEngine> {
+    pub index: usize,
+    pub b: E::Fr,
+    pub b_inv: E::Fr,
+    pub private_key_share: PrivateKeyShare<E>,
+    pub public_decryption_contexts: Vec<PublicDecryptionContext<E>>,
+    pub g: E::G1Affine,
+    pub g_inv: E::G1Prepared,
+    pub h_inv: E::G2Prepared,
+}

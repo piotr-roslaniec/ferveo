@@ -2,7 +2,9 @@
 #![allow(dead_code)]
 
 use crate::*;
+use ark_bls12_381::Fq12Parameters;
 use ark_ec::ProjectiveCurve;
+use ark_ff::{Fp12ParamsWrapper, QuadExtField};
 
 #[derive(Debug, Clone)]
 pub struct DecryptionShare<E: PairingEngine> {
@@ -114,4 +116,10 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
 
         E::product_of_pairings(&pairings) == E::Fqk::one()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct DecryptionShareSimple<E: PairingEngine> {
+    pub decrypter_index: usize,
+    pub decryption_share: E::Fqk,
 }
