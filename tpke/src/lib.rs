@@ -457,10 +457,10 @@ mod tests {
         let public_decryption_contexts =
             contexts[0].public_decryption_contexts.clone();
 
-        let prepared_key_shares =
+        let lagrange =
             prepare_combine_simple(&public_decryption_contexts, &shares);
 
-        let s = share_combine_simple::<E>(&shares, &prepared_key_shares);
+        let s = share_combine_simple::<E>(&shares, &lagrange);
 
         // So far, the ciphertext is valid
         let plaintext =

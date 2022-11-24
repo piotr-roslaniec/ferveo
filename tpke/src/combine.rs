@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 use crate::*;
 use ark_ec::ProjectiveCurve;
-use std::{ops::Mul, iter::zip};
 
 pub fn prepare_combine<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
@@ -55,7 +54,7 @@ pub fn prepare_combine<E: PairingEngine>(
 pub fn prepare_combine_simple<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
     shares: &[DecryptionShareSimple<E>],
-) -> Vec<Vec<E::Fr>> {
+) -> Vec<E::Fr> {
     // Lagrange preprocessing
     let mut domain = vec![];
     let mut n_0 = E::Fr::one();
@@ -70,22 +69,7 @@ pub fn prepare_combine_simple<E: PairingEngine>(
     let s = SubproductDomain::<E::Fr>::new(domain);
     let mut lagrange = s.inverse_lagrange_coefficients();
     ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0);
-
-    let mut start = 0usize;
-    shares
-        .iter()
-        .map(|d_i| {
-            let decrypter = &public_decryption_contexts[d_i.decrypter_index];
-            let end = start + decrypter.domain.len();
-            let lagrange_slice = &lagrange[start..end];
-            start = end;
-            // lagrange_slice
-            //     .iter()
-            //     .map(|lambda| lambda)
-            //     .collect()
-            lagrange_slice.to_vec()
-        })
-        .collect::<Vec<_>>()
+    lagrange
 }
 
 pub fn share_combine<E: PairingEngine>(
@@ -106,22 +90,21 @@ pub fn share_combine<E: PairingEngine>(
 
 pub fn share_combine_simple<E: PairingEngine>(
     shares: &[DecryptionShareSimple<E>],
-    lagrange: &[Vec<E::Fr>],
+    lagrange: &[E::Fr],
     // prepared_key_shares: &[E::G2Affine],
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
 
+    // Because these are not equal length, the izip is going to wrap around
+    // This is probably wrong
     assert_eq!(shares.len(), lagrange.len());
 
-    for (c_i, alpha_i) in izip!(shares, lagrange.iter()) {
+    for (c_i, alpha_i) in izip!(shares.iter(), lagrange.iter()) {
         // c_i is a result of pairing, G_t
         let c_i = c_i.decryption_share;
 
         // Exponentiate by alpha_i
-        let mut ss = E::Fqk::one();
-        for (c_i, alpha_i_term) in izip!(vec![c_i], alpha_i) {
-            ss *= c_i.pow(alpha_i_term.into_repr());
-        }
+        let ss = c_i.pow(alpha_i.into_repr());
 
         product_of_shares *= ss;
     }
