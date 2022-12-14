@@ -55,7 +55,9 @@ pub fn prepare_combine_simple<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
     shares: &[DecryptionShareSimple<E>],
 ) -> Vec<E::Fr> {
-    // Lagrange preprocessing
+    // Compute λi(0), the lagrange coefficient over the appropriate size domain
+    // Recall the optimized formula: https://www.wikiwand.com/en/Shamir%27s_Secret_Sharing#Computationally_efficient_approach
+
     let mut domain = vec![];
     let mut n_0 = E::Fr::one();
     for d_i in shares.iter() {
@@ -95,10 +97,7 @@ pub fn share_combine_simple<E: PairingEngine>(
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
 
-    // Because these are not equal length, the izip is going to wrap around
-    // This is probably wrong
-    assert_eq!(shares.len(), lagrange.len());
-
+    // Sum of C_i^{Alpha_i(0)}
     for (c_i, alpha_i) in izip!(shares.iter(), lagrange.iter()) {
         // c_i is a result of pairing, G_t
         let c_i = c_i.decryption_share;

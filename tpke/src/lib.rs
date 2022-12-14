@@ -439,6 +439,7 @@ mod tests {
         // Ciphertext.commitment is already computed to match U
         let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
 
+        // Creating decryption shares
         let shares = contexts
             .iter()
             .map(|context| {
@@ -446,6 +447,7 @@ mod tests {
                 let i = context.index;
                 let z_i = context.private_key_share.clone();
                 // Really want to call E::pairing here to avoid heavy computations on client side
+                // C_i = e(U, Z_i)
                 let c_i = E::pairing(u, z_i.private_key_shares[0]); // Simplifying to just one key share per node
                 DecryptionShareSimple {
                     decrypter_index: i,
