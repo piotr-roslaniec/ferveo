@@ -3,8 +3,8 @@
 use crate::hash_to_curve::htp_bls12381_g2;
 use ark_ec::{msm::FixedBaseMSM, AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, ToBytes, UniformRand, Zero};
-use ark_poly::EvaluationDomain;
 use ark_poly::{univariate::DensePolynomial, UVPolynomial};
+use ark_poly::{EvaluationDomain, Polynomial};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use itertools::izip;
 use subproductdomain::SubproductDomain;
@@ -77,15 +77,16 @@ pub fn setup<E: PairingEngine>(
 ) -> (E::G1Affine, E::G2Affine, Vec<PrivateDecryptionContext<E>>) {
     assert!(shares_num >= threshold);
 
+    // Generators G∈G1, H∈G2
     let g = E::G1Affine::prime_subgroup_generator();
     let h = E::G2Affine::prime_subgroup_generator();
-    
-    // The delear chooses a uniformly random polynomial f of degree t-1
+
+    // The dealer chooses a uniformly random polynomial f of degree t-1
     let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
     // Domain, or omega Ω
     let fft_domain =
         ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
-    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω 
+    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
     let mut domain_points = Vec::with_capacity(shares_num);
@@ -101,6 +102,7 @@ pub fn setup<E: PairingEngine>(
     // "DKG.PartitionDomain({ek_i, s_i}) -> {(ek_i, Omega_i)}"
     // https://nikkolasg.github.io/ferveo/tpke-concrete.html
     for _ in 0..shares_num {
+        // domain_points is the share domain of the i-th participant (?)
         domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar generator fft_domain.group_gen
         point *= fft_domain.group_gen;
         domain_points_inv.push(point_inv);
@@ -122,7 +124,8 @@ pub fn setup<E: PairingEngine>(
 
     // a_0
     let x = threshold_poly.coeffs[0];
-    // F_0
+
+    // F_0 - The commitment to the constant term, and is the public key output Y from PVDKG
     // TODO: It seems like the rest of the F_i are not computed?
     let pubkey = g.mul(x);
     let privkey = h.mul(x);
@@ -132,12 +135,14 @@ pub fn setup<E: PairingEngine>(
 
     // TODO: There are some missing variables: \hat{u_1}, \hat{u_2}
     // See: https://nikkolasg.github.io/ferveo/pvss.html#dealers-role
+    // \hat{u_1} is defined as \hat{u}_1 \in \mathbb{G}_2
+    // See: https://nikkolasg.github.io/ferveo/dkg.html#parameters
 
     // We're putting together a PVSS transcript
-    // It seems like there is some deviation from the docs. The output is supposed to be: 
+    // It seems like there is some deviation from the docs. The output is supposed to be:
     // "PVSS = ((F0,sigma),(F1,ldots,Ft),Zi,ωj)"
     // https://nikkolasg.github.io/ferveo/tpke-concrete.html#dkggeneratepvsstau-total_weight-ek_i-omega_i---pvss
-    // 
+    //
     // (domain, domain_inv, A, Y)
     for (index, (domain, domain_inv, public, private)) in izip!(
         // Since we're assigning only one key share to one entity we can use chunks(1)
@@ -153,9 +158,11 @@ pub fn setup<E: PairingEngine>(
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
         };
-        let b = E::Fr::rand(rng);
+        let b = E::Fr::one(); // TODO: Not blinding for now
         let mut blinded_key_shares = private_key_share.blind(b);
         blinded_key_shares.multiply_by_omega_inv(domain_inv);
+        // TODO: Is `blinded_key_shares` equal to [b]Z_{i,omega_i})?
+        // Z_{i,omega_i}) = [dk_{i}^{-1}]*\hat{Y}_{i_omega_j}]
         /*blinded_key_shares.window_tables =
         blinded_key_shares.get_window_table(window_size, scalar_bits, domain_inv);*/
         private_contexts.push(PrivateDecryptionContext::<E> {
@@ -170,17 +177,13 @@ pub fn setup<E: PairingEngine>(
             scalar_bits,
             window_size,
         });
-        let mut lagrange_n_0 = domain.iter().product::<E::Fr>();
-        if domain.len() % 2 == 1 {
-            lagrange_n_0 = -lagrange_n_0;
-        }
         public_contexts.push(PublicDecryptionContext::<E> {
             domain: domain.to_vec(),
             public_key_shares: PublicKeyShares::<E> {
                 public_key_shares: public.to_vec(),
             },
             blinded_key_shares,
-            lagrange_n_0,
+            lagrange_n_0: domain.iter().product::<E::Fr>(),
         });
     }
     for private in private_contexts.iter_mut() {
@@ -189,8 +192,9 @@ pub fn setup<E: PairingEngine>(
 
     // TODO: Should we also be returning some sort of signed transcript?
     // "Post the signed message \(\tau, (F_0, \ldots, F_t), \hat{u}2, (\hat{Y}{i,\omega_j})\) to the blockchain"
+    // \tau - unique session identifier
     // See: https://nikkolasg.github.io/ferveo/pvss.html#dealers-role
-    
+
     (pubkey.into(), privkey.into(), private_contexts)
 }
 
@@ -207,13 +211,13 @@ pub fn setup_simple<E: PairingEngine>(
 
     let g = E::G1Affine::prime_subgroup_generator();
     let h = E::G2Affine::prime_subgroup_generator();
-    
+
     // The delear chooses a uniformly random polynomial f of degree t-1
     let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
     // Domain, or omega Ω
     let fft_domain =
         ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
-    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω 
+    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
     let mut domain_points = Vec::with_capacity(shares_num);
@@ -252,6 +256,9 @@ pub fn setup_simple<E: PairingEngine>(
     let pubkey = g.mul(x);
     let privkey = h.mul(x);
 
+    let secret = threshold_poly.evaluate(&E::Fr::zero());
+    assert_eq!(secret, x);
+
     let mut private_contexts = vec![];
     let mut public_contexts = vec![];
 
@@ -259,10 +266,10 @@ pub fn setup_simple<E: PairingEngine>(
     // See: https://nikkolasg.github.io/ferveo/pvss.html#dealers-role
 
     // We're putting together a PVSS transcript
-    // It seems like there is some deviation from the docs. The output is supposed to be: 
+    // It seems like there is some deviation from the docs. The output is supposed to be:
     // "PVSS = ((F0,sigma),(F1,ldots,Ft),Zi,ωj)"
     // https://nikkolasg.github.io/ferveo/tpke-concrete.html#dkggeneratepvsstau-total_weight-ek_i-omega_i---pvss
-    // 
+    //
     // (domain, domain_inv, A, Y)
     for (index, (domain, domain_inv, public, private)) in izip!(
         // Since we're assigning only one key share to one entity we can use chunks(1)
@@ -278,7 +285,8 @@ pub fn setup_simple<E: PairingEngine>(
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
         };
-        let b = E::Fr::rand(rng);
+        // let b = E::Fr::rand(rng);
+        let b = E::Fr::one(); // TODO: Not blinding for now
         let mut blinded_key_shares = private_key_share.blind(b);
         blinded_key_shares.multiply_by_omega_inv(domain_inv);
         /*blinded_key_shares.window_tables =
@@ -293,17 +301,13 @@ pub fn setup_simple<E: PairingEngine>(
             g_inv: E::G1Prepared::from(-g),
             h_inv: E::G2Prepared::from(-h),
         });
-        let mut lagrange_n_0 = domain.iter().product::<E::Fr>();
-        if domain.len() % 2 == 1 {
-            lagrange_n_0 = -lagrange_n_0;
-        }
         public_contexts.push(PublicDecryptionContext::<E> {
             domain: domain.to_vec(),
             public_key_shares: PublicKeyShares::<E> {
                 public_key_shares: public.to_vec(),
             },
             blinded_key_shares,
-            lagrange_n_0,
+            lagrange_n_0: domain.iter().product::<E::Fr>(),
         });
     }
     for private in private_contexts.iter_mut() {
@@ -313,7 +317,7 @@ pub fn setup_simple<E: PairingEngine>(
     // TODO: Should we also be returning some sort of signed transcript?
     // "Post the signed message \(\tau, (F_0, \ldots, F_t), \hat{u}2, (\hat{Y}{i,\omega_j})\) to the blockchain"
     // See: https://nikkolasg.github.io/ferveo/pvss.html#dealers-role
-    
+
     (pubkey.into(), privkey.into(), private_contexts)
 }
 
@@ -335,12 +339,11 @@ mod tests {
     fn ciphertext_serialization() {
         let mut rng = test_rng();
         let threshold = 3;
-        let shares_num = 5;
+        let shares_num = 8;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "aad".as_bytes();
 
-        let (pubkey, _privkey, _) =
-            setup::<E>(threshold, shares_num, &mut rng);
+        let (pubkey, _privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
 
         let ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
             msg, aad, &pubkey, &mut rng,
@@ -370,12 +373,11 @@ mod tests {
     fn symmetric_encryption() {
         let mut rng = test_rng();
         let threshold = 3;
-        let shares_num = 5;
+        let shares_num = 8;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
 
-        let (pubkey, privkey, _) =
-            setup::<E>(threshold, shares_num,  &mut rng);
+        let (pubkey, privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
 
         let ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
             msg, aad, &pubkey, &mut rng,
@@ -448,12 +450,11 @@ mod tests {
     fn ciphertext_validity_check() {
         let mut rng = test_rng();
         let threshold = 3;
-        let shares_num = 5;
+        let shares_num = 8;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
 
-        let (pubkey, _privkey, _) =
-            setup::<E>(threshold, shares_num, &mut rng);
+        let (pubkey, _privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
         let mut ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
             msg, aad, &pubkey, &mut rng,
         );
@@ -471,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_threshold_setup_and_complete_flow_from_scratch() {
+    fn simple_threshold_decryption() {
         let mut rng = &mut test_rng();
         let threshold = 16 * 2 / 3;
         let shares_num = 16;
@@ -493,9 +494,11 @@ mod tests {
                 let u = ciphertext.commitment;
                 let i = context.index;
                 let z_i = context.private_key_share.clone();
+                // Simplifying to just one key share per node
+                assert_eq!(z_i.private_key_shares.len(), 1); 
                 // Really want to call E::pairing here to avoid heavy computations on client side
                 // C_i = e(U, Z_i)
-                let c_i = E::pairing(u, z_i.private_key_shares[0]); // Simplifying to just one key share per node
+                let c_i = E::pairing(u, z_i.private_key_shares[0]);
                 DecryptionShareSimple {
                     decrypter_index: i,
                     decryption_share: c_i,
@@ -515,7 +518,8 @@ mod tests {
         let plaintext =
             checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
         assert_eq!(plaintext, msg);
-
+        
+        // TODO: Enable after fixing the test
         // // Malformed the ciphertext
         // ciphertext.ciphertext[0] += 1;
         // let result = std::panic::catch_unwind(|| {
