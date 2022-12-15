@@ -55,9 +55,6 @@ pub fn prepare_combine_simple<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
     shares: &[DecryptionShareSimple<E>],
 ) -> Vec<E::Fr> {
-    // Compute λi(0), the lagrange coefficient over the appropriate size domain
-    // Recall the optimized formula: https://www.wikiwand.com/en/Shamir%27s_Secret_Sharing#Computationally_efficient_approach
-
     let mut domain = vec![];
     let mut n_0 = E::Fr::one();
     for d_i in shares.iter() {
@@ -83,7 +80,9 @@ pub fn share_combine<E: PairingEngine>(
     for (d_i, blinded_key_share) in izip!(shares, prepared_key_shares.iter()) {
         // e(D_i, [b*omega_i^-1] Z_{i,omega_i})
         pairing_product.push((
+            // D_i
             E::G1Prepared::from(d_i.decryption_share),
+            // Y_i*L_i
             blinded_key_share.clone(),
         ));
     }

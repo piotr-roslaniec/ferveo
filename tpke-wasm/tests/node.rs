@@ -14,10 +14,9 @@ pub fn participant_payload_serialization() {
     // TODO: Build a ciphertext from scratch
     let threshold = 3;
     let shares_num = 5;
-    let num_entities = 5;
     let message = "my-secret-message".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
-    let setup = Setup::new(threshold, shares_num, num_entities);
+    let setup = Setup::new(threshold, shares_num);
     let ciphertext = encrypt(&message, &aad, &setup.public_key);
 
     let participant_payload =
@@ -34,11 +33,10 @@ pub fn participant_payload_serialization() {
 fn encrypts_and_decrypts() {
     let threshold = 3;
     let shares_num = 5;
-    let num_entities = 5;
     let message = "my-secret-message".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
-    let setup = Setup::new(threshold, shares_num, num_entities);
+    let setup = Setup::new(threshold, shares_num);
 
     let ciphertext = encrypt(&message, &aad, &setup.public_key);
     let plaintext = decrypt(&ciphertext, &setup.private_key);
@@ -52,7 +50,6 @@ fn encrypts_and_decrypts() {
 fn threshold_encryption() {
     let threshold = 16 * 2 / 3;
     let shares_num = 16;
-    let num_entities = 5;
     let message = "my-secret-message".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
@@ -61,7 +58,7 @@ fn threshold_encryption() {
     //
 
     // Initialize the DKG setup
-    let setup = Setup::new(threshold, shares_num, num_entities);
+    let setup = Setup::new(threshold, shares_num);
 
     // Encrypt the message
     let ciphertext = encrypt(&message, &aad, &setup.public_key);
