@@ -7,19 +7,19 @@ pub fn prepare_combine<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
     shares: &[DecryptionShare<E>],
 ) -> Vec<E::G2Prepared> {
-    let mut domain = vec![];
+    let mut domain = vec![]; // omega_i, vector of domain points
     let mut n_0 = E::Fr::one();
     for d_i in shares.iter() {
         // There's just one domain point per participant, TODO: Refactor underlying data structures
         assert_eq!(public_decryption_contexts[d_i.decrypter_index].domain.len(), 1);
         domain.push(public_decryption_contexts[d_i.decrypter_index].domain[0]);
-        n_0 *= public_decryption_contexts[d_i.decrypter_index].lagrange_n_0;
+        n_0 *= public_decryption_contexts[d_i.decrypter_index].lagrange_n_0; // n_0_i = 1 * t^1 * t^2 ... 
     }
-    let s = SubproductDomain::<E::Fr>::new(domain);
+    let s = SubproductDomain::<E::Fr>::new(domain); 
     let mut lagrange = s.inverse_lagrange_coefficients(); // 1/L_i
     // TODO: If this is really 1/L_i can I just return here and use it directly? Or is 1/L_i somehow different from L_i(0)?
     // Given a vector of field elements {v_i}, compute the vector {coeff * v_i^(-1)}
-    ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0);
+    ark_ff::batch_inversion_and_mul(&mut lagrange, &n_0); // n_0 * L_i
     // L_i * [b]Z_i
     izip!(shares.iter(), lagrange.iter())
         .map(|(d_i, lambda)| {
