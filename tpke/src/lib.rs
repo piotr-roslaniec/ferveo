@@ -505,9 +505,10 @@ mod tests {
                 let z_i = context.private_key_share.clone();
                 // Simplifying to just one key share per node
                 assert_eq!(z_i.private_key_shares.len(), 1);
+                let z_i = z_i.private_key_shares[0];
                 // Really want to call E::pairing here to avoid heavy computations on client side
                 // C_i = e(U, Z_i)
-                let c_i = E::pairing(u, z_i.private_key_shares[0]); // TODO: Check whether blinded key share fits here
+                let c_i = E::pairing(u, z_i); // TODO: Check whether blinded key share fits here
                 DecryptionShareSimple {
                     decrypter_index: i,
                     decryption_share: c_i,
@@ -515,12 +516,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let public_decryption_contexts = private_decryption_contexts[0]
-            .public_decryption_contexts
-            .clone();
-
         let lagrange = prepare_combine_simple(
-            &public_decryption_contexts,
             &private_decryption_contexts,
         );
 

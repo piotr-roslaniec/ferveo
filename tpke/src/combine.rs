@@ -43,31 +43,21 @@ pub fn prepare_combine<E: PairingEngine>(
 }
 
 pub fn prepare_combine_simple<E: PairingEngine>(
-    public_contexts: &[PublicDecryptionContext<E>],
     private_contexts: &[PrivateDecryptionContextSimple<E>],
 ) -> Vec<E::Fr> {
     let mut lagrange_coeffs = vec![];
 
-    let shares = private_contexts
+    let shares_x = private_contexts
         .iter()
-        .map(|priv_ctxt| {
-            let pub_ctxt =
-                &priv_ctxt.public_decryption_contexts[priv_ctxt.index];
-            let x = pub_ctxt.domain[0]; // there's just one
-                                        // let y = context.private_key_share.private_key_shares[0]; // there's just one
-                                        // y = private_key_shares * b_inv
-                                        // why use b_inv here and not h^{-1}? revise this
-                                        // let y = pub_ctxt.blinded_key_shares.blinded_key_shares[0]
-                                        //     .mul(priv_ctxt.b_inv);
-            // TODO: No idea why this works
-            let y = E::Fr::one();
-            (x, y)
-        })
+        .map(|ctxt| 
+            // There's just one x in the domain:
+            ctxt.public_decryption_contexts[ctxt.index].domain[0]
+        )
         .collect::<Vec<_>>();
 
-    for (x_j, _) in shares.clone() {
+    for x_j in shares_x.clone() {
         let mut prod = E::Fr::one();
-        for (x_m, _) in shares.clone() {
+        for x_m in shares_x.clone() {
             if x_j != x_m {
                 // x_i = 0
                 prod *= (x_m) / (x_m - x_j);
