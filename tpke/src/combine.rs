@@ -43,24 +43,17 @@ pub fn prepare_combine<E: PairingEngine>(
 }
 
 pub fn prepare_combine_simple<E: PairingEngine>(
-    private_contexts: &[PrivateDecryptionContextSimple<E>],
+    context: &[PublicDecryptionContextSimple<E>],
 ) -> Vec<E::Fr> {
+    let shares_x = &context.iter().map(|ctxt| ctxt.domain).collect::<Vec<_>>();
+    // Calculate lagrange coefficients using optimized formula, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Optimal_algorithm
     let mut lagrange_coeffs = vec![];
-
-    let shares_x = private_contexts
-        .iter()
-        .map(|ctxt| 
-            // There's just one x in the domain:
-            ctxt.public_decryption_contexts[ctxt.index].domain[0]
-        )
-        .collect::<Vec<_>>();
-
-    for x_j in shares_x.clone() {
+    for x_j in shares_x {
         let mut prod = E::Fr::one();
-        for x_m in shares_x.clone() {
+        for x_m in shares_x {
             if x_j != x_m {
-                // x_i = 0
-                prod *= (x_m) / (x_m - x_j);
+                // In this formula x_i = 0, hence numerator is x_m
+                prod *= (*x_m) / (*x_m - *x_j);
             }
         }
         lagrange_coeffs.push(prod);

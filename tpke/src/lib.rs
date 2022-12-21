@@ -305,13 +305,12 @@ pub fn setup_simple<E: PairingEngine>(
             g_inv: E::G1Prepared::from(-g),
             h_inv: E::G2Prepared::from(-h),
         });
-        public_contexts.push(PublicDecryptionContext::<E> {
-            domain: domain.to_vec(),
+        public_contexts.push(PublicDecryptionContextSimple::<E> {
+            domain: domain[0],
             public_key_shares: PublicKeyShares::<E> {
                 public_key_shares: public.to_vec(),
             },
             blinded_key_shares,
-            lagrange_n_0: domain.iter().product::<E::Fr>(),
         });
     }
     for private in private_contexts.iter_mut() {
@@ -517,7 +516,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let lagrange = prepare_combine_simple(
-            &private_decryption_contexts,
+            &private_decryption_contexts[0].public_decryption_contexts,
         );
 
         // dealer_lagrange is just a vector of L_i(0) values

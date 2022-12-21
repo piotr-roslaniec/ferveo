@@ -10,6 +10,13 @@ pub struct PublicDecryptionContext<E: PairingEngine> {
 }
 
 #[derive(Clone, Debug)]
+pub struct PublicDecryptionContextSimple<E: PairingEngine> {
+    pub domain: E::Fr,
+    pub public_key_shares: PublicKeyShares<E>,
+    pub blinded_key_shares: BlindedKeyShares<E>,
+}
+
+#[derive(Clone, Debug)]
 pub struct PrivateDecryptionContext<E: PairingEngine> {
     pub index: usize,
     pub b: E::Fr,
@@ -29,7 +36,7 @@ pub struct PrivateDecryptionContextSimple<E: PairingEngine> {
     pub b: E::Fr,
     pub b_inv: E::Fr,
     pub private_key_share: PrivateKeyShare<E>,
-    pub public_decryption_contexts: Vec<PublicDecryptionContext<E>>,
+    pub public_decryption_contexts: Vec<PublicDecryptionContextSimple<E>>,
     pub g: E::G1Affine,
     pub g_inv: E::G1Prepared,
     pub h_inv: E::G2Prepared,
