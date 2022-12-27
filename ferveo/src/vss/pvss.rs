@@ -42,7 +42,7 @@ pub struct PubliclyVerifiableParams<E: PairingEngine> {
 /// 2/3 the total), this will be aggregated into a final key
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
 pub struct PubliclyVerifiableSS<E: PairingEngine, T = Unaggregated> {
-    /// Feldman commitment to the VSS polynomial, F = g^{\phi}
+    /// Used in Feldman commitment to the VSS polynomial, F = g^{\phi}
     pub coeffs: Vec<E::G1Affine>,
 
     /// The shares to be dealt to each validator
@@ -66,11 +66,13 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
         dkg: &PubliclyVerifiableDkg<E>,
         rng: &mut R,
     ) -> Result<Self> {
+        // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
         let mut phi = DensePolynomial::<E::Fr>::rand(
             (dkg.params.total_weight - dkg.params.security_threshold) as usize,
             rng,
         );
-        phi.coeffs[0] = *s;
+        phi.coeffs[0] = *s; // setting the first coefficient to secret value
+        // Evaluations of the polynomial over the domain
         let evals = phi.evaluate_over_domain_by_ref(dkg.domain);
         // commitment to coeffs
         let coeffs = fast_multiexp(&phi.coeffs, dkg.pvss_params.g);
@@ -78,6 +80,9 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
             .validators
             .iter()
             .map(|val| {
+                // Now, each of the validators gets a number of shares of the polynomial
+                // Share = g^{\phi(x_i)}
+                // We are blinding the shares with the validator's public key
                 fast_multiexp(
                     &evals.evals[val.share_start..val.share_end],
                     val.validator.public_key.encryption_key.into_projective(),
@@ -90,7 +95,10 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
             ));
         }
         //phi.zeroize(); // TODO zeroize?
+        // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
+        // Sigma is a proof of knowledge of the secret, sigma = h^s
         let sigma = E::G2Affine::prime_subgroup_generator().mul(*s).into(); //todo hash to curve
+        // So at this point, we have a commitment to the polynomial, a number of shares, and a proof of knowledge
         let vss = Self {
             coeffs,
             shares,
@@ -104,10 +112,15 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
     /// i.e. we optimistically do not check the commitment. This is deferred
     /// until the aggregation step
     pub fn verify_optimistic(&self) -> bool {
+        // We're only checking the proof of knowledge here, sigma ?= h^s
+        // "Does the first coefficient of the secret polynomial match the proof of knowledge?"
         E::pairing(
-            self.coeffs[0].into_projective(),
-            E::G2Affine::prime_subgroup_generator(),
-        ) == E::pairing(E::G1Affine::prime_subgroup_generator(), self.sigma)
+            self.coeffs[0].into_projective(), // F_0 = g^s
+            E::G2Affine::prime_subgroup_generator(), // h
+        ) == E::pairing(
+            E::G1Affine::prime_subgroup_generator(),  // g
+            self.sigma // h^s
+        )
     }
 
     /// Part of checking the validity of an aggregated PVSS transcript
@@ -125,8 +138,11 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
         print_time!("commitment fft");
         dkg.domain.fft_in_place(&mut commitment);
 
+        // Each validator checks that their share is correct
         dkg.validators.iter().zip(self.shares.iter()).all(
             |(validator, shares)| {
+                // ek is the public key of the validator
+                // TODO: Is that the ek = [dk]H key?
                 let ek = validator
                     .validator
                     .public_key
@@ -136,14 +152,21 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 let mut powers_of_alpha = alpha;
                 let mut y = E::G2Projective::zero();
                 let mut a = E::G1Projective::zero();
+                // Validator checks checks aggregated shares against commitment
                 for (y_i, a_i) in shares.iter().zip_eq(
                     commitment[validator.share_start..validator.share_end]
                         .iter(),
                 ) {
+                    // We iterate over shares (y_i) and commitment (a_i)
+                    // TODO: Check #3 is missing
+                    // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
                     y += y_i.mul(powers_of_alpha.into_repr());
                     a += a_i.mul(powers_of_alpha.into_repr());
                     powers_of_alpha *= alpha;
                 }
+                // At this point, y = \sum_{i=1}^{t-1} y_i \alpha^i and a = \sum_{i=1}^{t-1} a_i \alpha^i
+                // We verify that e(G, Y_j) = e(A_j, ek_j) for all j
+                // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
                 E::pairing(dkg.pvss_params.g, y) == E::pairing(a, ek)
             },
         )
@@ -163,6 +186,8 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
     ) -> Result<u32> {
         print_time!("PVSS verify_aggregation");
         self.verify_full(dkg, rng);
+        // Now, we verify that the aggregated PVSS transcript is a valid aggregation
+        // If it is, we return the total weights of the PVSS transcripts
         let mut y = E::G1Projective::zero();
         let mut weight = 0u32;
         for (dealer, pvss) in dkg.vss.iter() {
@@ -195,6 +220,10 @@ pub fn aggregate<E: PairingEngine>(
         .iter()
         .map(|a| batch_to_projective(a))
         .collect::<Vec<_>>();
+    
+    // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
+    // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
+    // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
     for (_, next) in pvss_iter {
         sigma = sigma.add(next.sigma);
         coeffs

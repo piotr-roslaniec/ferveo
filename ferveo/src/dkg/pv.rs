@@ -272,7 +272,7 @@ pub(crate) mod test_common {
         ValidatorSet::new(
             (0..4)
                 .map(|i| TendermintValidator {
-                    power: i,
+                    power: i, // TODO: Should set to 1 in order to force partitioning to give one share to each validator. Replace with 1 by reworking how partitioning works.
                     address: format!("validator_{}", i),
                     public_key: keypairs[i as usize].public(),
                 })
