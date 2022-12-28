@@ -163,15 +163,12 @@ pub struct Setup {
 #[wasm_bindgen]
 impl Setup {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        threshold: usize,
-        shares_num: usize,
-    ) -> Self {
+    pub fn new(threshold: usize, shares_num: usize) -> Self {
         set_panic_hook();
 
         let mut rng = rand::thread_rng();
         let (public_key, private_key, contexts) =
-            tpke::setup::<E>(threshold, shares_num,  &mut rng);
+            tpke::setup::<E>(threshold, shares_num, &mut rng);
         let private_contexts = contexts
             .clone()
             .into_iter()

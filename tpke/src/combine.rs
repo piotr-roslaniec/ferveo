@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 use crate::*;
 use ark_ec::ProjectiveCurve;
+use itertools::zip_eq;
 
 pub fn prepare_combine<E: PairingEngine>(
     public_decryption_contexts: &[PublicDecryptionContext<E>],
@@ -89,7 +90,7 @@ pub fn share_combine_simple<E: PairingEngine>(
     let mut product_of_shares = E::Fqk::one();
 
     // Sum of C_i^{L_i}
-    for (c_i, alpha_i) in izip!(shares.iter(), lagrange.iter()) {
+    for (c_i, alpha_i) in zip_eq(shares.iter(), lagrange.iter()) {
         // c_i is a result of pairing, G_t
         let c_i = c_i.decryption_share;
 

@@ -8,20 +8,23 @@ use ark_ec::PairingEngine;
 use ark_ff::UniformRand;
 use ark_serialize::*;
 use ferveo_common::PublicKey;
-use itertools::Itertools;
+use itertools::{zip_eq, Itertools};
 use subproductdomain::fast_multiexp;
 
 /// These are the blinded evaluations of weight shares of a single random polynomial
 pub type ShareEncryptions<E> = Vec<<E as PairingEngine>::G2Affine>;
+
 /// Marker struct for unaggregated PVSS transcripts
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
 pub struct Unaggregated;
+
 /// Marker struct for aggregated PVSS transcripts
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
 pub struct Aggregated;
 
 /// Trait gate used to add extra methods to aggregated PVSS transcripts
 pub trait Aggregate {}
+
 /// Apply trait gate to Aggregated marker struct
 impl Aggregate for Aggregated {}
 
@@ -72,7 +75,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
             rng,
         );
         phi.coeffs[0] = *s; // setting the first coefficient to secret value
-        // Evaluations of the polynomial over the domain
+                            // Evaluations of the polynomial over the domain
         let evals = phi.evaluate_over_domain_by_ref(dkg.domain);
         // commitment to coeffs
         let coeffs = fast_multiexp(&phi.coeffs, dkg.pvss_params.g);
@@ -98,7 +101,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
         // Sigma is a proof of knowledge of the secret, sigma = h^s
         let sigma = E::G2Affine::prime_subgroup_generator().mul(*s).into(); //todo hash to curve
-        // So at this point, we have a commitment to the polynomial, a number of shares, and a proof of knowledge
+                                                                            // So at this point, we have a commitment to the polynomial, a number of shares, and a proof of knowledge
         let vss = Self {
             coeffs,
             shares,
@@ -118,8 +121,8 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
             self.coeffs[0].into_projective(), // F_0 = g^s
             E::G2Affine::prime_subgroup_generator(), // h
         ) == E::pairing(
-            E::G1Affine::prime_subgroup_generator(),  // g
-            self.sigma // h^s
+            E::G1Affine::prime_subgroup_generator(), // g
+            self.sigma,                              // h^s
         )
     }
 
@@ -220,7 +223,7 @@ pub fn aggregate<E: PairingEngine>(
         .iter()
         .map(|a| batch_to_projective(a))
         .collect::<Vec<_>>();
-    
+
     // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
     // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
@@ -252,6 +255,57 @@ pub fn aggregate<E: PairingEngine>(
     }
 }
 
+// pub fn aggregate_for_decryption<E: PairingEngine>(
+//     dkg: &PubliclyVerifiableDkg<E>,
+// ) -> ShareEncryptions<E> {
+//     let aggregate = dkg
+//         .vss
+//         .iter()
+//         .map(|(_, pvss)| {
+//             assert_eq!(dkg.validators.len(), pvss.shares.len());
+//
+//             let shares = pvss
+//                 .shares
+//                 .iter()
+//                 .map(|a| batch_to_projective(a))
+//                 .collect::<Vec<_>>();
+//
+//             // Combine PVSS transcripts into a share aggregate
+//             let mut share_iter = shares.iter();
+//             let first_share = share_iter.next().unwrap();
+//             share_iter
+//                 .fold(first_share, |acc, share| {
+//                     &zip_eq(acc, share)
+//                         .map(|(a, b)| *a + *b)
+//                         .collect::<Vec<_>>()
+//                 })
+//                 .iter()
+//                 .map(|a| a.into_affine())
+//                 .collect::<ShareEncryptions<E>>()
+//         })
+//         .collect::<Vec<ShareEncryptions<E>>>();
+//
+//     E::G2Projective::batch_normalization_into_affine(&aggregate)
+// }
+
+/// Returns ShareEncryptions<E> from DKG PVSS transcripts for a selected validator
+pub fn shares_for_validator<E: PairingEngine>(
+    validator: usize,
+    dkg: &PubliclyVerifiableDkg<E>,
+) -> Vec<ShareEncryptions<E>> {
+    // DKG contains multiple PVSS transcripts, one for each dealer
+    dkg.vss
+        .iter()
+        .map(|(_, pvss)| {
+            // Each PVSS transcript contains multiple shares, one for each validator
+            assert_eq!(dkg.validators.len(), pvss.shares.len());
+            pvss.shares[validator].clone()
+        })
+        // Each validator has a share from each PVSS transcript
+        // One share is represented by ShareEncryptions<E>, which is a vector of G2 points
+        .collect::<Vec<ShareEncryptions<E>>>()
+}
+
 #[cfg(test)]
 mod test_pvss {
     use super::*;
@@ -260,6 +314,7 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ff::UniformRand;
     use ferveo_common::{TendermintValidator, ValidatorSet};
+
     type Fr = <EllipticCurve as PairingEngine>::Fr;
     type G1 = <EllipticCurve as PairingEngine>::G1Affine;
     type G2 = <EllipticCurve as PairingEngine>::G2Affine;

@@ -305,10 +305,12 @@ pub(crate) mod test_common {
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
     pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
+        let n = 4;
         let rng = &mut ark_std::test_rng();
         // gather everyone's transcripts
         let mut transcripts = vec![];
-        for i in 0..4 {
+        for i in 0..n {
+            // All of the dkg instances have the same validators
             let mut dkg = setup_dkg(i);
             transcripts.push(dkg.share(rng).expect("Test failed"));
         }
@@ -317,10 +319,16 @@ pub(crate) mod test_common {
         // iterate over transcripts from lowest weight to highest
         for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
             dkg.apply_message(
-                dkg.validators[3 - sender].validator.clone(),
+                dkg.validators[n - 1 - sender].validator.clone(),
                 pvss,
             )
             .expect("Setup failed");
+        }
+        // At this point, the dkg should contain n transcripts, each containing n shares
+        // TODO: Remove this check
+        assert_eq!(dkg.vss.len(), n);
+        for i in 0..n {
+            assert_eq!(dkg.vss[&(i as u32)].shares.len(), n);
         }
         dkg
     }

@@ -3,10 +3,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 pub fn bench_encrypt_combine(c: &mut Criterion) {
     use tpke_wasm::*;
 
-    fn bench_encrypt(
-        num_shares: usize,
-        threshold: usize,
-    ) -> impl Fn() {
+    fn bench_encrypt(num_shares: usize, threshold: usize) -> impl Fn() {
         let message = "my-secret-message".as_bytes().to_vec();
         let aad = "my-aad".as_bytes().to_vec();
         let setup = Setup::new(threshold, num_shares);
@@ -17,10 +14,7 @@ pub fn bench_encrypt_combine(c: &mut Criterion) {
         }
     }
 
-    fn bench_combine(
-        num_shares: usize,
-        threshold: usize,
-    ) -> impl Fn() {
+    fn bench_combine(num_shares: usize, threshold: usize) -> impl Fn() {
         let message = "my-secret-message".as_bytes().to_vec();
         let aad = "my-aad".as_bytes().to_vec();
         let setup = Setup::new(threshold, num_shares);

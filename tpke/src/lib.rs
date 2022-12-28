@@ -223,9 +223,9 @@ pub fn setup_simple<E: PairingEngine>(
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
     // TODO: Remove Lagrange coefficient calculation from delaer after the actual implementation is tested
-    let shares_y = fft_domain.elements().collect::<Vec<_>>();
+    let shares_x = fft_domain.elements().collect::<Vec<_>>();
     let shares =
-        izip!(shares_y.clone(), evals.evals.clone()).collect::<Vec<_>>();
+        izip!(shares_x.clone(), evals.evals.clone()).collect::<Vec<_>>();
     let mut sum_of_products = E::Fr::zero();
     let mut lagrange_coeffs = vec![];
     for (x_j, y_j) in shares.clone() {
@@ -283,7 +283,7 @@ pub fn setup_simple<E: PairingEngine>(
         // Since we're assigning only one key share to one entity we can use chunks(1)
         // This is a quick workaround to avoid refactoring all related entities that assume there are multiple key shares
         // TODO: Refactor this code and all related code
-        shares_y.chunks(1),
+        shares_x.chunks(1),
         pubkey_shares.chunks(1),
         privkey_shares.chunks(1)
     )
