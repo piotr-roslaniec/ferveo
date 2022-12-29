@@ -71,11 +71,12 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
     ) -> Result<Self> {
         // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
         let mut phi = DensePolynomial::<E::Fr>::rand(
-            (dkg.params.total_weight - dkg.params.security_threshold) as usize,
+            (dkg.params.shares_num - dkg.params.security_threshold) as usize,
             rng,
         );
         phi.coeffs[0] = *s; // setting the first coefficient to secret value
-                            // Evaluations of the polynomial over the domain
+
+        // Evaluations of the polynomial over the domain
         let evals = phi.evaluate_over_domain_by_ref(dkg.domain);
         // commitment to coeffs
         let coeffs = fast_multiexp(&phi.coeffs, dkg.pvss_params.g);
@@ -86,8 +87,9 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 // Now, each of the validators gets a number of shares of the polynomial
                 // Share = g^{\phi(x_i)}
                 // We are blinding the shares with the validator's public key
+                // TODO: Since we're multiplying an array by a single elemenet, maybe we could rewrite this
                 fast_multiexp(
-                    &evals.evals[val.share_start..val.share_end],
+                    &[evals.evals[val.share_index]],
                     val.validator.public_key.encryption_key.into_projective(),
                 )
             })
@@ -97,7 +99,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 "Not all validator session keys have been announced"
             ));
         }
-        //phi.zeroize(); // TODO zeroize?
+        // phi.zeroize(); // TODO zeroize?
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
         // Sigma is a proof of knowledge of the secret, sigma = h^s
         let sigma = E::G2Affine::prime_subgroup_generator().mul(*s).into(); //todo hash to curve
@@ -156,8 +158,9 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 let mut y = E::G2Projective::zero();
                 let mut a = E::G1Projective::zero();
                 // Validator checks checks aggregated shares against commitment
+                // TODO: Just one commitment per validator. Consider rewriting this.
                 for (y_i, a_i) in shares.iter().zip_eq(
-                    commitment[validator.share_start..validator.share_end]
+                    [commitment[validator.share_index]]
                         .iter(),
                 ) {
                     // We iterate over shares (y_i) and commitment (a_i)
@@ -192,13 +195,14 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
         // Now, we verify that the aggregated PVSS transcript is a valid aggregation
         // If it is, we return the total weights of the PVSS transcripts
         let mut y = E::G1Projective::zero();
-        let mut weight = 0u32;
-        for (dealer, pvss) in dkg.vss.iter() {
+        // TODO: If we don't deal with share weights anymore, do we even need to call `verify_aggregation`?
+        let mut shares_total = 0u32;
+        for (_, pvss) in dkg.vss.iter() {
             y += pvss.coeffs[0].into_projective();
-            weight += dkg.validators[*dealer as usize].weight;
+            shares_total += 1
         }
         if y.into_affine() == self.coeffs[0] {
-            Ok(weight)
+            Ok(shares_total)
         } else {
             Err(anyhow!(
                 "aggregation does not match received PVSS instances"
@@ -298,11 +302,10 @@ pub fn shares_for_validator<E: PairingEngine>(
         .iter()
         .map(|(_, pvss)| {
             // Each PVSS transcript contains multiple shares, one for each validator
-            assert_eq!(dkg.validators.len(), pvss.shares.len());
             pvss.shares[validator].clone()
         })
-        // Each validator has a share from each PVSS transcript
-        // One share is represented by ShareEncryptions<E>, which is a vector of G2 points
+        // Each validator has a vector of shares from each PVSS transcript
+        // Vector of shares represented by ShareEncryptions<E>, which is a vector of G2 points
         .collect::<Vec<ShareEncryptions<E>>>()
 }
 
@@ -381,7 +384,7 @@ mod test_pvss {
             aggregate
                 .verify_aggregation(&dkg, rng)
                 .expect("Test failed"),
-            6
+            4
         );
     }
 

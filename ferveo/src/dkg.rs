@@ -23,9 +23,9 @@ pub use pv::*;
 #[derive(Copy, Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Params {
     pub tau: u64,
-    pub security_threshold: u32, // threshold
-    pub total_weight: u32,       // total weight
-    pub retry_after: u32,
+    pub security_threshold: u32,
+    pub shares_num: u32,
+    pub retry_after: u32, // TODO: Remove. Not relevant in our scheme.
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -36,7 +36,7 @@ pub enum PvssScheduler {
 
 #[derive(Debug, Clone)]
 pub enum DkgState<E: PairingEngine> {
-    Sharing { accumulated_weight: u32, block: u32 },
+    Sharing { accumulated_shares: u32, block: u32 },
     Dealt,
     Success { final_key: E::G1Affine },
     Invalid,
@@ -50,12 +50,12 @@ impl<E: PairingEngine> CanonicalSerialize for DkgState<E> {
     ) -> Result<(), SerializationError> {
         match self {
             Self::Sharing {
-                accumulated_weight,
+                accumulated_shares,
                 block,
             } => {
                 CanonicalSerialize::serialize(&0u8, &mut writer)?;
                 CanonicalSerialize::serialize(
-                    &(*accumulated_weight, *block),
+                    &(*accumulated_shares, *block),
                     &mut writer,
                 )
             }
@@ -72,11 +72,11 @@ impl<E: PairingEngine> CanonicalSerialize for DkgState<E> {
     fn serialized_size(&self) -> usize {
         match self {
             Self::Sharing {
-                accumulated_weight,
+                accumulated_shares,
                 block,
             } => {
                 0u8.serialized_size()
-                    + (*accumulated_weight, *block).serialized_size()
+                    + (*accumulated_shares, *block).serialized_size()
             }
             Self::Dealt => 1u8.serialized_size(),
             Self::Success { final_key } => {
@@ -93,12 +93,12 @@ impl<E: PairingEngine> CanonicalDeserialize for DkgState<E> {
         let variant = <u8 as CanonicalDeserialize>::deserialize(&mut reader)?;
         match variant {
             0 => {
-                let (accumulated_weight, block) =
+                let (accumulated_shares, block) =
                     <(u32, u32) as CanonicalDeserialize>::deserialize(
                         &mut reader,
                     )?;
                 Ok(Self::Sharing {
-                    accumulated_weight,
+                    accumulated_shares,
                     block,
                 })
             }

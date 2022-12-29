@@ -37,7 +37,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     ) -> Result<Self> {
         use ark_std::UniformRand;
         let domain = ark_poly::Radix2EvaluationDomain::<E::Fr>::new(
-            params.total_weight as usize,
+            params.shares_num as usize,
         )
         .ok_or_else(|| anyhow!("unable to construct domain"))?;
 
@@ -47,8 +47,9 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             .binary_search_by(|probe| me.cmp(probe))
             .map_err(|_| anyhow!("could not find this validator in the provided validator set"))?;
 
-        // partition out weight shares of validators based on their voting power
-        let validators = partition_domain(&params, validator_set)?;
+        // partition out shares shares of validators based on their voting power
+        let validators = make_validators(validator_set);
+
         // we further partition out valdiators into partitions to submit pvss transcripts
         // so as to minimize network load and enable retrying
         let my_partition =
@@ -63,7 +64,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             vss: BTreeMap::new(),
             domain,
             state: DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             },
             me,
@@ -153,7 +154,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         match payload {
             Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
                 // TODO: If this is two slow, we can convert self.validators to
-                // an address keyed hashmap after partitioning the weight shares
+                // an address keyed hashmap after partitioning the shares shares
                 // in the [`new`] method
                 let sender = self.validators
                     .binary_search_by(|probe| sender.cmp(&probe.validator))
@@ -167,13 +168,13 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 }
             }
             Message::Aggregate(Aggregation{vss, final_key}) if matches!(self.state, DkgState::Dealt) => {
-                let minimum_weight = self.params.total_weight
+                let minimum_shares = self.params.shares_num
                     - self.params.security_threshold;
-                let verified_weight = vss.verify_aggregation(self, rng)?;
+                let verified_shares = vss.verify_aggregation(self, rng)?;
                 // we reject aggregations that fail to meet the security threshold
-                if verified_weight < minimum_weight {
+                if verified_shares < minimum_shares {
                     Err(
-                        anyhow!("Aggregation failed because the verified weight was insufficient")
+                        anyhow!("Aggregation failed because the verified shares was insufficient")
                     )
                 } else if &self.final_key() == final_key {
                     Ok(())
@@ -203,12 +204,11 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                     .map_err(|_| anyhow!("dkg received unknown dealer"))?;
                 self.vss.insert(sender as u32, pvss);
 
-                // we keep track of the amount of weight seen until the security
+                // we keep track of the amount of shares seen until the security
                 // threshold is met. Then we may change the state of the DKG
-                if let DkgState::Sharing{ref mut accumulated_weight, ..} =  &mut self.state {
-                    *accumulated_weight += self.validators[sender].weight;
-                    if *accumulated_weight
-                        >= self.params.total_weight - self.params.security_threshold {
+                if let DkgState::Sharing{ref mut accumulated_shares, ..} =  &mut self.state {
+                    *accumulated_shares += 1;
+                    if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
                       self.state = DkgState::Dealt;
                     }
                 }
@@ -272,7 +272,7 @@ pub(crate) mod test_common {
         ValidatorSet::new(
             (0..4)
                 .map(|i| TendermintValidator {
-                    power: i, // TODO: Should set to 1 in order to force partitioning to give one share to each validator. Replace with 1 by reworking how partitioning works.
+                    power: 1, // TODO: Should set to 1 in order to force partitioning to give one share to each validator. Replace with 1 by reworking how partitioning works.
                     address: format!("validator_{}", i),
                     public_key: keypairs[i as usize].public(),
                 })
@@ -292,7 +292,7 @@ pub(crate) mod test_common {
             Params {
                 tau: 0,
                 security_threshold: 2,
-                total_weight: 6,
+                shares_num: 6,
                 retry_after: 2,
             },
             me,
@@ -316,7 +316,7 @@ pub(crate) mod test_common {
         }
         // our test dkg
         let mut dkg = setup_dkg(0);
-        // iterate over transcripts from lowest weight to highest
+        // iterate over transcripts from lowest shares to highest
         for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
             dkg.apply_message(
                 dkg.validators[n - 1 - sender].validator.clone(),
@@ -338,60 +338,6 @@ pub(crate) mod test_common {
 #[cfg(test)]
 mod test_dkg_init {
     use super::test_common::*;
-
-    /// Test that validators are correctly sorted
-    #[test]
-    fn test_validator_set() {
-        let rng = &mut ark_std::test_rng();
-        let validators = vec![
-            TendermintValidator::<EllipticCurve> {
-                power: 0,
-                address: "validator_0".into(),
-                public_key: ferveo_common::Keypair::<EllipticCurve>::new(rng)
-                    .public(),
-            },
-            TendermintValidator::<EllipticCurve> {
-                power: 2,
-                address: "validator_1".into(),
-                public_key: ferveo_common::Keypair::<EllipticCurve>::new(rng)
-                    .public(),
-            },
-            TendermintValidator::<EllipticCurve> {
-                power: 2,
-                address: "validator_2".into(),
-                public_key: ferveo_common::Keypair::<EllipticCurve>::new(rng)
-                    .public(),
-            },
-            TendermintValidator::<EllipticCurve> {
-                power: 1,
-                address: "validator_3".into(),
-                public_key: ferveo_common::Keypair::<EllipticCurve>::new(rng)
-                    .public(),
-            },
-        ];
-        let expected = vec![
-            validators[2].clone(),
-            validators[1].clone(),
-            validators[3].clone(),
-            validators[0].clone(),
-        ];
-        let validator_set = ValidatorSet::new(validators);
-        assert_eq!(validator_set.validators, expected);
-        let params = Params {
-            tau: 0,
-            security_threshold: 2,
-            total_weight: 6,
-            retry_after: 2,
-        };
-        let validator_set: Vec<TendermintValidator<EllipticCurve>> =
-            partition_domain(&params, validator_set)
-                .expect("Test failed")
-                .iter()
-                .map(|v| v.validator.clone())
-                .collect();
-        assert_eq!(validator_set, expected);
-    }
-
     /// Test that dkg fails to start if the `me` input
     /// is not in the validator set
     #[test]
@@ -404,7 +350,7 @@ mod test_dkg_init {
             Params {
                 tau: 0,
                 security_threshold: 4,
-                total_weight: 6,
+                shares_num: 6,
                 retry_after: 2,
             },
             TendermintValidator::<EllipticCurve> {
@@ -452,7 +398,7 @@ mod test_dealing {
         }
         // our test dkg
         let mut dkg = setup_dkg(0);
-        // iterate over transcripts from lowest weight to highest
+        // iterate over transcripts from lowest shares to highest
         let mut expected = 0u32;
         for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
             // check the verification passes
@@ -470,19 +416,19 @@ mod test_dealing {
                     pvss
                 )
                 .is_ok());
-            expected += dkg.validators[3 - sender].validator.power as u32;
+            expected += 1; // dkg.validators[3 - sender].validator.power as u32;
             if sender < 3 {
-                // check that weight accumulates correctly
+                // check that shares accumulates correctly
                 match dkg.state {
                     DkgState::Sharing {
-                        accumulated_weight, ..
+                        accumulated_shares, ..
                     } => {
-                        assert_eq!(accumulated_weight, expected)
+                        assert_eq!(accumulated_shares, expected)
                     }
                     _ => panic!("Test failed"),
                 }
             } else {
-                // check that when enough weight is accumulated, we transition state
+                // check that when enough shares is accumulated, we transition state
                 assert!(matches!(dkg.state, DkgState::Dealt));
             }
         }
@@ -498,7 +444,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0
             }
         ));
@@ -517,7 +463,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -532,7 +478,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -546,7 +492,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 1,
                 block: 0,
             }
         ));
@@ -563,7 +509,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -572,7 +518,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -584,7 +530,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 3,
+                accumulated_shares: 1,
                 block: 0,
             }
         ));
@@ -599,7 +545,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -625,7 +571,7 @@ mod test_dealing {
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
-                accumulated_weight: 0,
+                accumulated_shares: 0,
                 block: 0,
             }
         ));
@@ -693,7 +639,7 @@ mod test_dealing {
     fn test_pvss_reissue() {
         let mut dkg = setup_dkg(0);
         dkg.state = DkgState::Sharing {
-            accumulated_weight: 0,
+            accumulated_shares: 0,
             block: 2,
         };
         assert_eq!(dkg.increase_block(), PvssScheduler::Issue);
@@ -739,7 +685,7 @@ mod test_aggregation {
     fn test_aggregate_state_guards() {
         let mut dkg = setup_dealt_dkg();
         dkg.state = DkgState::Sharing {
-            accumulated_weight: 0,
+            accumulated_shares: 0,
             block: 0,
         };
         assert!(dkg.aggregate().is_err());
@@ -759,7 +705,7 @@ mod test_aggregation {
         let aggregate = dkg.aggregate().expect("Test failed");
         let sender = dkg.validators[dkg.me].validator.clone();
         dkg.state = DkgState::Sharing {
-            accumulated_weight: 0,
+            accumulated_shares: 0,
             block: 0,
         };
         assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());
@@ -779,7 +725,7 @@ mod test_aggregation {
     fn test_aggregate_wont_verify_if_under_threshold() {
         let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dealt_dkg();
-        dkg.params.total_weight = 10;
+        dkg.params.shares_num = 10;
         let aggregate = dkg.aggregate().expect("Test failed");
         let sender = dkg.validators[dkg.me].validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());

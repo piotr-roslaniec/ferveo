@@ -64,24 +64,13 @@ impl<E: PairingEngine> ValidatorSet<E> {
 #[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Validator<E: PairingEngine> {
     pub validator: TendermintValidator<E>,
-    pub weight: u32,
-    pub share_start: usize,
-    pub share_end: usize,
+    pub share_index: usize,
 }
 
 impl<E: PairingEngine> PartialEq for Validator<E> {
     fn eq(&self, other: &Self) -> bool {
-        (
-            &self.validator,
-            self.weight,
-            self.share_start,
-            self.share_end,
-        ) == (
-            &other.validator,
-            other.weight,
-            other.share_start,
-            other.share_end,
-        )
+        (&self.validator, self.share_index)
+            == (&other.validator, other.share_index)
     }
 }
 

@@ -52,7 +52,7 @@ pub fn gen_validators(
     ValidatorSet::new(
         (0..keypairs.len())
             .map(|i| TendermintValidator {
-                power: i as u64,
+                power: 1,// TODO: Remove it. //i as u64,
                 address: format!("validator_{}", i),
                 public_key: keypairs[i as usize].public(),
             })
