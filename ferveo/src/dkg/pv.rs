@@ -39,7 +39,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         let domain = ark_poly::Radix2EvaluationDomain::<E::Fr>::new(
             params.shares_num as usize,
         )
-            .ok_or_else(|| anyhow!("unable to construct domain"))?;
+        .ok_or_else(|| anyhow!("unable to construct domain"))?;
 
         // keep track of the owner of this instance in the validator set
         let me = validator_set
@@ -78,22 +78,22 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     pub fn increase_block(&mut self) -> PvssScheduler {
         match self.state {
             DkgState::Sharing { ref mut block, .. }
-            if !self.vss.contains_key(&(self.me as u32)) =>
-                {
-                    *block += 1;
-                    // if our scheduled window begins, issue PVSS
-                    if self.window.0 + 1 == *block {
-                        PvssScheduler::Issue
-                    } else if &self.window.1 < block {
-                        // reset the window during which we try to get our
-                        // PVSS on chain
-                        *block = self.window.0 + 1;
-                        // reissue PVSS
-                        PvssScheduler::Issue
-                    } else {
-                        PvssScheduler::Wait
-                    }
+                if !self.vss.contains_key(&(self.me as u32)) =>
+            {
+                *block += 1;
+                // if our scheduled window begins, issue PVSS
+                if self.window.0 + 1 == *block {
+                    PvssScheduler::Issue
+                } else if &self.window.1 < block {
+                    // reset the window during which we try to get our
+                    // PVSS on chain
+                    *block = self.window.0 + 1;
+                    // reissue PVSS
+                    PvssScheduler::Issue
+                } else {
+                    PvssScheduler::Wait
                 }
+            }
             _ => PvssScheduler::Wait,
         }
     }
@@ -222,12 +222,12 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
 }
 
 #[derive(
-Serialize,
-Deserialize,
-Clone,
-Debug,
-CanonicalSerialize,
-CanonicalDeserialize,
+    Serialize,
+    Deserialize,
+    Clone,
+    Debug,
+    CanonicalSerialize,
+    CanonicalDeserialize,
 )]
 #[serde(bound = "")]
 pub struct Aggregation<E: PairingEngine> {
@@ -255,13 +255,14 @@ pub(crate) mod test_common {
 
     pub type G1 = <EllipticCurve as PairingEngine>::G1Affine;
 
-    pub fn gen_n_keypairs(n: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
+    pub fn gen_n_keypairs(
+        n: u32,
+    ) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
         let rng = &mut ark_std::test_rng();
         (0..n)
             .map(|_| ferveo_common::Keypair::<EllipticCurve>::new(rng))
             .collect()
     }
-
 
     /// Generate a set of keypairs for each validator
     pub fn gen_keypairs() -> Vec<ferveo_common::Keypair<EllipticCurve>> {
@@ -290,8 +291,13 @@ pub(crate) mod test_common {
         gen_n_validators(keypairs, 4)
     }
 
-    pub fn setup_dkg_for_n_validators(n_validators: u32, security_threshold: u32, shares_num: u32, my_index: usize) -> PubliclyVerifiableDkg<EllipticCurve> {
-        let keypairs = gen_n_keypairs(n_validators );
+    pub fn setup_dkg_for_n_validators(
+        n_validators: u32,
+        security_threshold: u32,
+        shares_num: u32,
+        my_index: usize,
+    ) -> PubliclyVerifiableDkg<EllipticCurve> {
+        let keypairs = gen_n_keypairs(n_validators);
         let validators = gen_n_validators(&keypairs, n_validators);
         let me = validators.validators[my_index].clone();
         PubliclyVerifiableDkg::new(
@@ -305,7 +311,7 @@ pub(crate) mod test_common {
             me,
             keypairs[my_index],
         )
-            .expect("Setup failed")
+        .expect("Setup failed")
     }
 
     /// Create a test dkg
@@ -315,7 +321,6 @@ pub(crate) mod test_common {
         setup_dkg_for_n_validators(4, 2, 6, validator)
     }
 
-
     /// Set up a dkg with enough pvss transcripts to meet the threshold
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
@@ -323,19 +328,33 @@ pub(crate) mod test_common {
         setup_dealt_dkg_with_n_validators(4, 2, 6)
     }
 
-    pub fn setup_dealt_dkg_with_n_validators(n_validators: u32, security_threshold: u32, shares_num: u32) -> PubliclyVerifiableDkg<EllipticCurve> {
+    pub fn setup_dealt_dkg_with_n_validators(
+        n_validators: u32,
+        security_threshold: u32,
+        shares_num: u32,
+    ) -> PubliclyVerifiableDkg<EllipticCurve> {
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
         let transcripts = (0..n_validators)
             .map(|i| {
-                let mut dkg = setup_dkg_for_n_validators(n_validators, security_threshold, shares_num, i as usize);
+                let mut dkg = setup_dkg_for_n_validators(
+                    n_validators,
+                    security_threshold,
+                    shares_num,
+                    i as usize,
+                );
                 dkg.share(rng).expect("Test failed")
             })
             .collect::<Vec<_>>();
 
         // Our test dkg
-        let mut dkg = setup_dkg_for_n_validators(n_validators, security_threshold, shares_num, 0);
+        let mut dkg = setup_dkg_for_n_validators(
+            n_validators,
+            security_threshold,
+            shares_num,
+            0,
+        );
         transcripts
             .into_iter()
             .enumerate()
@@ -344,7 +363,7 @@ pub(crate) mod test_common {
                     dkg.validators[sender].validator.clone(),
                     pvss,
                 )
-                    .expect("Setup failed");
+                .expect("Setup failed");
             });
         dkg
     }
@@ -377,7 +396,7 @@ mod test_dkg_init {
             },
             keypair,
         )
-            .expect_err("Test failed");
+        .expect_err("Test failed");
         assert_eq!(
             err.to_string(),
             "could not find this validator in the provided validator set"

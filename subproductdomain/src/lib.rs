@@ -303,7 +303,7 @@ impl<F: FftField> SubproductTree<F> {
 pub fn derivative<F: FftField>(f: &Poly<F>) -> Poly<F> {
     let mut coeffs = Vec::with_capacity(f.coeffs().len() - 1);
     for (i, c) in f.coeffs.iter().enumerate().skip(1) {
-        coeffs.push(F::from(i as u64) * c);
+        coeffs.push(F::from(i as u128) * c);
     }
     Poly::<F> { coeffs }
 }
@@ -374,7 +374,7 @@ pub fn toeplitz_mul<E: PairingEngine, const NORMALIZE: bool>(
 
     Ok((
         tmp[..toeplitz_size].to_vec(),
-        E::Fr::from(domain.size() as u64).inverse().unwrap(),
+        E::Fr::from(domain.size() as u128).inverse().unwrap(),
     ))
 }
 

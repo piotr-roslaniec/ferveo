@@ -81,8 +81,8 @@ pub fn share_combine<E: PairingEngine>(
 }
 
 pub fn share_combine_simple<E: PairingEngine>(
-    shares: &Vec<E::Fqk>,
-    lagrange_coeffs: &Vec<E::Fr>,
+    shares: &[E::Fqk],
+    lagrange_coeffs: &[E::Fr],
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
 

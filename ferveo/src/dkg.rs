@@ -12,6 +12,7 @@ use ark_poly::{
     EvaluationDomain, Polynomial,
 };
 use ark_serialize::*;
+use bincode::Options;
 use ed25519_dalek as ed25519;
 
 pub mod common;

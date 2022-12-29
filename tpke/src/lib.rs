@@ -506,15 +506,17 @@ mod tests {
                 let z_i = z_i.private_key_shares[0];
                 // Really want to call E::pairing here to avoid heavy computations on client side
                 // C_i = e(U, Z_i)
-                let c_i = E::pairing(u, z_i); // TODO: Check whether blinded key share fits here
-                c_i
+                 // TODO: Check whether blinded key share fits here
+                E::pairing(u, z_i)
             })
             .collect::<Vec<_>>();
 
-        let shares_x = &private_decryption_contexts[0].public_decryption_contexts.iter().map(|ctxt| ctxt.domain).collect::<Vec<_>>();
-        let lagrange = prepare_combine_simple::<E>(
-            &shares_x,
-        );
+        let shares_x = &private_decryption_contexts[0]
+            .public_decryption_contexts
+            .iter()
+            .map(|ctxt| ctxt.domain)
+            .collect::<Vec<_>>();
+        let lagrange = prepare_combine_simple::<E>(shares_x);
 
         // dealer_lagrange is just a vector of L_i(0) values
         assert_eq!(dealer_lagrange[0], dealer_lagrange[1]);

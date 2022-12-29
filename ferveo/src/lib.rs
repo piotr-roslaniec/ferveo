@@ -60,15 +60,23 @@ mod test_dkg_full {
         let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
 
         let validator_keypair = gen_n_keypairs(1)[0];
-        let encrypted_shares = batch_to_projective(&dkg.vss.get(&0).unwrap().shares);
+        let encrypted_shares =
+            batch_to_projective(&dkg.vss.get(&0).unwrap().shares);
 
-        let decryption_shares =
-            encrypted_shares.iter().map(|encrypted_share| {
+        let decryption_shares = encrypted_shares
+            .iter()
+            .map(|encrypted_share| {
                 // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-                let z_i = encrypted_share.mul(validator_keypair.decryption_key.inverse().unwrap().into_repr());
+                let z_i = encrypted_share.mul(
+                    validator_keypair
+                        .decryption_key
+                        .inverse()
+                        .unwrap()
+                        .into_repr(),
+                );
                 let u = ciphertext.commitment;
-                let c_i = E::pairing(u, z_i);
-                c_i
+                
+                E::pairing(u, z_i)
             })
             .collect::<Vec<_>>();
 
@@ -77,9 +85,12 @@ mod test_dkg_full {
             .elements()
             .take(decryption_shares.len())
             .collect::<Vec<_>>();
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(&shares_x);
+        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(shares_x);
 
-        let s = tpke::share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
+        let s = tpke::share_combine_simple::<E>(
+            &decryption_shares,
+            &lagrange_coeffs,
+        );
 
         let plaintext =
             tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
@@ -131,8 +142,8 @@ mod test_dkg_full {
             .map(|(keypair, encrypted_shares)| {
                 let z_i = encrypted_shares.mul(keypair.decryption_key);
                 let u = ciphertext.commitment;
-                let c_i = E::pairing(u, z_i);
-                c_i
+                
+                E::pairing(u, z_i)
             })
             .collect::<Vec<_>>();
 
@@ -141,9 +152,12 @@ mod test_dkg_full {
             .elements()
             .take(decryption_shares.len())
             .collect::<Vec<_>>();
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(&shares_x);
+        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(shares_x);
 
-        let s = tpke::share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
+        let s = tpke::share_combine_simple::<E>(
+            &decryption_shares,
+            &lagrange_coeffs,
+        );
 
         let plaintext =
             tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
