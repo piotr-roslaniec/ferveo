@@ -166,7 +166,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                     Ok(())
                 }
             }
-            Message::Aggregate(Aggregation{vss, final_key}) if matches!(self.state, DkgState::Dealt) => {
+            Message::Aggregate(Aggregation { vss, final_key }) if matches!(self.state, DkgState::Dealt) => {
                 let minimum_shares = self.params.shares_num
                     - self.params.security_threshold;
                 let verified_shares = vss.verify_aggregation(self)?;
@@ -205,17 +205,17 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
 
                 // we keep track of the amount of shares seen until the security
                 // threshold is met. Then we may change the state of the DKG
-                if let DkgState::Sharing{ref mut accumulated_shares, ..} =  &mut self.state {
+                if let DkgState::Sharing { ref mut accumulated_shares, .. } = &mut self.state {
                     *accumulated_shares += 1;
                     if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
-                      self.state = DkgState::Dealt;
+                        self.state = DkgState::Dealt;
                     }
                 }
                 Ok(())
             }
             Message::Aggregate(_) if matches!(self.state, DkgState::Dealt) => {
                 // change state and cache the final key
-                self.state = DkgState::Success {final_key: self.final_key()};
+                self.state = DkgState::Success { final_key: self.final_key() };
                 Ok(())
             }
             _ => Err(anyhow!("DKG state machine is not in correct state to apply this message"))
@@ -254,6 +254,7 @@ pub(crate) mod test_common {
     pub use super::*;
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     pub use ark_ff::UniformRand;
+
     pub type G1 = <EllipticCurve as PairingEngine>::G1Affine;
 
     /// Generate a set of keypairs for each validator
@@ -306,29 +307,27 @@ pub(crate) mod test_common {
     pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
         let n = 4;
         let rng = &mut ark_std::test_rng();
-        // gather everyone's transcripts
-        let mut transcripts = vec![];
-        for i in 0..n {
-            // All of the dkg instances have the same validators
-            let mut dkg = setup_dkg(i);
-            transcripts.push(dkg.share(rng).expect("Test failed"));
-        }
-        // our test dkg
+
+        // Gather everyone's transcripts
+        let transcripts = (0..n)
+            .map(|i| {
+                let mut dkg = setup_dkg(i);
+                dkg.share(rng).expect("Test failed")
+            })
+            .collect::<Vec<_>>();
+
+        // Our test dkg
         let mut dkg = setup_dkg(0);
-        // iterate over transcripts from lowest shares to highest
-        for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
-            dkg.apply_message(
-                dkg.validators[n - 1 - sender].validator.clone(),
-                pvss,
-            )
-            .expect("Setup failed");
-        }
-        // At this point, the dkg should contain n transcripts, each containing n shares
-        // TODO: Remove this check
-        assert_eq!(dkg.vss.len(), n);
-        for i in 0..n {
-            assert_eq!(dkg.vss[&(i as u32)].shares.len(), n);
-        }
+        transcripts
+            .into_iter()
+            .enumerate()
+            .for_each(|(sender, pvss)| {
+                dkg.apply_message(
+                    dkg.validators[sender].validator.clone(),
+                    pvss,
+                )
+                .expect("Setup failed");
+            });
         dkg
     }
 }
@@ -337,6 +336,7 @@ pub(crate) mod test_common {
 #[cfg(test)]
 mod test_dkg_init {
     use super::test_common::*;
+
     /// Test that dkg fails to start if the `me` input
     /// is not in the validator set
     #[test]
@@ -402,13 +402,13 @@ mod test_dealing {
         for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
             // check the verification passes
             assert!(dkg
-                .verify_message(&dkg.validators[3 - sender].validator, &pvss,)
+                .verify_message(&dkg.validators[3 - sender].validator, &pvss)
                 .is_ok());
             // check that application passes
             assert!(dkg
                 .apply_message(
                     dkg.validators[3 - sender].validator.clone(),
-                    pvss
+                    pvss,
                 )
                 .is_ok());
             expected += 1; // dkg.validators[3 - sender].validator.power as u32;

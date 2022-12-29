@@ -87,7 +87,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 // Now, each of the validators gets a number of shares of the polynomial
                 // Share = g^{\phi(x_i)}
                 // We are blinding the shares with the validator's public key
-                // TODO: Since we're multiplying an array by a single elemenet, maybe we could rewrite this
+                // TODO: Since we're multiplying an array by a single element, maybe we could rewrite this
                 fast_multiexp(
                     &[evals.evals[val.share_index]],
                     val.validator.public_key.encryption_key.into_projective(),
@@ -231,54 +231,27 @@ pub fn aggregate<E: PairingEngine>(
     }
 }
 
-// pub fn aggregate_for_decryption<E: PairingEngine>(
-//     dkg: &PubliclyVerifiableDkg<E>,
-// ) -> ShareEncryptions<E> {
-//     let aggregate = dkg
-//         .vss
-//         .iter()
-//         .map(|(_, pvss)| {
-//             assert_eq!(dkg.validators.len(), pvss.shares.len());
-//
-//             let shares = pvss
-//                 .shares
-//                 .iter()
-//                 .map(|a| batch_to_projective(a))
-//                 .collect::<Vec<_>>();
-//
-//             // Combine PVSS transcripts into a share aggregate
-//             let mut share_iter = shares.iter();
-//             let first_share = share_iter.next().unwrap();
-//             share_iter
-//                 .fold(first_share, |acc, share| {
-//                     &zip_eq(acc, share)
-//                         .map(|(a, b)| *a + *b)
-//                         .collect::<Vec<_>>()
-//                 })
-//                 .iter()
-//                 .map(|a| a.into_affine())
-//                 .collect::<ShareEncryptions<E>>()
-//         })
-//         .collect::<Vec<ShareEncryptions<E>>>();
-//
-//     E::G2Projective::batch_normalization_into_affine(&aggregate)
-// }
-
-/// Returns ShareEncryptions<E> from DKG PVSS transcripts for a selected validator
-pub fn shares_for_validator<E: PairingEngine>(
-    validator: usize,
+pub fn aggregate_for_decryption<E: PairingEngine>(
     dkg: &PubliclyVerifiableDkg<E>,
 ) -> Vec<ShareEncryptions<E>> {
-    // DKG contains multiple PVSS transcripts, one for each dealer
-    dkg.vss
+    // From docs: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
+    // "Two PVSS instances may be aggregated into a single PVSS instance by adding elementwise each of the corresponding group elements."
+    let shares = dkg
+        .vss
         .iter()
-        .map(|(_, pvss)| {
-            // Each PVSS transcript contains multiple shares, one for each validator
-            pvss.shares[validator].clone()
+        .map(|(_, pvss)| pvss.shares.clone())
+        .collect::<Vec<_>>();
+    let first_share = shares.first().unwrap().to_vec();
+    shares
+        .into_iter()
+        .skip(1)
+        // We're assuming that in every PVSS instance, the shares are in the same order
+        .fold(first_share, |acc, shares| {
+            acc.into_iter()
+                .zip_eq(shares.into_iter())
+                .map(|(a, b)| a + b)
+                .collect()
         })
-        // Each validator has a vector of shares from each PVSS transcript
-        // Vector of shares represented by ShareEncryptions<E>, which is a vector of G2 points
-        .collect::<Vec<ShareEncryptions<E>>>()
 }
 
 #[cfg(test)]

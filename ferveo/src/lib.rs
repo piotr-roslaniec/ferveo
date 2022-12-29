@@ -110,7 +110,6 @@ mod test_dkg_full {
         // We now want to test the decryption of a message
 
         // First, we encrypt a message using a DKG public key
-
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
@@ -118,43 +117,24 @@ mod test_dkg_full {
 
         // TODO: Update test utils so that we can easily get a validator keypair for each validator
         let validator_keypairs = gen_keypairs();
-
         // TODO: Check ciphertext validity, https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
+        let aggregate = aggregate_for_decryption(&dkg);
 
         // Each validator attempts to aggregate and decrypt the secret shares
-        let decryption_shares = validator_keypairs
-            .iter()
-            .enumerate()
-            // Assuming that the ordering of the validator keypairs is the same as the ordering of the validators in the validator set
-            // TODO: Check this assumption
-            .map(|(validator_i, keypair)| {
-                let decrypted_shares: Vec<ark_bls12_381::G2Projective> =
-                    // shares_for_validator(validator_i, &dkg)
-                dkg.vss[&(validator_i as u32)].shares
-                        .iter()
-                        // Each "share" the validator has is actually a vector of shares
-                        // This because of domain partitioning - the amount of shares is the same as the validator's "power"
-                        .map(|share|
-                            // Decrypt the share by decrypting each of the G2 elements within ShareEncryptions<E>
-                            share.mul(keypair.decryption_key))
-                        .collect();
-
-                let z_i = decrypted_shares
-                    .iter()
-                    .fold(ark_bls12_381::G2Projective::zero(), |acc, share| {
-                        acc + *share
-                    });
-
-                // Validator decryption of private key shares, https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
+        let decryption_shares = zip_eq(validator_keypairs, aggregate)
+            .map(|(keypair, encrypted_shares)| {
+                let z_i = encrypted_shares.mul(keypair.decryption_key);
                 let u = ciphertext.commitment;
                 let c_i = E::pairing(u, z_i);
-
                 c_i
             })
             .collect::<Vec<_>>();
 
-        // TODO: Am I taking a correct amount of x cooridnates herer? The domain contains 2^n=8 elements total, but I'm taking 4
-        let shares_x = &dkg.domain.elements().take(decryption_shares.len()).collect::<Vec<_>>();
+        let shares_x = &dkg
+            .domain
+            .elements()
+            .take(decryption_shares.len())
+            .collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&shares_x);
 
         let s = share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
@@ -162,38 +142,5 @@ mod test_dkg_full {
         let plaintext =
             tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
         assert_eq!(plaintext, msg);
-
-        // TODO: Perform decryption here!
-
-        // For every validator, we're collecting all the decryption shares from all of the PVSS transcripts
-        // .flatten()
-        // .collect();
-
-        // let shares_x  = &dkg.domain.elements().collect::<Vec<_>>();
-        // let lagrange_coeffs = prepare_combine_simple::<E>(&shares_x);
-        //
-        // let s =
-        //     share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
-        //
-        // let plaintext =
-        //     tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
-        // assert_eq!(plaintext, msg);
-
-        /*
-        TODO: This variant seems to be outdated/unused in simple threshold decryption variant
-
-        // Following section 4.4.8 of the paper, we need to compute the following:
-        let decryption_shares = validator_keypairs.iter().map(|validator| {
-            // TODO: Check the validity of (U, W)
-
-            // Compute the decryption share D_{i,j} = [dk_j^{-1}]*U_i
-            // We only have one U in this case
-            let u = ciphertext.commitment;
-            let dk_j = validator.decryption_key;
-            let dk_j_inv = dk_j.inverse().unwrap();
-            let d_ij = u.mul(dk_j_inv);
-            d_ij
-        });
-        */
     }
 }
