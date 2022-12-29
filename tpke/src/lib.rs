@@ -496,11 +496,10 @@ mod tests {
         let mut ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
 
         // Creating decryption shares
-        let shares = private_decryption_contexts
+        let decryption_shares = private_decryption_contexts
             .iter()
             .map(|context| {
                 let u = ciphertext.commitment;
-                let i = context.index;
                 let z_i = context.private_key_share.clone();
                 // Simplifying to just one key share per node
                 assert_eq!(z_i.private_key_shares.len(), 1);
@@ -508,21 +507,19 @@ mod tests {
                 // Really want to call E::pairing here to avoid heavy computations on client side
                 // C_i = e(U, Z_i)
                 let c_i = E::pairing(u, z_i); // TODO: Check whether blinded key share fits here
-                DecryptionShareSimple {
-                    decrypter_index: i,
-                    decryption_share: c_i,
-                }
+                c_i
             })
             .collect::<Vec<_>>();
 
-        let lagrange = prepare_combine_simple(
-            &private_decryption_contexts[0].public_decryption_contexts,
+        let shares_x = &private_decryption_contexts[0].public_decryption_contexts.iter().map(|ctxt| ctxt.domain).collect::<Vec<_>>();
+        let lagrange = prepare_combine_simple::<E>(
+            &shares_x,
         );
 
         // dealer_lagrange is just a vector of L_i(0) values
         assert_eq!(dealer_lagrange[0], dealer_lagrange[1]);
         assert_eq!(dealer_lagrange, lagrange);
-        let s = share_combine_simple::<E>(&shares, &lagrange);
+        let s = share_combine_simple::<E>(&decryption_shares, &lagrange);
 
         // So far, the ciphertext is valid
         let plaintext =

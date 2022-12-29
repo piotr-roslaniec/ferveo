@@ -39,7 +39,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         let domain = ark_poly::Radix2EvaluationDomain::<E::Fr>::new(
             params.shares_num as usize,
         )
-        .ok_or_else(|| anyhow!("unable to construct domain"))?;
+            .ok_or_else(|| anyhow!("unable to construct domain"))?;
 
         // keep track of the owner of this instance in the validator set
         let me = validator_set
@@ -47,10 +47,8 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             .binary_search_by(|probe| me.cmp(probe))
             .map_err(|_| anyhow!("could not find this validator in the provided validator set"))?;
 
-        // partition out shares shares of validators based on their voting power
         let validators = make_validators(validator_set);
 
-        // we further partition out validators into partitions to submit pvss transcripts
         // so as to minimize network load and enable retrying
         let my_partition =
             params.retry_after * (2 * me as u32 / params.retry_after);
@@ -80,22 +78,22 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     pub fn increase_block(&mut self) -> PvssScheduler {
         match self.state {
             DkgState::Sharing { ref mut block, .. }
-                if !self.vss.contains_key(&(self.me as u32)) =>
-            {
-                *block += 1;
-                // if our scheduled window begins, issue PVSS
-                if self.window.0 + 1 == *block {
-                    PvssScheduler::Issue
-                } else if &self.window.1 < block {
-                    // reset the window during which we try to get our
-                    // PVSS on chain
-                    *block = self.window.0 + 1;
-                    // reissue PVSS
-                    PvssScheduler::Issue
-                } else {
-                    PvssScheduler::Wait
+            if !self.vss.contains_key(&(self.me as u32)) =>
+                {
+                    *block += 1;
+                    // if our scheduled window begins, issue PVSS
+                    if self.window.0 + 1 == *block {
+                        PvssScheduler::Issue
+                    } else if &self.window.1 < block {
+                        // reset the window during which we try to get our
+                        // PVSS on chain
+                        *block = self.window.0 + 1;
+                        // reissue PVSS
+                        PvssScheduler::Issue
+                    } else {
+                        PvssScheduler::Wait
+                    }
                 }
-            }
             _ => PvssScheduler::Wait,
         }
     }
@@ -224,12 +222,12 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
 }
 
 #[derive(
-    Serialize,
-    Deserialize,
-    Clone,
-    Debug,
-    CanonicalSerialize,
-    CanonicalDeserialize,
+Serialize,
+Deserialize,
+Clone,
+Debug,
+CanonicalSerialize,
+CanonicalDeserialize,
 )]
 #[serde(bound = "")]
 pub struct Aggregation<E: PairingEngine> {
@@ -257,20 +255,25 @@ pub(crate) mod test_common {
 
     pub type G1 = <EllipticCurve as PairingEngine>::G1Affine;
 
-    /// Generate a set of keypairs for each validator
-    pub fn gen_keypairs() -> Vec<ferveo_common::Keypair<EllipticCurve>> {
+    pub fn gen_n_keypairs(n: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
         let rng = &mut ark_std::test_rng();
-        (0..4)
+        (0..n)
             .map(|_| ferveo_common::Keypair::<EllipticCurve>::new(rng))
             .collect()
     }
 
-    /// Generate a few validators
-    pub fn gen_validators(
+
+    /// Generate a set of keypairs for each validator
+    pub fn gen_keypairs() -> Vec<ferveo_common::Keypair<EllipticCurve>> {
+        gen_n_keypairs(4)
+    }
+
+    pub fn gen_n_validators(
         keypairs: &[ferveo_common::Keypair<EllipticCurve>],
+        n: u32,
     ) -> ValidatorSet<EllipticCurve> {
         ValidatorSet::new(
-            (0..4)
+            (0..n)
                 .map(|i| TendermintValidator {
                     power: 1, // TODO: Should set to 1 in order to force partitioning to give one share to each validator. Replace with 1 by reworking how partitioning works.
                     address: format!("validator_{}", i),
@@ -280,44 +283,59 @@ pub(crate) mod test_common {
         )
     }
 
-    /// Create a test dkg
-    ///
-    /// The [`test_dkg_init`] module checks correctness of this setup
-    pub fn setup_dkg(validator: usize) -> PubliclyVerifiableDkg<EllipticCurve> {
-        let keypairs = gen_keypairs();
-        let validators = gen_validators(&keypairs);
-        let me = validators.validators[validator].clone();
+    /// Generate a few validators
+    pub fn gen_validators(
+        keypairs: &[ferveo_common::Keypair<EllipticCurve>],
+    ) -> ValidatorSet<EllipticCurve> {
+        gen_n_validators(keypairs, 4)
+    }
+
+    pub fn setup_dkg_for_n_validators(n_validators: u32, security_threshold: u32, shares_num: u32, my_index: usize) -> PubliclyVerifiableDkg<EllipticCurve> {
+        let keypairs = gen_n_keypairs(n_validators );
+        let validators = gen_n_validators(&keypairs, n_validators);
+        let me = validators.validators[my_index].clone();
         PubliclyVerifiableDkg::new(
             validators,
             Params {
                 tau: 0,
-                security_threshold: 2,
-                shares_num: 6,
+                security_threshold,
+                shares_num,
                 retry_after: 2,
             },
             me,
-            keypairs[validator],
+            keypairs[my_index],
         )
-        .expect("Setup failed")
+            .expect("Setup failed")
     }
+
+    /// Create a test dkg
+    ///
+    /// The [`test_dkg_init`] module checks correctness of this setup
+    pub fn setup_dkg(validator: usize) -> PubliclyVerifiableDkg<EllipticCurve> {
+        setup_dkg_for_n_validators(4, 2, 6, validator)
+    }
+
 
     /// Set up a dkg with enough pvss transcripts to meet the threshold
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
     pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
-        let n = 4;
+        setup_dealt_dkg_with_n_validators(4, 2, 6)
+    }
+
+    pub fn setup_dealt_dkg_with_n_validators(n_validators: u32, security_threshold: u32, shares_num: u32) -> PubliclyVerifiableDkg<EllipticCurve> {
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
-        let transcripts = (0..n)
+        let transcripts = (0..n_validators)
             .map(|i| {
-                let mut dkg = setup_dkg(i);
+                let mut dkg = setup_dkg_for_n_validators(n_validators, security_threshold, shares_num, i as usize);
                 dkg.share(rng).expect("Test failed")
             })
             .collect::<Vec<_>>();
 
         // Our test dkg
-        let mut dkg = setup_dkg(0);
+        let mut dkg = setup_dkg_for_n_validators(n_validators, security_threshold, shares_num, 0);
         transcripts
             .into_iter()
             .enumerate()
@@ -326,7 +344,7 @@ pub(crate) mod test_common {
                     dkg.validators[sender].validator.clone(),
                     pvss,
                 )
-                .expect("Setup failed");
+                    .expect("Setup failed");
             });
         dkg
     }
@@ -359,7 +377,7 @@ mod test_dkg_init {
             },
             keypair,
         )
-        .expect_err("Test failed");
+            .expect_err("Test failed");
         assert_eq!(
             err.to_string(),
             "could not find this validator in the provided validator set"

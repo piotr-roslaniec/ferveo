@@ -42,11 +42,9 @@ pub fn prepare_combine<E: PairingEngine>(
         })
         .collect::<Vec<_>>()
 }
-
 pub fn prepare_combine_simple<E: PairingEngine>(
-    context: &[PublicDecryptionContextSimple<E>],
+    shares_x: &[E::Fr],
 ) -> Vec<E::Fr> {
-    let shares_x = &context.iter().map(|ctxt| ctxt.domain).collect::<Vec<_>>();
     // Calculate lagrange coefficients using optimized formula, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Optimal_algorithm
     let mut lagrange_coeffs = vec![];
     for x_j in shares_x {
@@ -83,20 +81,15 @@ pub fn share_combine<E: PairingEngine>(
 }
 
 pub fn share_combine_simple<E: PairingEngine>(
-    shares: &[DecryptionShareSimple<E>],
-    lagrange: &[E::Fr],
-    // prepared_key_shares: &[E::G2Affine],
+    shares: &Vec<E::Fqk>,
+    lagrange_coeffs: &Vec<E::Fr>,
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
 
-    // Sum of C_i^{L_i}
-    for (c_i, alpha_i) in zip_eq(shares.iter(), lagrange.iter()) {
-        // c_i is a result of pairing, G_t
-        let c_i = c_i.decryption_share;
-
-        // Exponentiate by alpha_i
+    // Sum of C_i^{L_i}z
+    for (c_i, alpha_i) in zip_eq(shares.iter(), lagrange_coeffs.iter()) {
+        // Exponentiation by alpha_i
         let ss = c_i.pow(alpha_i.into_repr());
-
         product_of_shares *= ss;
     }
 
