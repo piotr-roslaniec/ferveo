@@ -12,7 +12,7 @@ use itertools::{zip_eq, Itertools};
 use subproductdomain::fast_multiexp;
 
 /// These are the blinded evaluations of weight shares of a single random polynomial
-pub type ShareEncryptions<E> = Vec<<E as PairingEngine>::G2Affine>;
+pub type ShareEncryptions<E> = <E as PairingEngine>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
@@ -91,7 +91,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 fast_multiexp(
                     &[evals.evals[val.share_index]],
                     val.validator.public_key.encryption_key.into_projective(),
-                )
+                )[0]
             })
             .collect::<Vec<ShareEncryptions<E>>>();
         if shares.len() != dkg.validators.len() {
@@ -133,11 +133,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
     /// If aggregation fails, a validator needs to know that their pvss
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
-    pub fn verify_full<R: Rng>(
-        &self,
-        dkg: &PubliclyVerifiableDkg<E>,
-        rng: &mut R,
-    ) -> bool {
+    pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
         // compute the commitment
         let mut commitment = batch_to_projective(&self.coeffs);
         print_time!("commitment fft");
@@ -145,7 +141,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
 
         // Each validator checks that their share is correct
         dkg.validators.iter().zip(self.shares.iter()).all(
-            |(validator, shares)| {
+            |(validator, share)| {
                 // ek is the public key of the validator
                 // TODO: Is that the ek = [dk]H key?
                 let ek = validator
@@ -153,23 +149,11 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                     .public_key
                     .encryption_key
                     .into_projective();
-                let alpha = E::Fr::rand(rng);
-                let mut powers_of_alpha = alpha;
-                let mut y = E::G2Projective::zero();
-                let mut a = E::G1Projective::zero();
                 // Validator checks checks aggregated shares against commitment
-                // TODO: Just one commitment per validator. Consider rewriting this.
-                for (y_i, a_i) in shares.iter().zip_eq(
-                    [commitment[validator.share_index]]
-                        .iter(),
-                ) {
-                    // We iterate over shares (y_i) and commitment (a_i)
-                    // TODO: Check #3 is missing
-                    // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
-                    y += y_i.mul(powers_of_alpha.into_repr());
-                    a += a_i.mul(powers_of_alpha.into_repr());
-                    powers_of_alpha *= alpha;
-                }
+                // TODO: Check #3 is missing
+                // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+                let y = *share;
+                let a = commitment[validator.share_index];
                 // At this point, y = \sum_{i=1}^{t-1} y_i \alpha^i and a = \sum_{i=1}^{t-1} a_i \alpha^i
                 // We verify that e(G, Y_j) = e(A_j, ek_j) for all j
                 // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
@@ -185,13 +169,12 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
     /// the PVSS instances, produced by [`aggregate`],
     /// and received by the DKG context `dkg`
     /// Returns the total valid weight of the aggregated PVSS
-    pub fn verify_aggregation<R: Rng>(
+    pub fn verify_aggregation(
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
-        rng: &mut R,
     ) -> Result<u32> {
         print_time!("PVSS verify_aggregation");
-        self.verify_full(dkg, rng);
+        self.verify_full(dkg);
         // Now, we verify that the aggregated PVSS transcript is a valid aggregation
         // If it is, we return the total weights of the PVSS transcripts
         let mut y = E::G1Projective::zero();
@@ -222,11 +205,7 @@ pub fn aggregate<E: PairingEngine>(
     let mut coeffs = batch_to_projective(&first_pvss.coeffs);
     let mut sigma = first_pvss.sigma;
 
-    let mut shares = first_pvss
-        .shares
-        .iter()
-        .map(|a| batch_to_projective(a))
-        .collect::<Vec<_>>();
+    let mut shares = batch_to_projective(&first_pvss.shares);
 
     // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
@@ -240,16 +219,9 @@ pub fn aggregate<E: PairingEngine>(
         shares
             .iter_mut()
             .zip_eq(next.shares.iter())
-            .for_each(|(a, b)| {
-                a.iter_mut()
-                    .zip_eq(b.iter())
-                    .for_each(|(c, d)| *c += d.into_projective())
-            });
+            .for_each(|(a, b)| *a += b.into_projective());
     }
-    let shares = shares
-        .iter()
-        .map(|a| E::G2Projective::batch_normalization_into_affine(a))
-        .collect::<Vec<_>>();
+    let shares = E::G2Projective::batch_normalization_into_affine(&shares);
 
     PubliclyVerifiableSS {
         coeffs: E::G1Projective::batch_normalization_into_affine(&coeffs),
@@ -342,7 +314,7 @@ mod test_pvss {
         // check that the optimistic verify returns true
         assert!(pvss.verify_optimistic());
         // check that the full verify returns true
-        assert!(pvss.verify_full(&dkg, rng));
+        assert!(pvss.verify_full(&dkg));
     }
 
     /// Check that if the proof of knowledge is wrong,
@@ -368,7 +340,6 @@ mod test_pvss {
     /// Should have the correct form and validations pass
     #[test]
     fn test_aggregate_pvss() {
-        let rng = &mut ark_std::test_rng();
         let dkg = setup_dealt_dkg();
         let aggregate = aggregate(&dkg);
         //check that a polynomial of the correct degree was created
@@ -378,14 +349,9 @@ mod test_pvss {
         // check that the optimistic verify returns true
         assert!(aggregate.verify_optimistic());
         // check that the full verify returns true
-        assert!(aggregate.verify_full(&dkg, rng));
+        assert!(aggregate.verify_full(&dkg));
         // check that the verification of aggregation passes
-        assert_eq!(
-            aggregate
-                .verify_aggregation(&dkg, rng)
-                .expect("Test failed"),
-            4
-        );
+        assert_eq!(aggregate.verify_aggregation(&dkg).expect("Test failed"), 4);
     }
 
     /// Check that if the aggregated pvss transcript has an
@@ -393,7 +359,6 @@ mod test_pvss {
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
         use std::ops::Neg;
-        let rng = &mut ark_std::test_rng();
         let dkg = setup_dealt_dkg();
         let mut aggregated = aggregate(&dkg);
         while aggregated.coeffs[0] == G1::zero() {
@@ -403,7 +368,7 @@ mod test_pvss {
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(
             aggregated
-                .verify_aggregation(&dkg, rng)
+                .verify_aggregation(&dkg)
                 .expect_err("Test failed")
                 .to_string(),
             "aggregation does not match received PVSS instances"

@@ -55,7 +55,6 @@ pub fn prepare_combine_simple<E: PairingEngine>(
 pub fn share_combine_simple<E: PairingEngine>(
     shares: &Vec<E::Fqk>,
     lagrange_coeffs: &Vec<E::Fr>,
-    // prepared_key_shares: &[E::G2Affine],
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
 
@@ -84,7 +83,6 @@ mod test_dkg_full {
 
     /// Test happy flow for a full DKG with simple threshold decryption variant
     #[test]
-    #[ignore]
     fn test_dkg_simple_decryption_variant() {
         //
         // The following is copied from other tests
@@ -100,14 +98,9 @@ mod test_dkg_full {
         // check that the optimistic verify returns true
         assert!(aggregate.verify_optimistic());
         // check that the full verify returns true
-        assert!(aggregate.verify_full(&dkg, rng));
+        assert!(aggregate.verify_full(&dkg));
         // check that the verification of aggregation passes
-        assert_eq!(
-            aggregate
-                .verify_aggregation(&dkg, rng)
-                .expect("Test failed"),
-            4
-        );
+        assert_eq!(aggregate.verify_aggregation(&dkg).expect("Test failed"), 4);
 
         //
         // Now, we start the actual test
@@ -128,66 +121,53 @@ mod test_dkg_full {
 
         // TODO: Check ciphertext validity, https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
 
-        //
-
         // Each validator attempts to aggregate and decrypt the secret shares
-        // let decryption_shares = validator_keypairs
-        validator_keypairs
+        let decryption_shares = validator_keypairs
             .iter()
             .enumerate()
             // Assuming that the ordering of the validator keypairs is the same as the ordering of the validators in the validator set
             // TODO: Check this assumption
-            .for_each(|(validator_i, keypair)| {
-                let decrypted_shares: Vec<Vec<ark_bls12_381::G2Projective>> =
-                    shares_for_validator(validator_i, &dkg)
+            .map(|(validator_i, keypair)| {
+                let decrypted_shares: Vec<ark_bls12_381::G2Projective> =
+                    // shares_for_validator(validator_i, &dkg)
+                dkg.vss[&(validator_i as u32)].shares
                         .iter()
                         // Each "share" the validator has is actually a vector of shares
                         // This because of domain partitioning - the amount of shares is the same as the validator's "power"
-                        .map(|share| {
+                        .map(|share|
                             // Decrypt the share by decrypting each of the G2 elements within ShareEncryptions<E>
-                            share
-                                .iter()
-                                .map(|s| s.mul(keypair.decryption_key))
-                                .collect()
-                        })
+                            share.mul(keypair.decryption_key))
                         .collect();
 
-                let combined_shares = decrypted_shares.iter().fold(
-                    vec![
-                        ark_bls12_381::G2Projective::zero();
-                        decrypted_shares[0].len()
-                    ],
-                    |acc, share| {
-                        zip_eq(acc, share).map(|(a, b)| a + b).collect()
-                    },
-                );
-
-                let decryption_shares = combined_shares
+                let z_i = decrypted_shares
                     .iter()
-                    .map(|z_i| {
-                        // Validator decryption of private key shares, https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-                        let u = ciphertext.commitment;
-                        let c_i = E::pairing(u, *z_i);
-                        c_i
-                    })
-                    .collect::<Vec<_>>();
+                    .fold(ark_bls12_381::G2Projective::zero(), |acc, share| {
+                        acc + *share
+                    });
 
-                let shares_x  = &dkg.domain.elements().collect::<Vec<_>>();
-                let lagrange_coeffs = prepare_combine_simple::<E>(&shares_x);
+                // Validator decryption of private key shares, https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
+                let u = ciphertext.commitment;
+                let c_i = E::pairing(u, z_i);
 
-                let s =
-                    share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
+                c_i
+            })
+            .collect::<Vec<_>>();
 
-                let plaintext =
-                    tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
-                assert_eq!(plaintext, msg);
-            });
+        // TODO: Am I taking a correct amount of x cooridnates herer? The domain contains 2^n=8 elements total, but I'm taking 4
+        let shares_x = &dkg.domain.elements().take(decryption_shares.len()).collect::<Vec<_>>();
+        let lagrange_coeffs = prepare_combine_simple::<E>(&shares_x);
 
-            // TODO: Perform decryption here!
+        let s = share_combine_simple::<E>(&decryption_shares, &lagrange_coeffs);
 
-            // For every validator, we're collecting all the decryption shares from all of the PVSS transcripts
-            // .flatten()
-            // .collect();
+        let plaintext =
+            tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
+        assert_eq!(plaintext, msg);
+
+        // TODO: Perform decryption here!
+
+        // For every validator, we're collecting all the decryption shares from all of the PVSS transcripts
+        // .flatten()
+        // .collect();
 
         // let shares_x  = &dkg.domain.elements().collect::<Vec<_>>();
         // let lagrange_coeffs = prepare_combine_simple::<E>(&shares_x);

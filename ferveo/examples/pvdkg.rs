@@ -71,7 +71,7 @@ pub fn setup_dealt_dkg(num: u64, shares: u32) {
     for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
         if let Message::Deal(ss) = pvss.clone() {
             print_time!("PVSS verify pvdkg");
-            ss.verify_full(&dkg, rng);
+            ss.verify_full(&dkg);
         }
         dkg.apply_message(
             dkg.validators[num as usize - 1 - sender].validator.clone(),

@@ -50,7 +50,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         // partition out shares shares of validators based on their voting power
         let validators = make_validators(validator_set);
 
-        // we further partition out valdiators into partitions to submit pvss transcripts
+        // we further partition out validators into partitions to submit pvss transcripts
         // so as to minimize network load and enable retrying
         let my_partition =
             params.retry_after * (2 * me as u32 / params.retry_after);
@@ -145,11 +145,10 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     /// Verify a DKG related message in a block proposal
     /// `sender` is the validator of the sender of the message
     /// `payload` is the content of the message
-    pub fn verify_message<R: Rng>(
+    pub fn verify_message(
         &self,
         sender: &TendermintValidator<E>,
         payload: &Message<E>,
-        rng: &mut R,
     ) -> Result<()> {
         match payload {
             Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
@@ -170,7 +169,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             Message::Aggregate(Aggregation{vss, final_key}) if matches!(self.state, DkgState::Dealt) => {
                 let minimum_shares = self.params.shares_num
                     - self.params.security_threshold;
-                let verified_shares = vss.verify_aggregation(self, rng)?;
+                let verified_shares = vss.verify_aggregation(self)?;
                 // we reject aggregations that fail to meet the security threshold
                 if verified_shares < minimum_shares {
                     Err(
@@ -403,11 +402,7 @@ mod test_dealing {
         for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
             // check the verification passes
             assert!(dkg
-                .verify_message(
-                    &dkg.validators[3 - sender].validator,
-                    &pvss,
-                    rng
-                )
+                .verify_message(&dkg.validators[3 - sender].validator, &pvss,)
                 .is_ok());
             // check that application passes
             assert!(dkg
@@ -456,7 +451,7 @@ mod test_dealing {
                 .public(),
         };
         // check that verification fails
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_err());
+        assert!(dkg.verify_message(&sender, &pvss).is_err());
         // check that application fails
         assert!(dkg.apply_message(sender, pvss).is_err());
         // check that state has not changed
@@ -485,7 +480,7 @@ mod test_dealing {
         let pvss = dkg.share(rng).expect("Test failed");
         let sender = dkg.validators[3].validator.clone();
         // check that verification fails
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_ok());
+        assert!(dkg.verify_message(&sender, &pvss).is_ok());
         // check that application fails
         assert!(dkg.apply_message(sender.clone(), pvss.clone()).is_ok());
         // check that state has appropriately changed
@@ -497,7 +492,7 @@ mod test_dealing {
             }
         ));
         // check that sending another pvss from same sender fails
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_err());
+        assert!(dkg.verify_message(&sender, &pvss).is_err());
     }
 
     /// Test that if a validators tries to verify it's own
@@ -524,7 +519,7 @@ mod test_dealing {
         ));
         let sender = dkg.validators[0].validator.clone();
         // check that verification fails
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_ok());
+        assert!(dkg.verify_message(&sender, &pvss).is_ok());
         assert!(dkg.apply_message(sender, pvss).is_ok());
         // check that state did not change
         assert!(matches!(
@@ -579,12 +574,12 @@ mod test_dealing {
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_err());
+        assert!(dkg.verify_message(&sender, &pvss).is_err());
         assert!(dkg.apply_message(sender.clone(), pvss.clone()).is_err());
 
         // check that we can still accept pvss transcripts after meeting threshold
         dkg.state = DkgState::Dealt;
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_ok());
+        assert!(dkg.verify_message(&sender, &pvss).is_ok());
         assert!(dkg.apply_message(sender, pvss).is_ok());
         assert!(matches!(dkg.state, DkgState::Dealt))
     }
@@ -628,7 +623,7 @@ mod test_dealing {
         let pvss = dkg.share(rng).expect("Test failed");
         let sender = dkg.validators[0].validator.clone();
         // check that verification fails
-        assert!(dkg.verify_message(&sender, &pvss, rng).is_ok());
+        assert!(dkg.verify_message(&sender, &pvss).is_ok());
         assert!(dkg.apply_message(sender, pvss).is_ok());
         assert_eq!(dkg.increase_block(), PvssScheduler::Wait);
     }
@@ -670,11 +665,10 @@ mod test_aggregation {
     /// met, we can create a final key
     #[test]
     fn test_aggregate() {
-        let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dealt_dkg();
         let aggregate = dkg.aggregate().expect("Test failed");
         let sender = dkg.validators[dkg.me].validator.clone();
-        assert!(dkg.verify_message(&sender, &aggregate, rng).is_ok());
+        assert!(dkg.verify_message(&sender, &aggregate).is_ok());
         assert!(dkg.apply_message(sender, aggregate).is_ok());
         assert!(matches!(dkg.state, DkgState::Success { .. }));
     }
@@ -700,7 +694,6 @@ mod test_aggregation {
     /// [`DkgState::Dealt`]
     #[test]
     fn test_aggregate_message_state_guards() {
-        let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dealt_dkg();
         let aggregate = dkg.aggregate().expect("Test failed");
         let sender = dkg.validators[dkg.me].validator.clone();
@@ -708,14 +701,14 @@ mod test_aggregation {
             accumulated_shares: 0,
             block: 0,
         };
-        assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());
+        assert!(dkg.verify_message(&sender, &aggregate).is_err());
         assert!(dkg
             .apply_message(sender.clone(), aggregate.clone())
             .is_err());
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
-        assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());
+        assert!(dkg.verify_message(&sender, &aggregate).is_err());
         assert!(dkg.apply_message(sender, aggregate).is_err())
     }
 
@@ -723,19 +716,17 @@ mod test_aggregation {
     /// security threshold is not met
     #[test]
     fn test_aggregate_wont_verify_if_under_threshold() {
-        let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dealt_dkg();
         dkg.params.shares_num = 10;
         let aggregate = dkg.aggregate().expect("Test failed");
         let sender = dkg.validators[dkg.me].validator.clone();
-        assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());
+        assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 
     /// If the aggregated pvss passes, check that the announced
     /// key is correct. Verification should fail if it is not
     #[test]
     fn test_aggregate_wont_verify_if_wrong_key() {
-        let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dealt_dkg();
         let mut aggregate = dkg.aggregate().expect("Test failed");
         while dkg.final_key() == G1::zero() {
@@ -747,6 +738,6 @@ mod test_aggregation {
             *final_key = G1::zero();
         }
         let sender = dkg.validators[dkg.me].validator.clone();
-        assert!(dkg.verify_message(&sender, &aggregate, rng).is_err());
+        assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 }
