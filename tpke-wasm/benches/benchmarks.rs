@@ -37,6 +37,7 @@ pub fn bench_encrypt_combine(c: &mut Criterion) {
         move || {
             let setup = setup.clone();
             let decryption_shares = decryption_shares.clone();
+            #[allow(clippy::unit_arg)]
             black_box({
                 let mut ss_builder = SharedSecretBuilder::new(&setup);
                 for share in decryption_shares {
@@ -54,14 +55,16 @@ pub fn bench_encrypt_combine(c: &mut Criterion) {
         let encrypt_fn = bench_encrypt(*num_shares, *num_shares);
         group.measurement_time(core::time::Duration::new(30, 0));
         group.bench_function(format!("tpke-wasm::encrypt - num_shares={}, num_entities={}, threshold={}", num_shares, num_shares, num_shares), |b| {
-                b.iter(|| encrypt_fn())
-            });
+            #[allow(clippy::redundant_closure)]
+            b.iter(|| encrypt_fn())
+        });
 
         let combine_fn = bench_combine(*num_shares, *num_shares);
         group.measurement_time(core::time::Duration::new(30, 0));
         group.bench_function(format!("tpke-wasm::combine - num_shares={}, num_entities={}, threshold={}", num_shares, num_shares, num_shares), |b| {
-                    b.iter(|| combine_fn())
-                });
+            #[allow(clippy::redundant_closure)]
+            b.iter(|| combine_fn())
+        });
     }
 }
 

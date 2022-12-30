@@ -165,7 +165,7 @@ pub fn setup<E: PairingEngine>(
         pubkey_shares.chunks(1),
         privkey_shares.chunks(1)
     )
-        .enumerate()
+    .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
@@ -275,7 +275,7 @@ pub fn setup_simple<E: PairingEngine>(
         pubkey_shares.chunks(1),
         privkey_shares.chunks(1)
     )
-        .enumerate()
+    .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
@@ -309,11 +309,7 @@ pub fn setup_simple<E: PairingEngine>(
     // "Post the signed message \(\tau, (F_0, \ldots, F_t), \hat{u}2, (\hat{Y}{i,\omega_j})\) to the blockchain"
     // See: https://nikkolasg.github.io/ferveo/pvss.html#dealers-role
 
-    (
-        pubkey.into(),
-        privkey.into(),
-        private_contexts,
-    )
+    (pubkey.into(), privkey.into(), private_contexts)
 }
 
 pub fn generate_random<R: RngCore, E: PairingEngine>(
@@ -354,7 +350,8 @@ mod tests {
     fn decryption_share_serialization() {
         let decryption_share = DecryptionShare::<E> {
             decrypter_index: 1,
-            decryption_share: ark_bls12_381::G1Affine::prime_subgroup_generator(),
+            decryption_share: ark_bls12_381::G1Affine::prime_subgroup_generator(
+            ),
         };
 
         let serialized = decryption_share.to_bytes();
@@ -419,11 +416,15 @@ mod tests {
         }*/
         let prepared_blinded_key_shares =
             prepare_combine(&contexts[0].public_decryption_contexts, &shares);
-        let shared_secret = share_combine(&shares, &prepared_blinded_key_shares);
+        let shared_secret =
+            share_combine(&shares, &prepared_blinded_key_shares);
 
         // So far, the ciphertext is valid
-        let plaintext =
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
+        let plaintext = checked_decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+        );
         assert_eq!(plaintext, msg);
 
         // Malformed the ciphertext
@@ -505,11 +506,15 @@ mod tests {
             .collect::<Vec<_>>();
         let lagrange = prepare_combine_simple::<E>(shares_x);
 
-        let shared_secret = share_combine_simple::<E>(&decryption_shares, &lagrange);
+        let shared_secret =
+            share_combine_simple::<E>(&decryption_shares, &lagrange);
 
         // So far, the ciphertext is valid
-        let plaintext =
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
+        let plaintext = checked_decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+        );
         assert_eq!(plaintext, msg);
 
         // Malformed the ciphertext

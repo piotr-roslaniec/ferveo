@@ -126,7 +126,8 @@ pub fn bench_decryption(c: &mut Criterion) {
                     );
                     group.measurement_time(core::time::Duration::new(30, 0));
                     group.bench_function(format!("share_combine: {} validators threshold {}*2/3 - #msg {} - msg-size = {} bytes", num_validators, num_shares, msg_num, msg_size), |b| {
-                b.iter(a)
+                #[allow(clippy::redundant_closure)]
+                b.iter(||a())
             });
 
                     /*                let a = block_propose_bench(msg_num, num_shares, 150, msg_size);

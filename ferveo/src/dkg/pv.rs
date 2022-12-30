@@ -331,14 +331,14 @@ pub(crate) mod test_common {
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
     pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
-        setup_dealt_dkg_with_n_validators(4, 2, 4)
+        setup_dealt_dkg_with_n_validators(2, 4)
     }
 
     pub fn setup_dealt_dkg_with_n_validators(
-        n_validators: u32,
         security_threshold: u32,
         shares_num: u32,
     ) -> PubliclyVerifiableDkg<EllipticCurve> {
+        let n_validators = shares_num;
         // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
         let is_power_of_2 = |n: u32| n != 0 && (n & (n - 1)) == 0;
         assert!(is_power_of_2(shares_num));

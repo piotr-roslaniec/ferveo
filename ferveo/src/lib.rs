@@ -52,11 +52,12 @@ mod test_dkg_full {
     #[test]
     fn test_dkg_simple_decryption_variant_single_validator() {
         let rng = &mut ark_std::test_rng();
-        let dkg = setup_dealt_dkg_with_n_validators(1, 1, 1);
+        let dkg = setup_dealt_dkg_with_n_validators(1, 1);
 
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
+
         let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
 
         let aggregate = aggregate_for_decryption(&dkg);
@@ -90,7 +91,7 @@ mod test_dkg_full {
     #[test]
     fn test_dkg_simple_decryption_variant() {
         let rng = &mut ark_std::test_rng();
-        let dkg = setup_dealt_dkg_with_n_validators(4, 3, 4);
+        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
 
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
