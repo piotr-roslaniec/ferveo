@@ -27,7 +27,7 @@ pub fn gen_validators(
             .map(|i| TendermintValidator {
                 power: i as u64,
                 address: format!("validator_{}", i),
-                public_key: keypairs[i as usize].public(),
+                public_key: keypairs[i].public(),
             })
             .collect(),
     )

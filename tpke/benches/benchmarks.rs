@@ -20,8 +20,7 @@ pub fn bench_decryption(c: &mut Criterion) {
         type E = ark_bls12_381::Bls12_381;
         let threshold = num_shares * 2 / 3;
 
-        let (pubkey, _, contexts) =
-            setup::<E>(threshold, num_shares, num_entities, &mut rng);
+        let (pubkey, _, contexts) = setup::<E>(threshold, num_shares, &mut rng);
 
         // let mut messages: Vec<[u8; NUM_OF_TX]> = vec![];
         let mut messages: Vec<Vec<u8>> = vec![];
@@ -70,8 +69,7 @@ pub fn bench_decryption(c: &mut Criterion) {
         type E = ark_bls12_381::Bls12_381;
         let threshold = num_shares * 2 / 3;
 
-        let (pubkey, _, contexts) =
-            setup::<E>(threshold, num_shares, num_entities, &mut rng);
+        let (pubkey, _, contexts) = setup::<E>(threshold, num_shares, &mut rng);
 
         // let mut messages: Vec<[u8; NUM_OF_TX]> = vec![];
         let mut messages: Vec<Vec<u8>> = vec![];
@@ -128,7 +126,8 @@ pub fn bench_decryption(c: &mut Criterion) {
                     );
                     group.measurement_time(core::time::Duration::new(30, 0));
                     group.bench_function(format!("share_combine: {} validators threshold {}*2/3 - #msg {} - msg-size = {} bytes", num_validators, num_shares, msg_num, msg_size), |b| {
-                b.iter(|| a())
+                    #[allow(clippy::redundant_closure)]
+                    b.iter(|| a())
             });
 
                     /*                let a = block_propose_bench(msg_num, num_shares, 150, msg_size);

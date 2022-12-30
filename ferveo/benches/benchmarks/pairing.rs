@@ -367,7 +367,10 @@ pub fn bench_batch_inverse(c: &mut Criterion) {
         criterion::BenchmarkId::new("BLS12-381 Batch inverse", n),
         &a,
         |b, a| {
-            b.iter(|| black_box(ark_ff::batch_inversion(&mut a.clone())));
+            b.iter(|| {
+                ark_ff::batch_inversion(&mut a.clone());
+                black_box(())
+            });
         },
     );
 }

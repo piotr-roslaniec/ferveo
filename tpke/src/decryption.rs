@@ -5,7 +5,6 @@ use crate::*;
 
 use ark_ec::ProjectiveCurve;
 
-
 #[derive(Debug, Clone)]
 pub struct DecryptionShare<E: PairingEngine> {
     pub decrypter_index: usize,
@@ -46,8 +45,7 @@ impl<E: PairingEngine> PrivateDecryptionContext<E> {
     ) -> DecryptionShare<E> {
         // let decryption_share =
         //     ciphertext.commitment.mul(self.b_inv).into_affine();
-        let decryption_share =
-            ciphertext.commitment;
+        let decryption_share = ciphertext.commitment;
 
         DecryptionShare {
             decrypter_index: self.index,

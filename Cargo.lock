@@ -898,6 +898,7 @@ dependencies = [
  "miracl_core",
  "num",
  "pprof",
+ "rand 0.7.3",
  "rand 0.8.5",
  "serde",
  "serde_bytes",
