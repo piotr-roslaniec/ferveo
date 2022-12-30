@@ -7,7 +7,8 @@ use ark_ec::bn::G2Affine;
 use ark_ec::PairingEngine;
 use ark_ff::UniformRand;
 use ark_serialize::*;
-use ferveo_common::PublicKey;
+use ferveo_common::{Keypair, PublicKey};
+use group_threshold_cryptography::Ciphertext;
 use itertools::{zip_eq, Itertools};
 use subproductdomain::fast_multiexp;
 
@@ -254,6 +255,25 @@ pub fn aggregate_for_decryption<E: PairingEngine>(
         })
 }
 
+pub fn make_decryption_shares<E: PairingEngine>(
+    ciphertext: &Ciphertext<E>,
+    validator_keypairs: Vec<Keypair<E>>,
+    aggregate: Vec<E::G2Affine>,
+) -> Vec<E::Fqk> {
+    let decryption_shares = aggregate
+        .iter()
+        .zip_eq(validator_keypairs.iter())
+        .map(|(encrypted_share, keypair)| {
+            // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
+            let z_i = encrypted_share
+                .mul(keypair.decryption_key.inverse().unwrap().into_repr());
+            let u = ciphertext.commitment;
+            E::pairing(u, z_i)
+        })
+        .collect::<Vec<_>>();
+    decryption_shares
+}
+
 #[cfg(test)]
 mod test_pvss {
     use super::*;
@@ -316,7 +336,7 @@ mod test_pvss {
         let dkg = setup_dealt_dkg();
         let aggregate = aggregate(&dkg);
         //check that a polynomial of the correct degree was created
-        assert_eq!(aggregate.coeffs.len(), 5);
+        assert_eq!(aggregate.coeffs.len(), 3);
         // check that the correct number of shares were created
         assert_eq!(aggregate.shares.len(), 4);
         // check that the optimistic verify returns true

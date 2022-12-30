@@ -1,4 +1,5 @@
 use crate::*;
+use anyhow::Context;
 use ark_ec::bn::TwistType::D;
 use ark_ec::PairingEngine;
 use ark_ff::Field;
@@ -44,12 +45,15 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         // keep track of the owner of this instance in the validator set
         let me = validator_set
             .validators
-            .binary_search_by(|probe| me.cmp(probe))
-            .map_err(|_| anyhow!("could not find this validator in the provided validator set"))?;
+            .iter()
+            .position(|probe| me.address == probe.address)
+            .context(
+                "could not find this validator in the provided validator set",
+            )?;
 
         let validators = make_validators(validator_set);
 
-        // so as to minimize network load and enable retrying
+        // TODO: Remove my_partition
         let my_partition =
             params.retry_after * (2 * me as u32 / params.retry_after);
         Ok(Self {
@@ -67,6 +71,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             },
             me,
             validators,
+            // TODO: Remove window
             window: (my_partition, my_partition + params.retry_after),
         })
     }
@@ -154,8 +159,8 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 // an address keyed hashmap after partitioning the shares shares
                 // in the [`new`] method
                 let sender = self.validators
-                    .binary_search_by(|probe| sender.cmp(&probe.validator))
-                    .map_err(|_| anyhow!("dkg received unknown dealer"))?;
+                    .iter().position(|probe| sender.address == probe.validator.address)
+                    .context("dkg received unknown dealer")?;
                 if self.vss.contains_key(&(sender as u32)) {
                     Err(anyhow!("Repeat dealer {}", sender))
                 } else if !pvss.verify_optimistic() {
@@ -197,8 +202,8 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
                 // Add the ephemeral public key and pvss transcript
                 let sender = self.validators
-                    .binary_search_by(|probe| sender.cmp(&probe.validator))
-                    .map_err(|_| anyhow!("dkg received unknown dealer"))?;
+                    .iter().position(|probe| sender.address == probe.validator.address)
+                    .context("dkg received unknown dealer")?;
                 self.vss.insert(sender as u32, pvss);
 
                 // we keep track of the amount of shares seen until the security
@@ -298,6 +303,7 @@ pub(crate) mod test_common {
         my_index: usize,
     ) -> PubliclyVerifiableDkg<EllipticCurve> {
         let keypairs = gen_n_keypairs(n_validators);
+        for _keypair in &keypairs {}
         let validators = gen_n_validators(&keypairs, n_validators);
         let me = validators.validators[my_index].clone();
         PubliclyVerifiableDkg::new(
@@ -325,7 +331,7 @@ pub(crate) mod test_common {
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
     pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
-        setup_dealt_dkg_with_n_validators(4, 2, 6)
+        setup_dealt_dkg_with_n_validators(4, 2, 4)
     }
 
     pub fn setup_dealt_dkg_with_n_validators(
@@ -333,6 +339,10 @@ pub(crate) mod test_common {
         security_threshold: u32,
         shares_num: u32,
     ) -> PubliclyVerifiableDkg<EllipticCurve> {
+        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
+        let is_power_of_2 = |n: u32| n != 0 && (n & (n - 1)) == 0;
+        assert!(is_power_of_2(shares_num));
+
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
@@ -386,12 +396,12 @@ mod test_dkg_init {
             Params {
                 tau: 0,
                 security_threshold: 4,
-                shares_num: 6,
+                shares_num: 8,
                 retry_after: 2,
             },
             TendermintValidator::<EllipticCurve> {
                 power: 9001,
-                address: "Goku".into(),
+                address: "non-existant-validator".into(),
                 public_key: keypair.public(),
             },
             keypair,
@@ -434,22 +444,23 @@ mod test_dealing {
         }
         // our test dkg
         let mut dkg = setup_dkg(0);
-        // iterate over transcripts from lowest shares to highest
+        // iterate over transcripts
         let mut expected = 0u32;
-        for (sender, pvss) in transcripts.into_iter().rev().enumerate() {
+        for (sender, pvss) in transcripts.iter().enumerate() {
             // check the verification passes
             assert!(dkg
-                .verify_message(&dkg.validators[3 - sender].validator, &pvss)
+                .verify_message(&dkg.validators[sender].validator, pvss)
                 .is_ok());
             // check that application passes
             assert!(dkg
                 .apply_message(
-                    dkg.validators[3 - sender].validator.clone(),
-                    pvss,
+                    dkg.validators[sender].validator.clone(),
+                    pvss.clone(),
                 )
                 .is_ok());
             expected += 1; // dkg.validators[3 - sender].validator.power as u32;
-            if sender < 3 {
+                           // As long as we still have transcripts to deal, we should be in the Dealt state
+            if sender < transcripts.len() - 1 {
                 // check that shares accumulates correctly
                 match dkg.state {
                     DkgState::Sharing {

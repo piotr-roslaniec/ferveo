@@ -35,7 +35,7 @@ impl<E: PairingEngine> PartialOrd for TendermintValidator<E> {
 
 impl<E: PairingEngine> Ord for TendermintValidator<E> {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.power, &self.address).cmp(&(other.power, &other.address))
+        self.address.cmp(&other.address)
     }
 }
 
@@ -49,13 +49,12 @@ impl<E: PairingEngine> ValidatorSet<E> {
     /// Sorts the validators from highest to lowest. This ordering
     /// first considers staking weight and breaks ties on established
     /// address
-    pub fn new(mut validators: Vec<TendermintValidator<E>>) -> Self {
-        // reverse the ordering here
-        validators.sort_by(|a, b| b.cmp(a));
+    pub fn new(validators: Vec<TendermintValidator<E>>) -> Self {
         Self { validators }
     }
 
     /// Get the total voting power of the validator set
+    // TODO: Remove this
     pub fn total_voting_power(&self) -> u64 {
         self.validators.iter().map(|v| v.power).sum()
     }

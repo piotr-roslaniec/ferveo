@@ -39,113 +39,33 @@ mod test_dkg_full {
     use super::*;
 
     use crate::dkg::pv::test_common::*;
-    use ark_bls12_381::Bls12_381 as EllipticCurve;
-    use ark_ff::UniformRand;
-    use ferveo_common::{TendermintValidator, ValidatorSet};
+    use ark_bls12_381::{Bls12_381 as EllipticCurve, Bls12_381, G2Projective};
+    use ark_ec::bls12::G2Affine;
+    use ark_ff::{Fp12, UniformRand};
+    use ferveo_common::{Keypair, TendermintValidator, ValidatorSet};
     use group_threshold_cryptography as tpke;
+    use group_threshold_cryptography::Ciphertext;
     use itertools::{zip_eq, Itertools};
 
-    type E = ark_bls12_381::Bls12_381;
+    type E = Bls12_381;
 
     #[test]
-    fn test_dkg_simple_decryption_variant_with_single_validator() {
+    fn test_dkg_simple_decryption_variant_single_validator() {
         let rng = &mut ark_std::test_rng();
-        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
         let dkg = setup_dealt_dkg_with_n_validators(1, 1, 1);
 
-        // First, we encrypt a message using a DKG public key
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key(); // sum of g^coeffs[0] for all validators
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
-
-        let validator_keypair = gen_n_keypairs(1)[0];
-        let encrypted_shares =
-            batch_to_projective(&dkg.vss.get(&0).unwrap().shares);
-
-        let decryption_shares = encrypted_shares
-            .iter()
-            .map(|encrypted_share| {
-                // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-                let z_i = encrypted_share.mul(
-                    validator_keypair
-                        .decryption_key
-                        .inverse()
-                        .unwrap()
-                        .into_repr(),
-                );
-                let u = ciphertext.commitment;
-                
-                E::pairing(u, z_i)
-            })
-            .collect::<Vec<_>>();
-
-        let shares_x = &dkg
-            .domain
-            .elements()
-            .take(decryption_shares.len())
-            .collect::<Vec<_>>();
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(shares_x);
-
-        let s = tpke::share_combine_simple::<E>(
-            &decryption_shares,
-            &lagrange_coeffs,
-        );
-
-        let plaintext =
-            tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
-        assert_eq!(plaintext, msg);
-    }
-
-    /// Test happy flow for a full DKG with simple threshold decryption variant
-    #[test]
-    #[ignore]
-    fn test_dkg_simple_decryption_variant() {
-        //
-        // The following is copied from other tests
-        //
-
-        let rng = &mut ark_std::test_rng();
-        let dkg = setup_dealt_dkg();
-        let aggregate = aggregate(&dkg);
-        // check that a polynomial of the correct degree was created
-        assert_eq!(aggregate.coeffs.len(), 5);
-        // check that the correct number of shares were created
-        assert_eq!(aggregate.shares.len(), 4);
-        // check that the optimistic verify returns true
-        assert!(aggregate.verify_optimistic());
-        // check that the full verify returns true
-        assert!(aggregate.verify_full(&dkg));
-        // check that the verification of aggregation passes
-        assert_eq!(aggregate.verify_aggregation(&dkg).expect("Test failed"), 4);
-
-        //
-        // Now, we start the actual test
-        //
-
-        // At this point, we have a DKG that has been dealt and aggregated
-        // We now want to test the decryption of a message
-
-        // First, we encrypt a message using a DKG public key
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
         let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
 
-        // TODO: Update test utils so that we can easily get a validator keypair for each validator
-        let validator_keypairs = gen_keypairs();
-        // TODO: Check ciphertext validity, https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
         let aggregate = aggregate_for_decryption(&dkg);
+        // Aggregate contains only one set of shares
+        assert_eq!(aggregate, dkg.vss.get(&0).unwrap().shares);
 
-        // Each validator attempts to aggregate and decrypt the secret shares
-        let decryption_shares = zip_eq(validator_keypairs, aggregate)
-            .map(|(keypair, encrypted_shares)| {
-                let z_i = encrypted_shares.mul(keypair.decryption_key);
-                let u = ciphertext.commitment;
-                
-                E::pairing(u, z_i)
-            })
-            .collect::<Vec<_>>();
+        let validator_keypairs = gen_n_keypairs(1);
+        let decryption_shares =
+            make_decryption_shares(&ciphertext, validator_keypairs, aggregate);
 
         let shares_x = &dkg
             .domain
@@ -154,13 +74,62 @@ mod test_dkg_full {
             .collect::<Vec<_>>();
         let lagrange_coeffs = tpke::prepare_combine_simple::<E>(shares_x);
 
-        let s = tpke::share_combine_simple::<E>(
+        let shared_secret = tpke::share_combine_simple::<E>(
             &decryption_shares,
             &lagrange_coeffs,
         );
 
-        let plaintext =
-            tpke::checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
+        let plaintext = tpke::checked_decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+        );
+        assert_eq!(plaintext, msg);
+    }
+
+    #[test]
+    fn test_dkg_simple_decryption_variant() {
+        let rng = &mut ark_std::test_rng();
+        let dkg = setup_dealt_dkg_with_n_validators(4, 3, 4);
+
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let public_key = dkg.final_key();
+        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+
+        let aggregate = aggregate_for_decryption(&dkg);
+
+        // TODO: Before creating decryption shares, check ciphertext validity
+        // See: https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
+
+        let validator_keypairs = gen_n_keypairs(4);
+        // Make sure validators are in the same order dkg is by comparing their public keys
+        dkg.validators
+            .iter()
+            .zip_eq(validator_keypairs.iter())
+            .for_each(|(v, k)| {
+                assert_eq!(v.validator.public_key, k.public());
+            });
+        let decryption_shares =
+            make_decryption_shares(&ciphertext, validator_keypairs, aggregate);
+
+        let shares_x = &dkg
+            .domain
+            .elements()
+            .take(decryption_shares.len())
+            .collect::<Vec<_>>();
+        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(shares_x);
+
+        let shared_secret = tpke::share_combine_simple::<E>(
+            &decryption_shares,
+            &lagrange_coeffs,
+        );
+
+        let plaintext = tpke::checked_decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+        );
         assert_eq!(plaintext, msg);
     }
 }

@@ -506,7 +506,7 @@ mod tests {
                 let z_i = z_i.private_key_shares[0];
                 // Really want to call E::pairing here to avoid heavy computations on client side
                 // C_i = e(U, Z_i)
-                 // TODO: Check whether blinded key share fits here
+                // TODO: Check whether blinded key share fits here
                 E::pairing(u, z_i)
             })
             .collect::<Vec<_>>();
