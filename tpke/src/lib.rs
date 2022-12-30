@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
 use crate::hash_to_curve::htp_bls12381_g2;
 use ark_ec::{msm::FixedBaseMSM, AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, ToBytes, UniformRand, Zero};
@@ -15,14 +16,23 @@ use thiserror::Error;
 
 mod ciphertext;
 mod hash_to_curve;
+
 pub use ciphertext::*;
+
 mod key_share;
+
 pub use key_share::*;
+
 mod decryption;
+
 pub use decryption::*;
+
 mod combine;
+
 pub use combine::*;
+
 mod context;
+
 pub use context::*;
 
 // TODO: Turn into a crate features
@@ -32,6 +42,7 @@ pub mod serialization;
 pub trait ThresholdEncryptionParameters {
     type E: PairingEngine;
 }
+
 #[derive(Debug, Error)]
 pub enum ThresholdEncryptionError {
     /// Error
@@ -154,7 +165,7 @@ pub fn setup<E: PairingEngine>(
         pubkey_shares.chunks(1),
         privkey_shares.chunks(1)
     )
-    .enumerate()
+        .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
@@ -207,7 +218,6 @@ pub fn setup_simple<E: PairingEngine>(
     E::G1Affine,
     E::G2Affine,
     Vec<PrivateDecryptionContextSimple<E>>,
-    Vec<E::Fr>,
 ) {
     assert!(shares_num >= threshold);
 
@@ -222,29 +232,7 @@ pub fn setup_simple<E: PairingEngine>(
     // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
     let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
-    // TODO: Remove Lagrange coefficient calculation from delaer after the actual implementation is tested
     let shares_x = fft_domain.elements().collect::<Vec<_>>();
-    let shares =
-        izip!(shares_x.clone(), evals.evals.clone()).collect::<Vec<_>>();
-    let mut sum_of_products = E::Fr::zero();
-    let mut lagrange_coeffs = vec![];
-    for (x_j, y_j) in shares.clone() {
-        let mut prod = E::Fr::one();
-        for (x_m, _) in shares.clone() {
-            if x_j != x_m {
-                // x_i = 0
-                prod *= (x_m) / (x_m - x_j);
-            } else {
-                // Do nothing
-                // prod = prod;
-            }
-        }
-        sum_of_products += prod * y_j;
-        lagrange_coeffs.push(prod);
-    }
-
-    let secret = threshold_poly.coeffs[0];
-    assert_eq!(sum_of_products, secret);
 
     // A - public key shares of participants
     let pubkey_shares =
@@ -287,7 +275,7 @@ pub fn setup_simple<E: PairingEngine>(
         pubkey_shares.chunks(1),
         privkey_shares.chunks(1)
     )
-    .enumerate()
+        .enumerate()
     {
         let private_key_share = PrivateKeyShare::<E> {
             private_key_shares: private.to_vec(),
@@ -325,7 +313,6 @@ pub fn setup_simple<E: PairingEngine>(
         pubkey.into(),
         privkey.into(),
         private_contexts,
-        lagrange_coeffs,
     )
 }
 
@@ -360,15 +347,14 @@ mod tests {
         let serialized = ciphertext.to_bytes();
         let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
 
-        assert!(serialized == deserialized.to_bytes())
+        assert_eq!(serialized, deserialized.to_bytes())
     }
 
     #[test]
     fn decryption_share_serialization() {
         let decryption_share = DecryptionShare::<E> {
             decrypter_index: 1,
-            decryption_share: ark_bls12_381::G1Affine::prime_subgroup_generator(
-            ),
+            decryption_share: ark_bls12_381::G1Affine::prime_subgroup_generator(),
         };
 
         let serialized = decryption_share.to_bytes();
@@ -398,6 +384,7 @@ mod tests {
     // Source: https://stackoverflow.com/questions/26469715/how-do-i-write-a-rust-unit-test-that-ensures-that-a-panic-has-occurred
     // TODO: Remove after adding proper error handling to the library
     use std::panic;
+
     fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(
         f: F,
     ) -> std::thread::Result<R> {
@@ -432,24 +419,24 @@ mod tests {
         }*/
         let prepared_blinded_key_shares =
             prepare_combine(&contexts[0].public_decryption_contexts, &shares);
-        let s = share_combine(&shares, &prepared_blinded_key_shares);
+        let shared_secret = share_combine(&shares, &prepared_blinded_key_shares);
 
         // So far, the ciphertext is valid
         let plaintext =
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
         assert_eq!(plaintext, msg);
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
         let result = std::panic::catch_unwind(|| {
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s)
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
         let result = std::panic::catch_unwind(|| {
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s)
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
     }
@@ -488,7 +475,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         // To be updated
-        let (pubkey, _privkey, private_decryption_contexts, dealer_lagrange) =
+        let (pubkey, _privkey, private_decryption_contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
         // Stays the same
@@ -518,27 +505,24 @@ mod tests {
             .collect::<Vec<_>>();
         let lagrange = prepare_combine_simple::<E>(shares_x);
 
-        // dealer_lagrange is just a vector of L_i(0) values
-        assert_eq!(dealer_lagrange[0], dealer_lagrange[1]);
-        assert_eq!(dealer_lagrange, lagrange);
-        let s = share_combine_simple::<E>(&decryption_shares, &lagrange);
+        let shared_secret = share_combine_simple::<E>(&decryption_shares, &lagrange);
 
         // So far, the ciphertext is valid
         let plaintext =
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s);
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
         assert_eq!(plaintext, msg);
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
         let result = std::panic::catch_unwind(|| {
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s)
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
         let result = std::panic::catch_unwind(|| {
-            checked_decrypt_with_shared_secret(&ciphertext, aad, &s)
+            checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
     }
