@@ -238,7 +238,9 @@ pub fn aggregate_for_decryption<E: PairingEngine>(
     // From docs: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
     // "Two PVSS instances may be aggregated into a single PVSS instance by adding elementwise each of the corresponding group elements."
     let shares = dkg
-        .vss.values().map(|pvss| pvss.shares.clone())
+        .vss
+        .values()
+        .map(|pvss| pvss.shares.clone())
         .collect::<Vec<_>>();
     let first_share = shares.first().unwrap().to_vec();
     shares
