@@ -309,9 +309,8 @@ mod tests {
 
         let (pubkey, _privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
-            msg, aad, &pubkey, &mut rng,
-        );
+        let ciphertext =
+            encrypt::<rand::rngs::StdRng, E>(msg, aad, &pubkey, &mut rng);
 
         let serialized = ciphertext.to_bytes();
         let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
@@ -343,9 +342,8 @@ mod tests {
 
         let (pubkey, privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
-            msg, aad, &pubkey, &mut rng,
-        );
+        let ciphertext =
+            encrypt::<rand::rngs::StdRng, E>(msg, aad, &pubkey, &mut rng);
         let plaintext = checked_decrypt(&ciphertext, aad, privkey);
 
         assert_eq!(msg, plaintext)
@@ -402,14 +400,14 @@ mod tests {
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
-        let result = std::panic::catch_unwind(|| {
+        let result = panic::catch_unwind(|| {
             checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
-        let result = std::panic::catch_unwind(|| {
+        let result = panic::catch_unwind(|| {
             checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
@@ -424,9 +422,8 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _privkey, _) = setup::<E>(threshold, shares_num, &mut rng);
-        let mut ciphertext = encrypt::<ark_std::rand::rngs::StdRng, E>(
-            msg, aad, &pubkey, &mut rng,
-        );
+        let mut ciphertext =
+            encrypt::<rand::rngs::StdRng, E>(msg, aad, &pubkey, &mut rng);
 
         // So far, the ciphertext is valid
         assert!(check_ciphertext_validity(&ciphertext, aad));
@@ -449,7 +446,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         // To be updated
-        let (pubkey, _privkey, private_decryption_contexts) =
+        let (pubkey, _privkey, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
         // Stays the same
@@ -457,27 +454,14 @@ mod tests {
         let mut ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
 
         // Creating decryption shares
-        let decryption_shares = private_decryption_contexts
+        let decryption_shares: Vec<_> = contexts
             .iter()
-            .map(|context| {
-                let u = ciphertext.commitment;
-                let z_i = context.private_key_share.clone();
-                // Simplifying to just one key share per node
-                assert_eq!(z_i.private_key_shares.len(), 1);
-                let z_i = z_i.private_key_shares[0];
-                // Really want to call E::pairing here to avoid heavy computations on client side
-                // C_i = e(U, Z_i)
-                // TODO: Check whether blinded key share fits here
-                E::pairing(u, z_i)
-            })
-            .collect::<Vec<_>>();
+            .map(|context| context.create_share(&ciphertext))
+            .collect();
 
-        let shares_x = &private_decryption_contexts[0]
-            .public_decryption_contexts
-            .iter()
-            .map(|ctxt| ctxt.domain)
-            .collect::<Vec<_>>();
-        let lagrange = prepare_combine_simple::<E>(shares_x);
+        let lagrange = prepare_combine_simple::<E>(
+            &contexts[0].public_decryption_contexts,
+        );
 
         let shared_secret =
             share_combine_simple::<E>(&decryption_shares, &lagrange);
@@ -492,14 +476,14 @@ mod tests {
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
-        let result = std::panic::catch_unwind(|| {
+        let result = panic::catch_unwind(|| {
             checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
-        let result = std::panic::catch_unwind(|| {
+        let result = panic::catch_unwind(|| {
             checked_decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
         });
         assert!(result.is_err());

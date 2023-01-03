@@ -34,6 +34,6 @@ Run `cargo test --release` to run tests. Please note that performance may be sig
 
 ## Benchmarks
 
-Run `cargo bench --benches` to run benchmarks.
+Run `cargo bench --benches` to run benchmarks. Benchmark report is available in the `target/criterion/report` folder.
 
 

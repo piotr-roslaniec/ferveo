@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
 use crate::*;
 use ark_ec::ProjectiveCurve;
 use itertools::zip_eq;
@@ -42,17 +43,26 @@ pub fn prepare_combine<E: PairingEngine>(
         })
         .collect::<Vec<_>>()
 }
+
 pub fn prepare_combine_simple<E: PairingEngine>(
-    shares_x: &[E::Fr],
+    pub_ctxts: &[PublicDecryptionContextSimple<E>],
 ) -> Vec<E::Fr> {
-    // Calculate lagrange coefficients using optimized formula, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Optimal_algorithm
+    let shares_x: Vec<_> = pub_ctxts.iter().map(|c| c.domain).collect();
+    lagrange_basis_at::<E>(&shares_x, E::Fr::zero())
+}
+
+/// Calculate lagrange coefficients using optimized formula
+/// See https://en.wikipedia.org/wiki/Lagrange_polynomial#Optimal_algorithm
+fn lagrange_basis_at<E: PairingEngine>(
+    shares_x: &[E::Fr],
+    x_i: E::Fr,
+) -> Vec<<E>::Fr> {
     let mut lagrange_coeffs = vec![];
     for x_j in shares_x {
         let mut prod = E::Fr::one();
         for x_m in shares_x {
             if x_j != x_m {
-                // In this formula x_i = 0, hence numerator is x_m
-                prod *= (*x_m) / (*x_m - *x_j);
+                prod *= (*x_m - x_i) / (*x_m - *x_j);
             }
         }
         lagrange_coeffs.push(prod);
@@ -81,7 +91,7 @@ pub fn share_combine<E: PairingEngine>(
 }
 
 pub fn share_combine_simple<E: PairingEngine>(
-    shares: &[E::Fqk],
+    shares: &[DecryptionShareSimple<E>],
     lagrange_coeffs: &[E::Fr],
 ) -> E::Fqk {
     let mut product_of_shares = E::Fqk::one();
@@ -89,7 +99,7 @@ pub fn share_combine_simple<E: PairingEngine>(
     // Sum of C_i^{L_i}z
     for (c_i, alpha_i) in zip_eq(shares.iter(), lagrange_coeffs.iter()) {
         // Exponentiation by alpha_i
-        let ss = c_i.pow(alpha_i.into_repr());
+        let ss = c_i.decryption_share.pow(alpha_i.into_repr());
         product_of_shares *= ss;
     }
 
@@ -98,7 +108,6 @@ pub fn share_combine_simple<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-
     type Fr = <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fr;
 
     #[test]
