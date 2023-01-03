@@ -6,7 +6,6 @@ use pprof::criterion::{Output, PProfProfiler};
 use ferveo::*;
 
 pub fn dkgs(c: &mut Criterion) {
-    // use a fixed seed for reproducability
     use rand::SeedableRng;
     let _rng = rand::rngs::StdRng::seed_from_u64(0);
 
@@ -18,14 +17,14 @@ pub fn dkgs(c: &mut Criterion) {
     /*group.bench_function("Pedersen Pallas", |b| {
         b.iter(|| pedersen::<ark_pallas::Affine>())
     });
-    group.measurement_time(core::time::Duration::new(30, 0));*/
+    group.measurement_time(core::time::Duration::new(45, 0));*/
     // Benchmarking compare DKGs with 8192 shares/Pedersen BLS12-381: Collecting 10 sam                                                                                compare DKGs with 8192 shares/Pedersen BLS12-381
     //time:   [177.12 s 178.73 s 180.47 s]
     /*group.bench_function("Pedersen BLS12-381", |b| {
         b.iter(|| pedersen::<ark_bls12_381::G1Affine>())
     });*/
     // 2130.7 seconds per iteration to verify pairwise
-    group.measurement_time(core::time::Duration::new(60, 0));
+    group.measurement_time(core::time::Duration::new(90, 0));
     group.bench_function("PVDKG BLS12-381", |b| b.iter(|| setup_dealt_dkg(10)));
 }
 

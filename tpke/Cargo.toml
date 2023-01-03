@@ -8,6 +8,9 @@ description = "Threshold signature and encryption using group secret key"
 repository = "https://github.com/heliaxdev/group-threshold-crypto/"
 readme = "README.md"
 
+[lib]
+bench = false
+
 [dependencies]
 hex = "=0.4.3"
 rand_core = "0.6"

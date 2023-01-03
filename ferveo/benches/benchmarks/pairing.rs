@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use ark_bls12_381::*;
 use ark_ec::*;
 use criterion::{black_box, criterion_group, Criterion};
@@ -12,7 +14,7 @@ pub fn lagrange(c: &mut Criterion) {
     let mut group = c.benchmark_group("lagrange running time");
     group.sample_size(10);
 
-    group.measurement_time(core::time::Duration::new(20, 0));
+    group.measurement_time(core::time::Duration::new(30, 0));
     let mut u = vec![];
     for _ in 0..(8192 * 2 / 3) {
         u.push(Fr::rand(rng));
@@ -67,7 +69,7 @@ pub fn pairing(c: &mut Criterion) {
                 .into_affine()
         })
         .collect::<Vec<G2Affine>>();
-    group.measurement_time(core::time::Duration::new(5, 0));
+    group.measurement_time(core::time::Duration::new(10, 0));
     group.bench_function("BLS12-381 pairing", |b| {
         b.iter(|| black_box(Bls12_381::pairing(P[0], Q[0])))
     });
@@ -159,7 +161,7 @@ pub fn pairing(c: &mut Criterion) {
         window_size,
         Q_j.into_projective(),
     );
-    group.measurement_time(core::time::Duration::new(20, 0));
+    group.measurement_time(core::time::Duration::new(30, 0));
 
     group.bench_function("BLS12-381 100 MSM linear combine G2", |b| {
         b.iter(|| {
@@ -291,7 +293,7 @@ fn sigs_with_distinct_keys() -> impl Iterator<Item = Item> {
 pub fn redjubjub(c: &mut Criterion) {
     let mut group = c.benchmark_group("Redjubjub Batch Verification");
     group.sample_size(10);
-    group.measurement_time(core::time::Duration::new(5, 0));
+    group.measurement_time(core::time::Duration::new(10, 0));
 
     for &n in [1, 100usize, 1024 * 2 / 3, 8192 * 2 / 3].iter() {
         let sigs = sigs_with_distinct_keys().take(n).collect::<Vec<_>>();
@@ -324,7 +326,7 @@ pub fn redjubjub(c: &mut Criterion) {
 fn ed25519_batch(c: &mut Criterion) {
     let mut group = c.benchmark_group("Ed25519 Batch Verification");
     group.sample_size(10);
-    group.measurement_time(core::time::Duration::new(5, 0));
+    group.measurement_time(core::time::Duration::new(10, 0));
 
     use ed25519_dalek::Signer;
     use ed25519_dalek::{Keypair, PublicKey, Signature};
@@ -362,7 +364,7 @@ pub fn bench_batch_inverse(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("BLS12-381 Batch inverse");
     group.sample_size(10);
-    group.measurement_time(core::time::Duration::new(20, 0));
+    group.measurement_time(core::time::Duration::new(30, 0));
     group.bench_with_input(
         criterion::BenchmarkId::new("BLS12-381 Batch inverse", n),
         &a,

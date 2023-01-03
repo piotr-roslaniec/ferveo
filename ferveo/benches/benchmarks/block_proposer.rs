@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use ark_bls12_381::*;
@@ -17,8 +19,7 @@ pub fn block_proposer(c: &mut Criterion) {
     let rng = &mut ark_std::test_rng();
     let mut group = c.benchmark_group("lagrange running time");
     group.sample_size(10);
-
-    group.measurement_time(core::time::Duration::new(20, 0));
+    group.measurement_time(core::time::Duration::new(30, 0))
 
     use ark_ff::PrimeField;
     let scalar_bits = Fr::size_in_bits();
@@ -34,7 +35,7 @@ pub fn block_proposer(c: &mut Criterion) {
             FixedBaseMSM::get_window_table(scalar_bits, window_size, *B_j)
         })
         .collect::<Vec<_>>();
-    group.measurement_time(core::time::Duration::new(20, 0));
+    group.measurement_time(core::time::Duration::new(30, 0))
 }
 
 pub fn work(
@@ -104,7 +105,7 @@ pub fn work(
         &ferveo::SubproductDomain::<Fr>::new(u.clone())
             .inverse_lagrange_coefficients(),
     )
-    .unwrap();
+        .unwrap();
 
     let right = B
         .iter()

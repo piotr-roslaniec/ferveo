@@ -1,7 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use group_threshold_cryptography::*;
 
-const NUM_SHARES_CASES: [usize; 8] = [2, 4, 8, 16, 32, 64, 128, 256];
+// const NUM_SHARES_CASES: [usize; 6] = [4, 8, 16, 32, 64, 128];
+const NUM_SHARES_CASES: [usize; 1] = [4];
 const MSG_SIZE: usize = 256;
 
 type E = ark_bls12_381::Bls12_381;
@@ -45,7 +46,7 @@ pub fn bench_threshold_decryption_fast(c: &mut Criterion) {
 
     for num_shares in NUM_SHARES_CASES {
         let a = share_combine_bench(num_shares);
-        group.measurement_time(core::time::Duration::new(30, 0));
+        group.measurement_time(core::time::Duration::new(45, 0));
         group.bench_function(
             format!(
                 "share_combine: {} shares threshold 2/3 - msg-size = {} bytes",
@@ -97,7 +98,7 @@ pub fn bench_threshold_decryption_simple(c: &mut Criterion) {
 
     for num_shares in NUM_SHARES_CASES {
         let a = share_combine_bench(num_shares);
-        group.measurement_time(core::time::Duration::new(30, 0));
+        group.measurement_time(core::time::Duration::new(45, 0));
         group.bench_function(
             format!(
                 "share_combine: {} shares threshold 2/3 - msg-size = {} bytes",
