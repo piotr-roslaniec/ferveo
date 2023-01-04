@@ -1,0 +1,45 @@
+
+
+default:
+  image: rustlang/rust:nightly
+
+stages:
+  - lint
+  - build
+  - test
+
+##
+## Stage: lint
+##
+
+clippy:
+  stage: lint
+  before_script:
+    - rustup component add clippy
+  script:
+    - cargo clippy -- -D clippy::all
+
+rustfmt:
+  stage: lint
+  before_script:
+    - rustup component add rustfmt
+  script:
+    - cargo fmt -- --check
+
+##
+## Stage: build
+##
+
+build:
+  stage: build
+  script:
+    - cargo build
+
+##
+## Stage: test
+##
+
+test:
+  stage: test
+  script:
+    - cargo test

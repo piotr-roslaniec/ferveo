@@ -1,0 +1,26 @@
+[workspace]
+
+members = [
+  "ferveo",
+  "ferveo-common",
+  "subproductdomain",
+  "tpke",
+  "tpke-wasm",
+  "tpke-python",
+]
+
+[profile.bench]
+opt-level = 3
+debug = true
+lto = true
+codegen-units = 1
+
+# Optimizations are needed such that the tests run in a reasonable timeframe
+[profile.test]
+opt-level = 3
+debug = true
+
+[profile.release]
+debug = true
+lto = true
+codegen-units = 1

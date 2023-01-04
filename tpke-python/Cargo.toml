@@ -1,0 +1,15 @@
+[package]
+name = "tpke-python"
+authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.16"
+group-threshold-cryptography = { path = "../tpke"}
+
+[build-dependencies]
+pyo3-build-config = "*"
