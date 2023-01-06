@@ -14,7 +14,7 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  # RUSTFLAGS: "-Dwarnings"
+  RUSTFLAGS: "-Dwarnings"
 
 jobs:
   check:
@@ -116,7 +116,9 @@ jobs:
           eval OUTPUT_PATH=$REL_OUTPUT_PATH;
           mkdir -p $OUTPUT_PATH;
           touch $OUTPUT_PATH/output.txt;
-          cargo bench -- --output-format bencher | tee $OUTPUT_PATH/output.txt;
+          # Currently fails to extract benchmark information https://github.com/rhysd/github-action-benchmark/issues/39
+          # Thats why '::' is replaced with ' '
+          cargo bench -- --output-format bencher | sed 's/::/__/' | tee $OUTPUT_PATH/output.txt;
           echo "Saved output to $OUTPUT_PATH/output.txt";
           popd
 
@@ -132,7 +134,7 @@ jobs:
 
       - name: Store benchmark result & create dashboard (unmerged PR only)
         if: github.event_name == 'pull_request'
-        uses: rhysd/github-action-benchmark@v1.15.0
+        uses: rhysd/github-action-benchmark@v1
         with:
           name: Rust Benchmark
           tool: 'cargo'
@@ -152,7 +154,7 @@ jobs:
       - name: Store benchmark result & create dashboard (merge to main only)
         # only merges to main (implies PR is finished and approved by this point)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
-        uses: rhysd/github-action-benchmark@v1.15.0
+        uses: rhysd/github-action-benchmark@v1
         with:
           name: Rust Benchmark
           tool: 'cargo'
