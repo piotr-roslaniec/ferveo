@@ -22,6 +22,7 @@ pub type TpkeSharedSecret =
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
 pub struct PrivateDecryptionContext(tpke::api::PrivateDecryptionContext);
+
 #[wasm_bindgen]
 impl PrivateDecryptionContext {
     pub(crate) fn serialized_size() -> usize {
@@ -127,6 +128,7 @@ impl PublicKey {
         bytes
     }
 }
+
 #[serde_as]
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -301,4 +303,5 @@ pub fn decrypt_with_shared_secret(
         &ciphertext.aad,
         &shared_secret.0,
     )
+    .unwrap()
 }

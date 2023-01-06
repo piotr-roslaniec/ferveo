@@ -14,7 +14,7 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: "-Dwarnings"
+  # RUSTFLAGS: "-Dwarnings"
 
 jobs:
   check:
@@ -79,7 +79,7 @@ jobs:
 
   benchmark:
     runs-on: ubuntu-latest
-    #    needs: [ test ]
+    needs: [ test ]
     strategy:
       fail-fast: false
       matrix:

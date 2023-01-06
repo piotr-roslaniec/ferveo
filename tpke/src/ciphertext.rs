@@ -161,11 +161,11 @@ pub fn checked_decrypt_with_shared_secret<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
     s: &E::Fqk,
-) -> Vec<u8> {
+) -> Result<Vec<u8>> {
     if !check_ciphertext_validity(ciphertext, aad) {
-        panic!("Ciphertext is invalid");
+        return Err(ThresholdEncryptionError::CiphertextVerificationFailed);
     }
-    decrypt_with_shared_secret(ciphertext, s)
+    Ok(decrypt_with_shared_secret(ciphertext, s))
 }
 
 fn blake2s_hash(input: &[u8]) -> Vec<u8> {
