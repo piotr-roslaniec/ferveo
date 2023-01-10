@@ -104,17 +104,12 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-
 #        if: github.event_name == 'pull_request'
-    runBenchmark:
-      name: run benchmark
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v3
-        - uses: boa-dev/criterion-compare-action@v3
-          with:
-            cwd: ${{ matrix.component }}
-            branchName: ${{ github.base_ref }}
+      - uses: actions/checkout@v3
+      - uses: boa-dev/criterion-compare-action@v3
+        with:
+          cwd: ${{ matrix.component }}
+          branchName: ${{ github.base_ref }}
 
       # The next steps have been adapted from https://raw.githubusercontent.com/unicode-org/icu4x/main/.github/workflows/build-test.yml
 
