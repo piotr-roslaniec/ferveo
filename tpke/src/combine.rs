@@ -106,6 +106,15 @@ pub fn share_combine_simple<E: PairingEngine>(
     product_of_shares
 }
 
+pub fn share_combine_simple_precomputed<E: PairingEngine>(
+    shares: &[DecryptionShareSimplePrecomputed<E>],
+) -> E::Fqk {
+    // TODO: Add formulas
+    shares
+        .iter()
+        .fold(E::Fqk::one(), |acc, c_i| acc * c_i.decryption_share)
+}
+
 #[cfg(test)]
 mod tests {
     type Fr = <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fr;

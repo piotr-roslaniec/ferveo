@@ -3,6 +3,7 @@ use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
 use group_threshold_cryptography::*;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand_core::RngCore;
 
@@ -75,7 +76,7 @@ struct SetupSimple {
     contexts: Vec<PrivateDecryptionContextSimple<E>>,
     pub_contexts: Vec<PublicDecryptionContextSimple<E>>,
     decryption_shares: Vec<DecryptionShareSimple<E>>,
-    lagrange: Vec<Fr>,
+    lagrange_coeffs: Vec<Fr>,
 }
 
 impl SetupSimple {
@@ -114,7 +115,7 @@ impl SetupSimple {
             contexts,
             pub_contexts,
             decryption_shares,
-            lagrange,
+            lagrange_coeffs: lagrange,
         }
     }
 }
@@ -154,6 +155,24 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                 })
             }
         };
+        let simple_precomputed = {
+            let setup = SetupSimple::new(shares_num, rng);
+            move || {
+                black_box(
+                    setup
+                        .contexts
+                        .iter()
+                        .zip_eq(setup.lagrange_coeffs.iter())
+                        .map(|(context, lagrange_coeff)| {
+                            context.create_share_precomputed(
+                                &setup.shared.ciphertext,
+                                lagrange_coeff,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            }
+        };
 
         group.sample_size(10);
         group.bench_function(
@@ -168,6 +187,13 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
             |b| {
                 #[allow(clippy::redundant_closure)]
                 b.iter(|| simple())
+            },
+        );
+        group.bench_function(
+            BenchmarkId::new("share_create_simple_precomputed", shares_num),
+            |b| {
+                #[allow(clippy::redundant_closure)]
+                b.iter(|| simple_precomputed())
             },
         );
     }
@@ -232,7 +258,28 @@ pub fn bench_share_combine(c: &mut Criterion) {
             move || {
                 black_box(share_combine_simple::<E>(
                     &setup.decryption_shares,
-                    &setup.lagrange,
+                    &setup.lagrange_coeffs,
+                ));
+            }
+        };
+        let simple_precomputed = {
+            let setup = SetupSimple::new(shares_num, rng);
+
+            let decryption_shares: Vec<_> = setup
+                .contexts
+                .iter()
+                .zip_eq(setup.lagrange_coeffs.iter())
+                .map(|(context, lagrange_coeff)| {
+                    context.create_share_precomputed(
+                        &setup.shared.ciphertext,
+                        lagrange_coeff,
+                    )
+                })
+                .collect();
+
+            move || {
+                black_box(share_combine_simple_precomputed::<E>(
+                    &decryption_shares,
                 ));
             }
         };
@@ -250,6 +297,13 @@ pub fn bench_share_combine(c: &mut Criterion) {
             |b| {
                 #[allow(clippy::redundant_closure)]
                 b.iter(|| simple())
+            },
+        );
+        group.bench_function(
+            BenchmarkId::new("share_combine_simple_precomputed", shares_num),
+            |b| {
+                #[allow(clippy::redundant_closure)]
+                b.iter(|| simple_precomputed())
             },
         );
     }

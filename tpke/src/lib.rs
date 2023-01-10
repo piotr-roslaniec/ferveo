@@ -346,6 +346,7 @@ mod tests {
     // Source: https://stackoverflow.com/questions/26469715/how-do-i-write-a-rust-unit-test-that-ensures-that-a-panic-has-occurred
     // TODO: Remove after adding proper error handling to the library
 
+    use itertools::Itertools;
     use std::panic;
 
     fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(
@@ -376,7 +377,7 @@ mod tests {
         assert!(checked_decrypt_with_shared_secret(
             &ciphertext,
             aad,
-            shared_secret
+            shared_secret,
         )
         .is_err());
 
@@ -385,7 +386,7 @@ mod tests {
         assert!(checked_decrypt_with_shared_secret(
             &ciphertext,
             aad,
-            shared_secret
+            shared_secret,
         )
         .is_err());
     }
@@ -470,6 +471,37 @@ mod tests {
 
         let shared_secret =
             share_combine_simple::<E>(&decryption_shares, &lagrange);
+
+        test_ciphertext_validation_fails(msg, aad, &ciphertext, &shared_secret);
+    }
+
+    #[test]
+    fn simple_threshold_decryption_precomputed() {
+        let mut rng = &mut test_rng();
+        let threshold = 16 * 2 / 3;
+        let shares_num = 16;
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+
+        let (pubkey, _, contexts) =
+            setup_simple::<E>(threshold, shares_num, &mut rng);
+
+        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+
+        let lagrange_coeffs = prepare_combine_simple::<E>(
+            &contexts[0].public_decryption_contexts,
+        );
+
+        let decryption_shares: Vec<_> = contexts
+            .iter()
+            .zip_eq(lagrange_coeffs.iter())
+            .map(|(context, lagrange_coeff)| {
+                context.create_share_precomputed(&ciphertext, lagrange_coeff)
+            })
+            .collect();
+
+        let shared_secret =
+            share_combine_simple_precomputed::<E>(&decryption_shares);
 
         test_ciphertext_validation_fails(msg, aad, &ciphertext, &shared_secret);
     }
