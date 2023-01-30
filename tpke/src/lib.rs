@@ -2,18 +2,15 @@ use crate::hash_to_curve::htp_bls12381_g2;
 use crate::SetupParams;
 
 use ark_ec::{AffineCurve, PairingEngine};
-use ark_ff::{Field, One, PrimeField, ToBytes, UniformRand, Zero};
+use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_poly::{
     univariate::DensePolynomial, EvaluationDomain, Polynomial, UVPolynomial,
 };
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use itertools::izip;
-
-use subproductdomain::{fast_multiexp, SubproductDomain};
-
 use rand_core::RngCore;
 use std::usize;
-
+use subproductdomain::{fast_multiexp, SubproductDomain};
 use thiserror::Error;
 
 mod ciphertext;
@@ -60,26 +57,6 @@ pub enum ThresholdEncryptionError {
 }
 
 pub type Result<T> = std::result::Result<T, ThresholdEncryptionError>;
-
-fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(message: &[u8]) -> T {
-    let mut point_ser: Vec<u8> = Vec::new();
-    let point = htp_bls12381_g2(message);
-    point.serialize(&mut point_ser).unwrap();
-    T::deserialize(&point_ser[..]).unwrap()
-}
-
-fn construct_tag_hash<E: PairingEngine>(
-    u: E::G1Affine,
-    stream_ciphertext: &[u8],
-    aad: &[u8],
-) -> E::G2Affine {
-    let mut hash_input = Vec::<u8>::new();
-    u.write(&mut hash_input).unwrap();
-    hash_input.extend_from_slice(stream_ciphertext);
-    hash_input.extend_from_slice(aad);
-
-    hash_to_g2(&hash_input)
-}
 
 pub fn setup_fast<E: PairingEngine>(
     threshold: usize,
@@ -372,64 +349,6 @@ mod tests {
         let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
         let lagrange = prepare_combine_simple::<E>(&domain);
         share_combine_simple::<E>(decryption_shares, &lagrange)
-    }
-
-    #[test]
-    fn ciphertext_serialization() {
-        let rng = &mut test_rng();
-        let shares_num = 16;
-        let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-
-        let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
-
-        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
-
-        let serialized = ciphertext.to_bytes();
-        let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
-
-        assert_eq!(serialized, deserialized.to_bytes())
-    }
-
-    #[test]
-    fn symmetric_encryption() {
-        let rng = &mut test_rng();
-        let shares_num = 16;
-        let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-
-        let (pubkey, privkey, _) = setup_fast::<E>(threshold, shares_num, rng);
-
-        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
-
-        let plaintext = decrypt_symmetric(&ciphertext, aad, privkey).unwrap();
-
-        assert_eq!(msg, plaintext)
-    }
-
-    #[test]
-    fn ciphertext_validity_check() {
-        let rng = &mut test_rng();
-        let shares_num = 16;
-        let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-
-        let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
-        let mut ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
-
-        // So far, the ciphertext is valid
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_ok());
-
-        // Malformed the ciphertext
-        ciphertext.ciphertext[0] += 1;
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
-
-        // Malformed the AAD
-        let aad = "bad aad".as_bytes();
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
     }
 
     #[test]

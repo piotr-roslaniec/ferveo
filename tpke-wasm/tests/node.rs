@@ -5,8 +5,6 @@ extern crate wasm_bindgen_test;
 use tpke_wasm::*;
 use wasm_bindgen_test::*;
 
-extern crate group_threshold_cryptography as tpke;
-
 #[test]
 #[wasm_bindgen_test]
 pub fn participant_payload_serialization() {
@@ -39,7 +37,7 @@ fn encrypts_and_decrypts() {
     let setup = Setup::new(threshold, shares_num);
 
     let ciphertext = encrypt(&message, &aad, &setup.public_key);
-    let plaintext = decrypt(&ciphertext, &setup.private_key);
+    let plaintext = decrypt_with_private_key(&ciphertext, &setup.private_key);
 
     // TODO: Plaintext is padded to 32 bytes. Fix this.
     assert_eq!(message, plaintext[..message.len()])

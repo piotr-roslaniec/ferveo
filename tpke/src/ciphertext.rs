@@ -9,8 +9,6 @@ use chacha20poly1305::{
 };
 use rand_core::RngCore;
 
-use crate::{construct_tag_hash, hash_to_g2};
-
 #[derive(Clone, Debug)]
 pub struct Ciphertext<E: PairingEngine> {
     pub commitment: E::G1Affine, // U
@@ -190,4 +188,95 @@ fn nonce_from_commitment<E: PairingEngine>(commitment: E::G1Affine) -> Nonce {
         .unwrap();
     let commitment_hash = blake2s_hash(&commitment_bytes);
     *Nonce::from_slice(&commitment_hash[..12])
+}
+
+fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(message: &[u8]) -> T {
+    let mut point_ser: Vec<u8> = Vec::new();
+    let point = htp_bls12381_g2(message);
+    point.serialize(&mut point_ser).unwrap();
+    T::deserialize(&point_ser[..]).unwrap()
+}
+
+fn construct_tag_hash<E: PairingEngine>(
+    u: E::G1Affine,
+    stream_ciphertext: &[u8],
+    aad: &[u8],
+) -> E::G2Affine {
+    let mut hash_input = Vec::<u8>::new();
+    u.write(&mut hash_input).unwrap();
+    hash_input.extend_from_slice(stream_ciphertext);
+    hash_input.extend_from_slice(aad);
+
+    hash_to_g2(&hash_input)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        check_ciphertext_validity, decrypt_symmetric, encrypt, setup_fast,
+        Ciphertext,
+    };
+    use ark_bls12_381::{Fr, G1Projective, G2Projective};
+    use ark_ec::ProjectiveCurve;
+    use ark_ff::PrimeField;
+    use ark_std::{test_rng, UniformRand};
+    use rand::prelude::StdRng;
+
+    type E = ark_bls12_381::Bls12_381;
+
+    #[test]
+    fn ciphertext_serialization() {
+        let rng = &mut test_rng();
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let pubkey = G1Projective::rand(rng).into_affine();
+        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+
+        let serialized = ciphertext.to_bytes();
+        let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
+
+        assert_eq!(serialized, deserialized.to_bytes())
+    }
+
+    #[test]
+    fn symmetric_encryption() {
+        let rng = &mut test_rng();
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+
+        let x = Fr::rand(rng).into_repr();
+        let pubkey = G1Projective::prime_subgroup_generator()
+            .mul(x)
+            .into_affine();
+        let privkey = G2Projective::prime_subgroup_generator()
+            .mul(x)
+            .into_affine();
+
+        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+        let plaintext = decrypt_symmetric(&ciphertext, aad, privkey).unwrap();
+
+        assert_eq!(msg, plaintext)
+    }
+
+    #[test]
+    fn ciphertext_validity_check() {
+        let rng = &mut test_rng();
+        let shares_num = 16;
+        let threshold = shares_num * 2 / 3;
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
+        let mut ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+
+        // So far, the ciphertext is valid
+        assert!(check_ciphertext_validity(&ciphertext, aad).is_ok());
+
+        // Malformed the ciphertext
+        ciphertext.ciphertext[0] += 1;
+        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
+
+        // Malformed the AAD
+        let aad = "bad aad".as_bytes();
+        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
+    }
 }

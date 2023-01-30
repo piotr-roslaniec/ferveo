@@ -5,19 +5,11 @@ extern crate group_threshold_cryptography as tpke;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tpke::api::*;
 use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
 extern crate wee_alloc;
-
-pub type E = ark_bls12_381::Bls12_381;
-pub type TpkePublicKey = ark_bls12_381::G1Affine;
-pub type TpkePrivateKey = ark_bls12_381::G2Affine;
-pub type TpkeCiphertext = tpke::Ciphertext<E>;
-pub type TpkeDecryptionShare = tpke::DecryptionShareFast<E>;
-pub type TpkePublicDecryptionContext = tpke::PublicDecryptionContextFast<E>;
-pub type TpkeSharedSecret =
-    <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fqk;
 
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
@@ -214,7 +206,7 @@ impl Setup {
             .collect()
     }
 
-    // TODO: Add `decryptorShares` helper method
+    // TODO: Add `decryptorShares` helper method?
 }
 
 #[wasm_bindgen]
@@ -231,10 +223,7 @@ pub fn encrypt(
     public_key: &PublicKey,
 ) -> Ciphertext {
     set_panic_hook();
-
-    let mut rng = rand::thread_rng();
-    let ciphertext =
-        tpke::encrypt::<_, E>(message, aad, &public_key.0, &mut rng);
+    let ciphertext = tpke::api::encrypt(message, aad, &public_key.0);
     Ciphertext {
         ciphertext,
         aad: aad.to_vec(),
@@ -242,7 +231,10 @@ pub fn encrypt(
 }
 
 #[wasm_bindgen]
-pub fn decrypt(ciphertext: &Ciphertext, private_key: &PrivateKey) -> Vec<u8> {
+pub fn decrypt_with_private_key(
+    ciphertext: &Ciphertext,
+    private_key: &PrivateKey,
+) -> Vec<u8> {
     set_panic_hook();
 
     tpke::decrypt_symmetric(
@@ -308,7 +300,7 @@ pub fn decrypt_with_shared_secret(
 ) -> Vec<u8> {
     set_panic_hook();
 
-    tpke::decrypt_with_shared_secret(
+    tpke::api::decrypt_with_shared_secret(
         &ciphertext.ciphertext,
         &ciphertext.aad,
         &shared_secret.0,
