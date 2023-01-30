@@ -250,7 +250,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
 
-        DecryptionShareSimplePrecomputed::create(
+        DecryptionShareSimplePrecomputed::new(
             validator_index,
             validator_decryption_key,
             &private_key_share,

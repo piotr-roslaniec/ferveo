@@ -225,7 +225,7 @@ mod test_dkg_full {
 
         // Should fail because of the bad checksum
         let mut with_bad_checksum = decryption_share;
-        with_bad_checksum.validator_checksum = G1Affine::zero();
+        with_bad_checksum.validator_checksum.checksum = G1Affine::zero();
         assert!(!with_bad_checksum.verify(
             &pvss_aggregated.shares[0],
             &validator_keypairs[0].public().encryption_key,

@@ -593,8 +593,9 @@ mod tests {
         // Now, let's test that verification fails if we one of the decryption shares is invalid.
 
         let mut has_bad_checksum = decryption_shares[0].clone();
-        has_bad_checksum.validator_checksum = has_bad_checksum
+        has_bad_checksum.validator_checksum.checksum = has_bad_checksum
             .validator_checksum
+            .checksum
             .mul(BigInteger256::rand(rng))
             .into_affine();
 

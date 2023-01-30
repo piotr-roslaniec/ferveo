@@ -95,7 +95,7 @@ impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
             .collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
 
-        DecryptionShareSimplePrecomputed::create(
+        DecryptionShareSimplePrecomputed::new(
             self.index,
             &self.validator_private_key,
             &self.private_key_share,

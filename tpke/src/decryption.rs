@@ -36,45 +36,55 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
     }
 }
 
-fn make_validator_checksum<E: PairingEngine>(
-    validator_decryption_key: &E::Fr,
-    ciphertext: &Ciphertext<E>,
-) -> E::G1Affine {
-    // C_i = dk_i^{-1} * U
-    ciphertext
-        .commitment
-        .mul(validator_decryption_key.inverse().unwrap())
-        .into_affine()
+#[derive(Debug, Clone)]
+pub struct ValidatorShareChecksum<E: PairingEngine> {
+    // TODO: Consider replacing named inner variable with () syntax
+    pub checksum: E::G1Affine,
 }
 
-fn verify_validator_checksum<E: PairingEngine>(
-    decryption_share: &E::Fqk,
-    validator_checksum: &E::G1Affine,
-    share_aggregate: &E::G2Affine,
-    validator_public_key: &E::G2Affine,
-    h: &E::G2Projective,
-    ciphertext: &Ciphertext<E>,
-) -> bool {
-    // D_i == e(C_i, Y_i)
-    if *decryption_share != E::pairing(*validator_checksum, *share_aggregate) {
-        return false;
+impl<E: PairingEngine> ValidatorShareChecksum<E> {
+    pub fn new(
+        validator_decryption_key: &E::Fr,
+        ciphertext: &Ciphertext<E>,
+    ) -> Self {
+        // C_i = dk_i^{-1} * U
+        let checksum = ciphertext
+            .commitment
+            .mul(validator_decryption_key.inverse().unwrap())
+            .into_affine();
+        Self { checksum }
     }
 
-    // e(C_i, ek_i) == e(U, H)
-    if E::pairing(*validator_checksum, *validator_public_key)
-        != E::pairing(ciphertext.commitment, *h)
-    {
-        return false;
-    }
+    pub fn verify(
+        &self,
+        decryption_share: &E::Fqk,
+        share_aggregate: &E::G2Affine,
+        validator_public_key: &E::G2Affine,
+        h: &E::G2Projective,
+        ciphertext: &Ciphertext<E>,
+    ) -> bool {
+        // D_i == e(C_i, Y_i)
+        if *decryption_share != E::pairing(self.checksum, *share_aggregate) {
+            return false;
+        }
 
-    true
+        // e(C_i, ek_i) == e(U, H)
+        if E::pairing(self.checksum, *validator_public_key)
+            != E::pairing(ciphertext.commitment, *h)
+        {
+            return false;
+        }
+
+        true
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DecryptionShareSimple<E: PairingEngine> {
+    // TODO: Add decryptor public key? Replace decryptor_index with public key?
     pub decrypter_index: usize,
     pub decryption_share: E::Fqk,
-    pub validator_checksum: E::G1Affine,
+    pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
 impl<E: PairingEngine> DecryptionShareSimple<E> {
@@ -110,11 +120,8 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
             private_key_share.private_key_share,
         );
 
-        // C_i = dk_i^{-1} * U
-        let validator_checksum = ciphertext
-            .commitment
-            .mul(validator_decryption_key.inverse().unwrap())
-            .into_affine();
+        let validator_checksum =
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
 
         Self {
             decrypter_index: validator_index,
@@ -131,9 +138,8 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
         h: &E::G2Projective,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
-        verify_validator_checksum::<E>(
+        self.validator_checksum.verify(
             &self.decryption_share,
-            &self.validator_checksum,
             share_aggregate,
             validator_public_key,
             h,
@@ -146,11 +152,11 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
 pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
     pub decrypter_index: usize,
     pub decryption_share: E::Fqk,
-    pub validator_checksum: E::G1Affine,
+    pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
 impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
-    pub fn create(
+    pub fn new(
         validator_index: usize,
         validator_decryption_key: &E::Fr,
         private_key_share: &PrivateKeyShare<E>,
@@ -186,7 +192,7 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
         );
 
         let validator_checksum =
-            make_validator_checksum(validator_decryption_key, ciphertext);
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
 
         Self {
             decrypter_index: validator_index,
@@ -203,9 +209,8 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
         h: &E::G2Projective,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
-        verify_validator_checksum::<E>(
+        self.validator_checksum.verify(
             &self.decryption_share,
-            &self.validator_checksum,
             share_aggregate,
             validator_public_key,
             h,
@@ -340,7 +345,6 @@ pub fn verify_decryption_shares_simple<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-
     use crate::*;
 
     type E = ark_bls12_381::Bls12_381;
