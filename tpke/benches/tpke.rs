@@ -9,7 +9,7 @@ use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
 use group_threshold_cryptography::*;
-use itertools::Itertools;
+
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -197,8 +197,7 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                     setup
                         .contexts
                         .iter()
-                        .zip_eq(setup.lagrange_coeffs.iter())
-                        .map(|(context, _lagrange_coeff)| {
+                        .map(|context| {
                             context.create_share_precomputed(
                                 &setup.shared.ciphertext,
                                 &setup.shared.aad,
