@@ -36,6 +36,44 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
     }
 }
 
+// TODO: Test make_validator_checksum and verify_validator_checksum
+
+fn make_validator_checksum<E: PairingEngine>(
+    validator_decryption_key: &E::Fr,
+    ciphertext: &Ciphertext<E>,
+) -> E::G1Affine {
+    // C_i = dk_i^{-1} * U
+    ciphertext
+        .commitment
+        .mul(validator_decryption_key.inverse().unwrap())
+        .into_affine()
+}
+
+// TODO: Use public context (validators public state) instead of passing `validator_public_key`
+//  and `h` separately
+fn verify_validator_checksum<E: PairingEngine>(
+    decryption_share: &E::Fqk,
+    validator_checksum: &E::G1Affine,
+    share_aggregate: &E::G2Affine,
+    validator_public_key: &E::G2Affine,
+    h: &E::G2Projective,
+    ciphertext: &Ciphertext<E>,
+) -> bool {
+    // D_i == e(C_i, Y_i)
+    if *decryption_share != E::pairing(*validator_checksum, *share_aggregate) {
+        return false;
+    }
+
+    // e(C_i, ek_i) == e(U, H)
+    if E::pairing(*validator_checksum, *validator_public_key)
+        != E::pairing(ciphertext.commitment, *h)
+    {
+        return false;
+    }
+
+    true
+}
+
 #[derive(Debug, Clone)]
 pub struct DecryptionShareSimple<E: PairingEngine> {
     // TODO: Rename to share_index?
@@ -45,15 +83,32 @@ pub struct DecryptionShareSimple<E: PairingEngine> {
 }
 
 impl<E: PairingEngine> DecryptionShareSimple<E> {
+    /// Create a decryption share from the given parameters.
+    /// This function checks that the ciphertext is valid.
     pub fn create(
         validator_index: usize,
         validator_decryption_key: &E::Fr,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-    ) -> Result<DecryptionShareSimple<E>> {
+    ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad)?;
+        Ok(Self::create_unchecked(
+            validator_index,
+            validator_decryption_key,
+            private_key_share,
+            ciphertext,
+        ))
+    }
 
+    /// Create a decryption share from the given parameters.
+    /// This function does not check that the ciphertext is valid.
+    pub fn create_unchecked(
+        validator_index: usize,
+        validator_decryption_key: &E::Fr,
+        private_key_share: &PrivateKeyShare<E>,
+        ciphertext: &Ciphertext<E>,
+    ) -> Self {
         // D_i = e(U, Z_i)
         let decryption_share = E::pairing(
             ciphertext.commitment,
@@ -66,15 +121,14 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
             .mul(validator_decryption_key.inverse().unwrap())
             .into_affine();
 
-        Ok(DecryptionShareSimple {
+        Self {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-        })
+        }
     }
 
-    // TODO: Use public context (validators public state) instead of passing `validator_public_key`
-    //  and `h` separately
+    /// Verify that the decryption share is valid.
     pub fn verify(
         &self,
         share_aggregate: &E::G2Affine,
@@ -82,25 +136,103 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
         h: &E::G2Projective,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
-        // D_i == e(C_i, Y_i)
-        if self.decryption_share
-            != E::pairing(self.validator_checksum, *share_aggregate)
-        {
-            return false;
-        }
-
-        // e(C_i, ek_i) == e(U, H)
-        if E::pairing(self.validator_checksum, *validator_public_key)
-            != E::pairing(ciphertext.commitment, *h)
-        {
-            return false;
-        }
-
-        true
+        verify_validator_checksum::<E>(
+            &self.decryption_share,
+            &self.validator_checksum,
+            share_aggregate,
+            validator_public_key,
+            h,
+            ciphertext,
+        )
     }
 }
 
-// TODO: Remove this code? Currently only used in benchmarks.
+#[derive(Debug, Clone)]
+pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
+    pub decrypter_index: usize,
+    pub decryption_share: E::Fqk,
+    pub validator_checksum: E::G1Affine,
+}
+
+impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
+    pub fn create(
+        validator_index: usize,
+        validator_decryption_key: &E::Fr,
+        private_key_share: &PrivateKeyShare<E>,
+        ciphertext: &Ciphertext<E>,
+        aad: &[u8],
+        lagrange_coeff: &E::Fr,
+    ) -> Result<Self> {
+        check_ciphertext_validity::<E>(ciphertext, aad)?;
+
+        // U_{λ_i} = [λ_{i}(0)] U
+        let u_to_lagrange_coeff =
+            ciphertext.commitment.mul(lagrange_coeff.into_repr());
+        // C_{λ_i} = e(U_{λ_i}, Z_i)
+        let decryption_share = E::pairing(
+            u_to_lagrange_coeff,
+            private_key_share.private_key_share,
+        );
+
+        let validator_checksum =
+            make_validator_checksum(validator_decryption_key, ciphertext);
+
+        Ok(Self {
+            decrypter_index: validator_index,
+            decryption_share,
+            validator_checksum,
+        })
+    }
+
+    pub fn create_unchecked(
+        validator_index: usize,
+        validator_decryption_key: &E::Fr,
+        private_key_share: &PrivateKeyShare<E>,
+        ciphertext: &Ciphertext<E>,
+        aad: &[u8],
+        lagrange_coeff: &E::Fr,
+    ) -> Result<Self> {
+        check_ciphertext_validity::<E>(ciphertext, aad)?;
+
+        // U_{λ_i} = [λ_{i}(0)] U
+        let u_to_lagrange_coeff =
+            ciphertext.commitment.mul(lagrange_coeff.into_repr());
+        // C_{λ_i} = e(U_{λ_i}, Z_i)
+        let decryption_share = E::pairing(
+            u_to_lagrange_coeff,
+            private_key_share.private_key_share,
+        );
+
+        let validator_checksum =
+            make_validator_checksum(validator_decryption_key, ciphertext);
+
+        Ok(Self {
+            decrypter_index: validator_index,
+            decryption_share,
+            validator_checksum,
+        })
+    }
+
+    /// Verify that the decryption share is valid.
+    pub fn verify(
+        &self,
+        share_aggregate: &E::G2Affine,
+        validator_public_key: &E::G2Affine,
+        h: &E::G2Projective,
+        ciphertext: &Ciphertext<E>,
+    ) -> bool {
+        verify_validator_checksum::<E>(
+            &self.decryption_share,
+            &self.validator_checksum,
+            share_aggregate,
+            validator_public_key,
+            h,
+            ciphertext,
+        )
+    }
+}
+
+// TODO: Remove this code? Currently only used in benchmarks. Move to benchmark suite?
 pub fn batch_verify_decryption_shares<R: RngCore, E: PairingEngine>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
     ciphertexts: &[Ciphertext<E>],
@@ -164,7 +296,7 @@ pub fn batch_verify_decryption_shares<R: RngCore, E: PairingEngine>(
     E::product_of_pairings(&pairings) == E::Fqk::one()
 }
 
-// TODO: Benchmark this
+// TODO: Only used in benchmarks. Replace with actual usage based on tests in lib.rs
 pub fn verify_decryption_shares_fast<E: PairingEngine>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
     ciphertext: &Ciphertext<E>,
@@ -200,6 +332,7 @@ pub fn verify_decryption_shares_fast<E: PairingEngine>(
     true
 }
 
+// TODO: Only used in benchmarks. Replace with actual usage based on tests in lib.rs
 pub fn verify_decryption_shares_simple<E: PairingEngine>(
     pub_contexts: &Vec<PublicDecryptionContextSimple<E>>,
     ciphertext: &Ciphertext<E>,
@@ -223,12 +356,6 @@ pub fn verify_decryption_shares_simple<E: PairingEngine>(
         }
     }
     true
-}
-
-#[derive(Debug, Clone)]
-pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
-    pub decrypter_index: usize,
-    pub decryption_share: E::Fqk,
 }
 
 #[cfg(test)]

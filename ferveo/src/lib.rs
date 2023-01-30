@@ -125,12 +125,9 @@ mod test_dkg_full {
             &validator_keypairs,
         );
 
-        let plaintext = tpke::checked_decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-        )
-        .unwrap();
+        let plaintext =
+            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -152,12 +149,9 @@ mod test_dkg_full {
             &validator_keypairs,
         );
 
-        let plaintext = tpke::checked_decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-        )
-        .unwrap();
+        let plaintext =
+            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
         assert_eq!(plaintext, msg);
     }
 

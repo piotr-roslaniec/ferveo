@@ -61,7 +61,7 @@ pub fn lagrange_basis_at<E: PairingEngine>(
 }
 
 // TODO: Hide this from external users. Currently blocked by usage in benchmarks.
-pub fn share_combine_fast<E: PairingEngine>(
+pub fn share_combine_fast_unchecked<E: PairingEngine>(
     shares: &[DecryptionShareFast<E>],
     prepared_key_shares: &[E::G2Prepared],
 ) -> E::Fqk {
@@ -81,7 +81,7 @@ pub fn share_combine_fast<E: PairingEngine>(
     E::product_of_pairings(&pairing_product)
 }
 
-pub fn checked_share_combine_fast<E: PairingEngine>(
+pub fn share_combine_fast<E: PairingEngine>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
     ciphertext: &Ciphertext<E>,
     decryption_shares: &[DecryptionShareFast<E>],
@@ -97,7 +97,10 @@ pub fn checked_share_combine_fast<E: PairingEngine>(
             ThresholdEncryptionError::DecryptionShareVerificationFailed,
         );
     }
-    Ok(share_combine_fast(decryption_shares, prepared_key_shares))
+    Ok(share_combine_fast_unchecked(
+        decryption_shares,
+        prepared_key_shares,
+    ))
 }
 
 pub fn share_combine_simple<E: PairingEngine>(

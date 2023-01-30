@@ -149,12 +149,14 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         payload: &Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
+            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
                 // TODO: If this is two slow, we can convert self.validators to
                 // an address keyed hashmap after partitioning the shares shares
                 // in the [`new`] method
-                let sender = self.validators
-                    .iter().position(|probe| sender == &probe.validator)
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender == &probe.validator)
                     .context("dkg received unknown dealer")?;
                 if self.vss.contains_key(&(sender as u32)) {
                     Err(anyhow!("Repeat dealer {}", sender))
@@ -165,23 +167,24 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 }
             }
             Message::Aggregate(Aggregation { vss, final_key }) if matches!(self.state, DkgState::Dealt) => {
-                let minimum_shares = self.params.shares_num
-                    - self.params.security_threshold;
+                let minimum_shares = self.params.shares_num - self.params.security_threshold;
                 let verified_shares = vss.verify_aggregation(self)?;
                 // we reject aggregations that fail to meet the security threshold
                 if verified_shares < minimum_shares {
-                    Err(
-                        anyhow!("Aggregation failed because the verified shares was insufficient")
-                    )
+                    Err(anyhow!(
+                        "Aggregation failed because the verified shares was insufficient"
+                    ))
                 } else if &self.final_key() == final_key {
                     Ok(())
                 } else {
-                    Err(
-                        anyhow!("The final key was not correctly derived from the aggregated transcripts")
-                    )
+                    Err(anyhow!(
+                        "The final key was not correctly derived from the aggregated transcripts"
+                    ))
                 }
             }
-            _ => Err(anyhow!("DKG state machine is not in correct state to verify this message"))
+            _ => Err(anyhow!(
+                "DKG state machine is not in correct state to verify this message"
+            )),
         }
     }
 
@@ -194,16 +197,22 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         payload: Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
+            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
                 // Add the ephemeral public key and pvss transcript
-                let sender = self.validators
-                    .iter().position(|probe| sender.address == probe.validator.address)
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender.address == probe.validator.address)
                     .context("dkg received unknown dealer")?;
                 self.vss.insert(sender as u32, pvss);
 
                 // we keep track of the amount of shares seen until the security
                 // threshold is met. Then we may change the state of the DKG
-                if let DkgState::Sharing { ref mut accumulated_shares, .. } = &mut self.state {
+                if let DkgState::Sharing {
+                    ref mut accumulated_shares,
+                    ..
+                } = &mut self.state
+                {
                     *accumulated_shares += 1;
                     if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
                         self.state = DkgState::Dealt;
@@ -213,10 +222,14 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             }
             Message::Aggregate(_) if matches!(self.state, DkgState::Dealt) => {
                 // change state and cache the final key
-                self.state = DkgState::Success { final_key: self.final_key() };
+                self.state = DkgState::Success {
+                    final_key: self.final_key(),
+                };
                 Ok(())
             }
-            _ => Err(anyhow!("DKG state machine is not in correct state to apply this message"))
+            _ => Err(anyhow!(
+                "DKG state machine is not in correct state to apply this message"
+            )),
         }
     }
 }

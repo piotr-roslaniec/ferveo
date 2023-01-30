@@ -245,7 +245,7 @@ pub fn encrypt(
 pub fn decrypt(ciphertext: &Ciphertext, private_key: &PrivateKey) -> Vec<u8> {
     set_panic_hook();
 
-    tpke::checked_decrypt(
+    tpke::decrypt_symmetric(
         &ciphertext.ciphertext,
         &ciphertext.aad,
         private_key.0,
@@ -290,7 +290,7 @@ impl SharedSecretBuilder {
         let prepared_blinded_key_shares =
             tpke::prepare_combine_fast(&self.contexts, &self.shares);
 
-        let shared_secret = tpke::checked_share_combine_fast(
+        let shared_secret = tpke::share_combine_fast(
             &self.contexts,
             &ciphertext.ciphertext,
             &self.shares,
@@ -308,7 +308,7 @@ pub fn decrypt_with_shared_secret(
 ) -> Vec<u8> {
     set_panic_hook();
 
-    tpke::checked_decrypt_with_shared_secret(
+    tpke::decrypt_with_shared_secret(
         &ciphertext.ciphertext,
         &ciphertext.aad,
         &shared_secret.0,

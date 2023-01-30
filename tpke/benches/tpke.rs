@@ -61,8 +61,10 @@ impl SetupFast {
         let prepared_key_shares =
             prepare_combine_fast(&pub_contexts, &decryption_shares);
 
-        let shared_secret =
-            share_combine_fast(&decryption_shares, &prepared_key_shares);
+        let shared_secret = share_combine_fast_unchecked(
+            &decryption_shares,
+            &prepared_key_shares,
+        );
 
         let shared = SetupShared {
             threshold,
@@ -176,9 +178,12 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                         .contexts
                         .iter()
                         .map(|ctx| {
-                            ctx.create_share(
+                            // Using create_unchecked here to avoid the cost of verifying the ciphertext
+                            DecryptionShareSimple::create_unchecked(
+                                ctx.index,
+                                &ctx.validator_private_key,
+                                &ctx.private_key_share,
                                 &setup.shared.ciphertext,
-                                &setup.shared.aad,
                             )
                         })
                         .collect::<Vec<_>>()
@@ -196,6 +201,7 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                         .map(|(context, lagrange_coeff)| {
                             context.create_share_precomputed(
                                 &setup.shared.ciphertext,
+                                &setup.shared.aad,
                                 lagrange_coeff,
                             )
                         })
@@ -266,7 +272,7 @@ pub fn bench_share_combine(c: &mut Criterion) {
         let fast = {
             let setup = SetupFast::new(shares_num, msg_size, rng);
             move || {
-                black_box(share_combine_fast(
+                black_box(share_combine_fast_unchecked(
                     &setup.decryption_shares,
                     &setup.prepared_key_shares,
                 ));
@@ -289,10 +295,13 @@ pub fn bench_share_combine(c: &mut Criterion) {
                 .iter()
                 .zip_eq(setup.lagrange_coeffs.iter())
                 .map(|(context, lagrange_coeff)| {
-                    context.create_share_precomputed(
-                        &setup.shared.ciphertext,
-                        lagrange_coeff,
-                    )
+                    context
+                        .create_share_precomputed(
+                            &setup.shared.ciphertext,
+                            &setup.shared.aad,
+                            lagrange_coeff,
+                        )
+                        .unwrap()
                 })
                 .collect();
 
@@ -342,7 +351,7 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
             let setup = SetupSimple::new(shares_num, msg_size, rng);
             move || {
                 black_box(
-                    checked_decrypt_with_shared_secret::<E>(
+                    decrypt_with_shared_secret::<E>(
                         &setup.shared.ciphertext,
                         &setup.shared.aad,
                         &setup.shared.shared_secret,

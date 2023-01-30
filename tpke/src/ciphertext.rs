@@ -129,7 +129,7 @@ pub fn check_ciphertext_validity<E: PairingEngine>(
     }
 }
 
-pub fn checked_decrypt<E: PairingEngine>(
+pub fn decrypt_symmetric<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
     privkey: E::G2Affine,
@@ -139,10 +139,10 @@ pub fn checked_decrypt<E: PairingEngine>(
         E::G1Prepared::from(ciphertext.commitment),
         E::G2Prepared::from(privkey),
     )]);
-    Ok(decrypt_with_shared_secret(ciphertext, &s))
+    Ok(decrypt_with_shared_secret_unchecked(ciphertext, &s))
 }
 
-fn decrypt_with_shared_secret<E: PairingEngine>(
+fn decrypt_with_shared_secret_unchecked<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     s: &E::Fqk,
 ) -> Vec<u8> {
@@ -155,13 +155,16 @@ fn decrypt_with_shared_secret<E: PairingEngine>(
     plaintext
 }
 
-pub fn checked_decrypt_with_shared_secret<E: PairingEngine>(
+pub fn decrypt_with_shared_secret<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
     shared_secret: &E::Fqk,
 ) -> Result<Vec<u8>> {
     check_ciphertext_validity(ciphertext, aad)?;
-    Ok(decrypt_with_shared_secret(ciphertext, shared_secret))
+    Ok(decrypt_with_shared_secret_unchecked(
+        ciphertext,
+        shared_secret,
+    ))
 }
 
 fn blake2s_hash(input: &[u8]) -> Vec<u8> {

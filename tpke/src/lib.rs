@@ -310,7 +310,7 @@ mod tests {
 
         let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
 
-        let plaintext = checked_decrypt(&ciphertext, aad, privkey).unwrap();
+        let plaintext = decrypt_symmetric(&ciphertext, aad, privkey).unwrap();
 
         assert_eq!(msg, plaintext)
     }
@@ -323,28 +323,19 @@ mod tests {
     ) {
         // So far, the ciphertext is valid
         let plaintext =
-            checked_decrypt_with_shared_secret(ciphertext, aad, shared_secret)
-                .unwrap();
+            decrypt_with_shared_secret(ciphertext, aad, shared_secret).unwrap();
         assert_eq!(plaintext, msg);
 
         // Malformed the ciphertext
         let mut ciphertext = ciphertext.clone();
         ciphertext.ciphertext[0] += 1;
-        assert!(checked_decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            shared_secret,
-        )
-        .is_err());
+        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
+            .is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
-        assert!(checked_decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            shared_secret,
-        )
-        .is_err());
+        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
+            .is_err());
     }
 
     #[test]
@@ -431,7 +422,7 @@ mod tests {
             &decryption_shares,
         );
 
-        let shared_secret = checked_share_combine_fast(
+        let shared_secret = share_combine_fast(
             &contexts[0].public_decryption_contexts,
             &ciphertext,
             &decryption_shares,
@@ -492,7 +483,9 @@ mod tests {
             .iter()
             .zip_eq(lagrange_coeffs.iter())
             .map(|(context, lagrange_coeff)| {
-                context.create_share_precomputed(&ciphertext, lagrange_coeff)
+                context
+                    .create_share_precomputed(&ciphertext, aad, lagrange_coeff)
+                    .unwrap()
             })
             .collect();
 

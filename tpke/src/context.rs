@@ -69,7 +69,6 @@ pub struct PrivateDecryptionContextSimple<E: PairingEngine> {
 }
 
 impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
-    // TODO: Rename to checked_create_share? Or get rid of this "checked_ notation"?
     pub fn create_share(
         &self,
         ciphertext: &Ciphertext<E>,
@@ -87,18 +86,16 @@ impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
     pub fn create_share_precomputed(
         &self,
         ciphertext: &Ciphertext<E>,
+        aad: &[u8],
         lagrange_coeff: &E::Fr,
-    ) -> DecryptionShareSimplePrecomputed<E> {
-        let u = ciphertext.commitment;
-        // U_{λ_i} = [λ_{i}(0)] U
-        let u_to_lagrange_coeff = u.mul(lagrange_coeff.into_repr());
-        let z_i = self.private_key_share.private_key_share;
-        // C_{λ_i} = e(U_{λ_i}, Z_i)
-        let c_i = E::pairing(u_to_lagrange_coeff, z_i);
-
-        DecryptionShareSimplePrecomputed {
-            decrypter_index: self.index,
-            decryption_share: c_i,
-        }
+    ) -> Result<DecryptionShareSimplePrecomputed<E>> {
+        DecryptionShareSimplePrecomputed::create(
+            self.index,
+            &self.validator_private_key,
+            &self.private_key_share,
+            ciphertext,
+            aad,
+            lagrange_coeff,
+        )
     }
 }
