@@ -49,7 +49,9 @@ mod test_dkg_full {
     use ark_std::test_rng;
     use ferveo_common::{ExternalValidator, Keypair};
     use group_threshold_cryptography as tpke;
-    use group_threshold_cryptography::{Ciphertext, DecryptionShareSimple};
+    use group_threshold_cryptography::{
+        Ciphertext, DecryptionShareSimple, DecryptionShareSimplePrecomputed,
+    };
     use itertools::{zip_eq, Itertools};
 
     type Fqk = <E as PairingEngine>::Fqk;
@@ -108,31 +110,7 @@ mod test_dkg_full {
     }
 
     #[test]
-    fn test_dkg_simple_decryption_variant_single_validator() {
-        let rng = &mut test_rng();
-
-        let dkg = setup_dealt_dkg_with_n_validators(1, 1);
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
-        let validator_keypairs = gen_n_keypairs(1);
-
-        let (_, _, shared_secret) = make_shared_secret_simple_tdec(
-            &dkg,
-            aad,
-            &ciphertext,
-            &validator_keypairs,
-        );
-
-        let plaintext =
-            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                .unwrap();
-        assert_eq!(plaintext, msg);
-    }
-
-    #[test]
-    fn test_dkg_simple_decryption_variant() {
+    fn test_dkg_simple_tdec() {
         let rng = &mut test_rng();
 
         let dkg = setup_dealt_dkg_with_n_validators(3, 4);
@@ -156,7 +134,49 @@ mod test_dkg_full {
     }
 
     #[test]
-    fn test_dkg_simple_decryption_shares_verification() {
+    fn test_dkg_simple_tdec_precomputed() {
+        let rng = &mut test_rng();
+
+        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let public_key = dkg.final_key();
+        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let validator_keypairs = gen_n_keypairs(4);
+
+        let pvss_aggregated = aggregate(&dkg);
+        let domain_points = dkg
+            .domain
+            .elements()
+            .take(validator_keypairs.len())
+            .collect::<Vec<_>>();
+
+        let decryption_shares: Vec<DecryptionShareSimplePrecomputed<E>> =
+            validator_keypairs
+                .iter()
+                .enumerate()
+                .map(|(validator_index, validator_keypair)| {
+                    pvss_aggregated.make_decryption_share_simple_precomputed(
+                        &ciphertext,
+                        aad,
+                        &validator_keypair.decryption_key,
+                        validator_index,
+                        &domain_points,
+                    )
+                })
+                .collect();
+
+        let shared_secret =
+            tpke::share_combine_simple_precomputed::<E>(&decryption_shares);
+
+        let plaintext =
+            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
+        assert_eq!(plaintext, msg);
+    }
+
+    #[test]
+    fn test_dkg_simple_tdec_share_verification() {
         let rng = &mut test_rng();
 
         let dkg = setup_dealt_dkg_with_n_validators(3, 4);
@@ -329,7 +349,7 @@ mod test_dkg_full {
     }
 
     #[test]
-    fn simple_threshold_decryption_with_share_refreshing() {
+    fn simple_tdec_share_refreshing() {
         let rng = &mut test_rng();
         let dkg = setup_dealt_dkg_with_n_validators(3, 4);
 

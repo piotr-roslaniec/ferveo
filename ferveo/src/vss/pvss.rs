@@ -9,8 +9,9 @@ use ark_ff::UniformRand;
 use ark_serialize::*;
 use ferveo_common::{Keypair, PublicKey};
 use group_threshold_cryptography::{
-    refresh_private_key_share, update_share_for_recovery, Ciphertext,
-    DecryptionShareFast, DecryptionShareSimple, PrivateKeyShare,
+    prepare_combine_simple, refresh_private_key_share,
+    update_share_for_recovery, Ciphertext, DecryptionShareFast,
+    DecryptionShareSimple, DecryptionShareSimplePrecomputed, PrivateKeyShare,
 };
 use itertools::{zip_eq, Itertools};
 use subproductdomain::fast_multiexp;
@@ -230,6 +231,32 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &private_key_share,
             ciphertext,
             aad,
+        )
+        .unwrap() // TODO: Add proper error handling
+    }
+
+    pub fn make_decryption_share_simple_precomputed(
+        &self,
+        ciphertext: &Ciphertext<E>,
+        aad: &[u8],
+        validator_decryption_key: &E::Fr,
+        validator_index: usize,
+        domain_points: &[E::Fr],
+    ) -> DecryptionShareSimplePrecomputed<E> {
+        let private_key_share = self.decrypt_private_key_share(
+            validator_decryption_key,
+            validator_index,
+        );
+
+        let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
+
+        DecryptionShareSimplePrecomputed::create(
+            validator_index,
+            validator_decryption_key,
+            &private_key_share,
+            ciphertext,
+            aad,
+            &lagrange_coeffs[validator_index],
         )
         .unwrap() // TODO: Add proper error handling
     }

@@ -267,18 +267,112 @@ pub fn setup_simple<E: PairingEngine>(
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use ark_bls12_381::Fr;
+    use ark_bls12_381::{Fr, FrParameters};
+    use ark_ec::ProjectiveCurve;
+    use ark_ff::{BigInteger256, Fp256};
+    use ark_std::test_rng;
+
+    use rand::prelude::StdRng;
     use std::collections::HashMap;
     use std::ops::Mul;
 
-    use ark_ec::ProjectiveCurve;
-    use ark_ff::BigInteger256;
-    use ark_std::test_rng;
-    use itertools::Itertools;
-    use rand::prelude::StdRng;
-
     type E = ark_bls12_381::Bls12_381;
     type Fqk = <ark_bls12_381::Bls12_381 as PairingEngine>::Fqk;
+
+    fn test_ciphertext_validation_fails<E: PairingEngine>(
+        msg: &[u8],
+        aad: &[u8],
+        ciphertext: &Ciphertext<E>,
+        shared_secret: &E::Fqk,
+    ) {
+        // So far, the ciphertext is valid
+        let plaintext =
+            decrypt_with_shared_secret(ciphertext, aad, shared_secret).unwrap();
+        assert_eq!(plaintext, msg);
+
+        // Malformed the ciphertext
+        let mut ciphertext = ciphertext.clone();
+        ciphertext.ciphertext[0] += 1;
+        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
+            .is_err());
+
+        // Malformed the AAD
+        let aad = "bad aad".as_bytes();
+        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
+            .is_err());
+    }
+
+    fn make_new_share_fragments(
+        rng: &mut StdRng,
+        threshold: usize,
+        x_r: &Fp256<FrParameters>,
+        remaining_participants: &[PrivateDecryptionContextSimple<E>],
+    ) -> Vec<PrivateKeyShare<E>> {
+        // Each participant prepares an update for each other participant
+        let domain_points = remaining_participants[0]
+            .public_decryption_contexts
+            .iter()
+            .map(|c| c.domain)
+            .collect::<Vec<_>>();
+        let h = remaining_participants[0].public_decryption_contexts[0].h;
+        let share_updates = remaining_participants
+            .iter()
+            .map(|p| {
+                let deltas_i = prepare_share_updates_for_recovery::<E>(
+                    &domain_points,
+                    &h,
+                    x_r,
+                    threshold,
+                    rng,
+                );
+                (p.index, deltas_i)
+            })
+            .collect::<HashMap<_, _>>();
+
+        // Participants share updates and update their shares
+        let new_share_fragments: Vec<_> = remaining_participants
+            .iter()
+            .map(|p| {
+                // Current participant receives updates from other participants
+                let updates_for_participant: Vec<_> = share_updates
+                    .values()
+                    .map(|updates| *updates.get(p.index).unwrap())
+                    .collect();
+
+                // And updates their share
+                update_share_for_recovery::<E>(
+                    &p.private_key_share,
+                    &updates_for_participant,
+                )
+            })
+            .collect();
+
+        new_share_fragments
+    }
+
+    fn make_shared_secret_from_contexts<E: PairingEngine>(
+        contexts: &[PrivateDecryptionContextSimple<E>],
+        ciphertext: &Ciphertext<E>,
+        aad: &[u8],
+    ) -> E::Fqk {
+        let decryption_shares: Vec<_> = contexts
+            .iter()
+            .map(|c| c.create_share(ciphertext, aad).unwrap())
+            .collect();
+        make_shared_secret(
+            &contexts[0].public_decryption_contexts,
+            &decryption_shares,
+        )
+    }
+
+    fn make_shared_secret<E: PairingEngine>(
+        pub_contexts: &[PublicDecryptionContextSimple<E>],
+        decryption_shares: &[DecryptionShareSimple<E>],
+    ) -> E::Fqk {
+        let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
+        let lagrange = prepare_combine_simple::<E>(&domain);
+        share_combine_simple::<E>(decryption_shares, &lagrange)
+    }
 
     #[test]
     fn ciphertext_serialization() {
@@ -313,29 +407,6 @@ mod tests {
         let plaintext = decrypt_symmetric(&ciphertext, aad, privkey).unwrap();
 
         assert_eq!(msg, plaintext)
-    }
-
-    fn test_ciphertext_validation_fails<E: PairingEngine>(
-        msg: &[u8],
-        aad: &[u8],
-        ciphertext: &Ciphertext<E>,
-        shared_secret: &E::Fqk,
-    ) {
-        // So far, the ciphertext is valid
-        let plaintext =
-            decrypt_with_shared_secret(ciphertext, aad, shared_secret).unwrap();
-        assert_eq!(plaintext, msg);
-
-        // Malformed the ciphertext
-        let mut ciphertext = ciphertext.clone();
-        ciphertext.ciphertext[0] += 1;
-        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
-            .is_err());
-
-        // Malformed the AAD
-        let aad = "bad aad".as_bytes();
-        assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
-            .is_err());
     }
 
     #[test]
@@ -472,20 +543,10 @@ mod tests {
 
         let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
 
-        let domain = contexts[0]
-            .public_decryption_contexts
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
-
         let decryption_shares: Vec<_> = contexts
             .iter()
-            .zip_eq(lagrange_coeffs.iter())
-            .map(|(context, lagrange_coeff)| {
-                context
-                    .create_share_precomputed(&ciphertext, aad, lagrange_coeff)
-                    .unwrap()
+            .map(|context| {
+                context.create_share_precomputed(&ciphertext, aad).unwrap()
             })
             .collect();
 
@@ -584,44 +645,13 @@ mod tests {
             p.public_decryption_contexts.pop().unwrap();
         }
 
-        // Each participant prepares an update for each other participant
-        let domain_points = remaining_participants[0]
-            .public_decryption_contexts
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let h = remaining_participants[0].public_decryption_contexts[0].h;
-        let share_updates = remaining_participants
-            .iter()
-            .map(|p| {
-                let deltas_i = prepare_share_updates_for_recovery::<E>(
-                    &domain_points,
-                    &h,
-                    &x_r,
-                    threshold,
-                    rng,
-                );
-                (p.index, deltas_i)
-            })
-            .collect::<HashMap<_, _>>();
-
-        // Participants share updates and update their shares
-        let new_share_fragments: Vec<_> = remaining_participants
-            .iter()
-            .map(|p| {
-                // Current participant receives updates from other participants
-                let updates_for_participant: Vec<_> = share_updates
-                    .values()
-                    .map(|updates| *updates.get(p.index).unwrap())
-                    .collect();
-
-                // And updates their share
-                update_share_for_recovery::<E>(
-                    &p.private_key_share,
-                    &updates_for_participant,
-                )
-            })
-            .collect();
+        // Each participant prepares an update for each other participant, and uses it to create a new share fragment
+        let new_share_fragments = make_new_share_fragments(
+            rng,
+            threshold,
+            &x_r,
+            &remaining_participants,
+        );
 
         // Now, we have to combine new share fragments into a new share
         let domain_points = &remaining_participants[0]
@@ -636,30 +666,6 @@ mod tests {
         );
 
         assert_eq!(new_private_key_share, original_private_key_share);
-    }
-
-    fn make_shared_secret_from_contexts<E: PairingEngine>(
-        contexts: &[PrivateDecryptionContextSimple<E>],
-        ciphertext: &Ciphertext<E>,
-        aad: &[u8],
-    ) -> E::Fqk {
-        let decryption_shares: Vec<_> = contexts
-            .iter()
-            .map(|c| c.create_share(ciphertext, aad).unwrap())
-            .collect();
-        make_shared_secret(
-            &contexts[0].public_decryption_contexts,
-            &decryption_shares,
-        )
-    }
-
-    fn make_shared_secret<E: PairingEngine>(
-        pub_contexts: &[PublicDecryptionContextSimple<E>],
-        decryption_shares: &[DecryptionShareSimple<E>],
-    ) -> E::Fqk {
-        let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
-        let lagrange = prepare_combine_simple::<E>(&domain);
-        share_combine_simple::<E>(decryption_shares, &lagrange)
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
@@ -692,44 +698,12 @@ mod tests {
             p.public_decryption_contexts.pop().unwrap();
         }
 
-        // Each participant prepares an update for each other participant
-        let domain_points = remaining_participants[0]
-            .public_decryption_contexts
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let h = remaining_participants[0].public_decryption_contexts[0].h;
-        let share_updates = remaining_participants
-            .iter()
-            .map(|p| {
-                let deltas_i = prepare_share_updates_for_recovery::<E>(
-                    &domain_points,
-                    &h,
-                    &x_r,
-                    threshold,
-                    rng,
-                );
-                (p.index, deltas_i)
-            })
-            .collect::<HashMap<_, _>>();
-
-        // Participants share updates and update their shares
-        let new_share_fragments: Vec<_> = remaining_participants
-            .iter()
-            .map(|p| {
-                // Current participant receives updates from other participants
-                let updates_for_participant: Vec<_> = share_updates
-                    .values()
-                    .map(|updates| *updates.get(p.index).unwrap())
-                    .collect();
-
-                // And updates their share
-                update_share_for_recovery::<E>(
-                    &p.private_key_share,
-                    &updates_for_participant,
-                )
-            })
-            .collect();
+        let new_share_fragments = make_new_share_fragments(
+            rng,
+            threshold,
+            &x_r,
+            &remaining_participants,
+        );
 
         // Now, we have to combine new share fragments into a new share
         let domain_points = &remaining_participants[0]

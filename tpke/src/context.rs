@@ -87,15 +87,21 @@ impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
         &self,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-        lagrange_coeff: &E::Fr,
     ) -> Result<DecryptionShareSimplePrecomputed<E>> {
+        let domain = self
+            .public_decryption_contexts
+            .iter()
+            .map(|c| c.domain)
+            .collect::<Vec<_>>();
+        let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
+
         DecryptionShareSimplePrecomputed::create(
             self.index,
             &self.validator_private_key,
             &self.private_key_share,
             ciphertext,
             aad,
-            lagrange_coeff,
+            &lagrange_coeffs[self.index],
         )
     }
 }

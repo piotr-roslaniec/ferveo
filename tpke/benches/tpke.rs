@@ -198,11 +198,10 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                         .contexts
                         .iter()
                         .zip_eq(setup.lagrange_coeffs.iter())
-                        .map(|(context, lagrange_coeff)| {
+                        .map(|(context, _lagrange_coeff)| {
                             context.create_share_precomputed(
                                 &setup.shared.ciphertext,
                                 &setup.shared.aad,
-                                lagrange_coeff,
                             )
                         })
                         .collect::<Vec<_>>(),
@@ -293,13 +292,11 @@ pub fn bench_share_combine(c: &mut Criterion) {
             let decryption_shares: Vec<_> = setup
                 .contexts
                 .iter()
-                .zip_eq(setup.lagrange_coeffs.iter())
-                .map(|(context, lagrange_coeff)| {
+                .map(|context| {
                     context
                         .create_share_precomputed(
                             &setup.shared.ciphertext,
                             &setup.shared.aad,
-                            lagrange_coeff,
                         )
                         .unwrap()
                 })
