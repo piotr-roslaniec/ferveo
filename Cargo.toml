@@ -3,6 +3,7 @@
 members = [
   "ferveo",
   "ferveo-common",
+  "ferveo-python",
   "subproductdomain",
   "tpke",
   "tpke-wasm",

@@ -1,8 +1,3 @@
-// Clippy shows false positives in PyO3 methods.
-// See https://github.com/rust-lang/rust-clippy/issues/8971
-// Will probably be fixed by Rust 1.65
-#![allow(clippy::borrow_deref_ref)]
-
 extern crate alloc;
 
 extern crate group_threshold_cryptography as tpke;

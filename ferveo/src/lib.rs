@@ -1,38 +1,31 @@
 #![allow(unused_imports)]
 
-pub mod dkg;
-pub mod msg;
-pub mod vss;
-
-pub mod primitives;
-
-use itertools::{izip, zip_eq};
-pub use primitives::*;
-
-use ferveo_common::Rng;
-
-use crate::dkg::*;
-use crate::msg::*;
-
+use anyhow::{anyhow, Result};
+use ark_ec::msm::FixedBaseMSM;
+use ark_ec::PairingEngine;
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::PrimeField;
 use ark_ff::{Field, One, Zero};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, polynomial::UVPolynomial,
     EvaluationDomain,
 };
 use ark_std::{end_timer, start_timer};
-use serde::*;
+use ferveo_common::Rng;
+use itertools::{izip, zip_eq};
+use measure_time::print_time;
+use serde::{Deserialize, Serialize};
 
-use anyhow::{anyhow, Result};
+pub mod api;
+pub mod dkg;
+pub mod msg;
+pub mod primitives;
+pub mod vss;
+
 pub use dkg::*;
 pub use msg::*;
+pub use primitives::*;
 pub use vss::*;
-
-use ark_ec::msm::FixedBaseMSM;
-use ark_ec::PairingEngine;
-use ark_ff::PrimeField;
-
-use measure_time::print_time;
 
 #[cfg(test)]
 mod test_dkg_full {

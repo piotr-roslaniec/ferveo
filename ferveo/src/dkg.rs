@@ -24,6 +24,7 @@ pub use pv::*;
 // DKG parameters
 #[derive(Copy, Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Params {
+    // TODO: Do we need tau? Do we need to distinguish between DKG instances using such an identifier?
     pub tau: u64,
     pub security_threshold: u32,
     pub shares_num: u32,

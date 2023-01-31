@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 pub struct PubliclyVerifiableDkg<E: PairingEngine> {
     pub params: Params,
     pub pvss_params: PubliclyVerifiableParams<E>,
+    // TODO: What is session_keypair?
     pub session_keypair: ferveo_common::Keypair<E>,
     pub validators: Vec<ferveo_common::Validator<E>>,
     pub vss: BTreeMap<u32, PubliclyVerifiableSS<E>>,
