@@ -7,13 +7,11 @@ pub struct PubliclyVerifiableDkg(crate::PubliclyVerifiableDkg<E>);
 
 impl PubliclyVerifiableDkg {
     pub fn new(
+        tau: u64,
+        shares_num: u32,
+        security_threshold: u32,
         validators: Vec<ExternalValidator>,
         me: ExternalValidator,
-        // session_keypair: ferveo_common::Keypair<E>,
-        // tau: u32,
-        security_threshold: u32,
-        shares_num: u32,
-        // retry_after: u32,
     ) -> Self {
         let validators = validators
             .into_iter()
@@ -21,10 +19,9 @@ impl PubliclyVerifiableDkg {
             .collect::<Vec<ferveo_common::ExternalValidator<E>>>();
         let me = me.0;
         let params = crate::Params {
-            tau: 0,
+            tau,
             security_threshold,
             shares_num,
-            retry_after: 0,
         };
         let session_keypair = ferveo_common::Keypair::<E> {
             decryption_key: ark_ff::UniformRand::rand(&mut ark_std::test_rng()),

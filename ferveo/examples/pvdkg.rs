@@ -45,7 +45,6 @@ pub fn setup_dkg(
             tau: 0,
             security_threshold: shares_num / 3,
             shares_num,
-            retry_after: 1,
         },
         &me,
         keypairs[validator],

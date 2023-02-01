@@ -24,17 +24,10 @@ pub use pv::*;
 // DKG parameters
 #[derive(Copy, Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Params {
-    // TODO: Do we need tau? Do we need to distinguish between DKG instances using such an identifier?
+    // TODO: Rename to ritual_id?
     pub tau: u64,
     pub security_threshold: u32,
     pub shares_num: u32,
-    pub retry_after: u32, // TODO: Remove. Not relevant in our scheme.
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PvssScheduler {
-    Wait,
-    Issue,
 }
 
 #[derive(Debug, Clone)]

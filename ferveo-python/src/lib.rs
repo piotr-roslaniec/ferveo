@@ -14,15 +14,20 @@ pub struct PubliclyVerifiableDkg(ferveo::api::PubliclyVerifiableDkg);
 impl PubliclyVerifiableDkg {
     #[new]
     pub fn new(
+        tau: u64,
+        shares_num: u32,
+        security_threshold: u32,
         validators: Vec<ExternalValidator>,
         me: ExternalValidator,
-        threshold: u32,
-        shares_num: u32,
     ) -> Self {
         let validators = validators.into_iter().map(|v| v.0).collect();
         let me = me.0;
         Self(ferveo::api::PubliclyVerifiableDkg::new(
-            validators, me, threshold, shares_num,
+            tau,
+            shares_num,
+            security_threshold,
+            validators,
+            me,
         ))
     }
 }
