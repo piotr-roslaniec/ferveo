@@ -14,6 +14,7 @@ use group_threshold_cryptography::{
     DecryptionShareSimple, DecryptionShareSimplePrecomputed, PrivateKeyShare,
 };
 use itertools::{zip_eq, Itertools};
+use rand::RngCore;
 use subproductdomain::fast_multiexp;
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -70,7 +71,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
     /// `s`: the secret constant coefficient to share
     /// `dkg`: the current DKG session
     /// `rng` a cryptographic random number generator
-    pub fn new<R: Rng>(
+    pub fn new<R: RngCore>(
         s: &E::Fr,
         dkg: &PubliclyVerifiableDkg<E>,
         rng: &mut R,

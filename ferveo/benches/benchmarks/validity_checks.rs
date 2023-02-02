@@ -39,7 +39,7 @@ fn setup_dkg(
     let validators = gen_validators(&keypairs);
     let me = validators[validator].clone();
     PubliclyVerifiableDkg::new(
-        validators,
+        &validators,
         Params {
             tau: 0,
             security_threshold: shares_num / 3,

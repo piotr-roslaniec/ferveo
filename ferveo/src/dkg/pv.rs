@@ -6,10 +6,14 @@ use ark_ff::Field;
 use ark_serialize::*;
 use ark_std::{end_timer, start_timer};
 use ferveo_common::{ExternalValidator, PublicKey};
+use rand::RngCore;
 use std::collections::BTreeMap;
 
 /// The DKG context that holds all of the local state for participating in the DKG
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
+// TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
+//  Currently, we're assuming that the DKG is only mutated by the owner of the instance.
+//  Consider removing Clone after finalizing ferveo::api
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PubliclyVerifiableDkg<E: PairingEngine> {
     pub params: Params,
     pub pvss_params: PubliclyVerifiableParams<E>,
@@ -30,7 +34,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     /// `me` the validator creating this instance
     /// `session_keypair` the keypair for `me`
     pub fn new(
-        validators: Vec<ExternalValidator<E>>,
+        validators: &[ExternalValidator<E>],
         params: Params,
         me: &ExternalValidator<E>,
         session_keypair: ferveo_common::Keypair<E>,
@@ -69,10 +73,10 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     /// Create a new PVSS instance within this DKG session, contributing to the final key
     /// `rng` is a cryptographic random number generator
     /// Returns a PVSS dealing message to post on-chain
-    pub fn share<R: Rng>(&mut self, rng: &mut R) -> Result<Message<E>> {
+    pub fn share<R: RngCore>(&mut self, rng: &mut R) -> Result<Message<E>> {
         use ark_std::UniformRand;
         print_time!("PVSS Sharing");
-        let vss = Pvss::<E>::new(&E::Fr::rand(rng), self, rng)?;
+        let vss = self.create_share(rng)?;
         match self.state {
             DkgState::Sharing { .. } | DkgState::Dealt => {
                 Ok(Message::Deal(vss))
@@ -81,6 +85,14 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 Err(anyhow!("DKG is not in a valid state to deal PVSS shares"))
             }
         }
+    }
+
+    pub fn create_share<R: RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> Result<PubliclyVerifiableSS<E>> {
+        use ark_std::UniformRand;
+        Pvss::<E>::new(&E::Fr::rand(rng), self, rng)
     }
 
     /// Aggregate all received PVSS messages into a single message, prepared to post on-chain
@@ -278,7 +290,7 @@ pub(crate) mod test_common {
         let validators = gen_n_validators(&keypairs, shares_num);
         let me = validators[my_index].clone();
         PubliclyVerifiableDkg::new(
-            validators,
+            &validators,
             Params {
                 tau: 0,
                 security_threshold,
@@ -348,7 +360,7 @@ mod test_dkg_init {
         let keypairs = gen_keypairs();
         let keypair = ferveo_common::Keypair::<EllipticCurve>::new(rng);
         let err = PubliclyVerifiableDkg::<EllipticCurve>::new(
-            gen_validators(&keypairs),
+            &gen_validators(&keypairs),
             Params {
                 tau: 0,
                 security_threshold: 4,

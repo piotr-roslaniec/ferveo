@@ -252,7 +252,7 @@ pub struct SharedSecret(TpkeSharedSecret);
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
 pub struct SharedSecretBuilder {
-    shares: Vec<TpkeDecryptionShare>,
+    shares: Vec<TpkeDecryptionShareFast>,
     contexts: Vec<TpkePublicDecryptionContext>,
 }
 

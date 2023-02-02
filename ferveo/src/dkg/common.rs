@@ -3,7 +3,7 @@ use ferveo_common::ExternalValidator;
 use itertools::izip;
 
 pub fn make_validators<E: PairingEngine>(
-    validators: Vec<ExternalValidator<E>>,
+    validators: &[ExternalValidator<E>],
 ) -> Vec<ferveo_common::Validator<E>> {
     validators
         .iter()

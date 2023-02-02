@@ -13,8 +13,11 @@ use std::convert::TryInto;
 pub type E = ark_bls12_381::Bls12_381;
 pub type TpkePublicKey = ark_bls12_381::G1Affine;
 pub type TpkePrivateKey = ark_bls12_381::G2Affine;
+pub type TpkeUnblindingKey = ark_bls12_381::Fr;
 pub type TpkeCiphertext = crate::Ciphertext<E>;
-pub type TpkeDecryptionShare = crate::DecryptionShareFast<E>;
+pub type TpkeDecryptionShareFast = crate::DecryptionShareFast<E>;
+pub type TpkeDecryptionShareSimplePrecomputed =
+    crate::DecryptionShareSimplePrecomputed<E>;
 pub type TpkePublicDecryptionContext = crate::PublicDecryptionContextFast<E>;
 pub type TpkeSharedSecret =
     <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fqk;
@@ -99,7 +102,7 @@ impl PrivateDecryptionContext {
 }
 
 #[derive(Clone, Debug)]
-pub struct DecryptionShare(pub TpkeDecryptionShare);
+pub struct DecryptionShare(pub TpkeDecryptionShareFast);
 
 impl DecryptionShare {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -107,7 +110,7 @@ impl DecryptionShare {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let share = TpkeDecryptionShare::from_bytes(bytes);
+        let share = TpkeDecryptionShareFast::from_bytes(bytes);
         Self(share)
     }
 }
@@ -162,7 +165,7 @@ impl ParticipantPayload {
             .mul(self.decryption_context.b_inv)
             .into_affine();
 
-        DecryptionShare(TpkeDecryptionShare {
+        DecryptionShare(TpkeDecryptionShareFast {
             decrypter_index: self.decryption_context.decrypter_index,
             decryption_share,
         })
