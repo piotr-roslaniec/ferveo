@@ -22,8 +22,6 @@ pub struct Validator<E: PairingEngine> {
     pub share_index: usize,
 }
 
-impl Rng for ark_std::rand::prelude::StdRng {}
-
 pub trait Rng: ark_std::rand::CryptoRng + ark_std::rand::RngCore {}
 
 pub mod ark_serde {

@@ -101,7 +101,7 @@ impl ParticipantPayload {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct PublicKey(
-    #[serde_as(as = "tpke::serialization::SerdeAs")] pub(crate) TpkePublicKey,
+    #[serde_as(as = "tpke::serialization::SerdeAs")] pub(crate) TpkeDkgPublicKey,
 );
 
 #[wasm_bindgen]
@@ -109,7 +109,8 @@ impl PublicKey {
     #[wasm_bindgen]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let mut reader = bytes;
-        let pk = TpkePublicKey::deserialize_uncompressed(&mut reader).unwrap();
+        let pk =
+            TpkeDkgPublicKey::deserialize_uncompressed(&mut reader).unwrap();
         PublicKey(pk)
     }
 

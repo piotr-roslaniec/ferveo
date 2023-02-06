@@ -11,7 +11,7 @@ use std::convert::TryInto;
 // Fixing some of the types here on our target engine
 // TODO: Consider fixing on crate::api level instead of bindings level
 pub type E = ark_bls12_381::Bls12_381;
-pub type TpkePublicKey = ark_bls12_381::G1Affine;
+pub type TpkeDkgPublicKey = ark_bls12_381::G1Affine;
 pub type TpkePrivateKey = ark_bls12_381::G2Affine;
 pub type TpkeUnblindingKey = ark_bls12_381::Fr;
 pub type TpkeCiphertext = crate::Ciphertext<E>;
@@ -26,8 +26,9 @@ pub type TpkeResult<T> = crate::Result<T>;
 pub fn encrypt(
     message: &[u8],
     aad: &[u8],
-    pubkey: &TpkePublicKey,
+    pubkey: &TpkeDkgPublicKey,
 ) -> TpkeCiphertext {
+    // TODO: Should rng be a parameter?
     let rng = &mut rand::thread_rng();
     crate::encrypt(message, aad, pubkey, rng)
 }

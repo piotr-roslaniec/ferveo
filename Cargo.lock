@@ -942,6 +942,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "ferveo",
+ "group-threshold-cryptography",
  "pyo3",
  "pyo3-build-config",
  "rand 0.8.5",

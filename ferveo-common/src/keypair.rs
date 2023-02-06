@@ -3,6 +3,7 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write,
 };
+use ark_std::rand::RngCore;
 use serde::*;
 
 #[derive(Copy, Clone, Debug)]
@@ -69,7 +70,7 @@ impl<E: PairingEngine> Keypair<E> {
     }
 
     /// Creates a new ephemeral session key for participating in the DKG
-    pub fn new<R: crate::Rng>(rng: &mut R) -> Self {
+    pub fn new<R: RngCore>(rng: &mut R) -> Self {
         use ark_std::UniformRand;
         Self {
             decryption_key: E::Fr::rand(rng),
