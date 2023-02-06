@@ -36,7 +36,7 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ValidatorShareChecksum<E: PairingEngine> {
     // TODO: Consider replacing named inner variable with () syntax
     pub checksum: E::G1Affine,
@@ -148,7 +148,7 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
     pub decrypter_index: usize,
     pub decryption_share: E::Fqk,

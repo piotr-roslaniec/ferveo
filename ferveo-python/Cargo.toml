@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 pyo3 = "0.17.3"
 ferveo = { path = "../ferveo" }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
+rand = "0.8"
 
 [build-dependencies]
 pyo3-build-config = "*"

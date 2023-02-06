@@ -194,6 +194,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 } = &mut self.state
                 {
                     *accumulated_shares += 1;
+                    // TODO: Should be `== self.params.shares_num` instead?
                     if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
                         self.state = DkgState::Dealt;
                     }
@@ -211,6 +212,21 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 "DKG state machine is not in correct state to apply this message"
             )),
         }
+    }
+
+    pub fn deal(
+        &mut self,
+        sender: ExternalValidator<E>,
+        pvss: Pvss<E>,
+    ) -> Result<()> {
+        // Add the ephemeral public key and pvss transcript
+        let sender = self
+            .validators
+            .iter()
+            .position(|probe| sender.address == probe.validator.address)
+            .context("dkg received unknown dealer")?;
+        self.vss.insert(sender as u32, pvss);
+        Ok(())
     }
 }
 

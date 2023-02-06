@@ -1,6 +1,7 @@
 extern crate alloc;
 
 use pyo3::prelude::*;
+use rand::thread_rng;
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
@@ -9,6 +10,10 @@ pub struct Validator(ferveo::api::Validator);
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
 pub struct Transcript(ferveo::api::Transcript);
+
+#[pyclass(module = "ferveo")]
+#[derive(Clone, derive_more::From, derive_more::AsRef)]
+pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
 
 #[derive(FromPyObject)]
 pub struct ValidatorMessage(Validator, Transcript);
@@ -37,15 +42,21 @@ impl Dkg {
         ))
     }
 
+    pub fn final_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.final_key())
+    }
+
     pub fn generate_transcript(&self) -> Transcript {
-        Transcript(self.0.generate_transcript())
+        let rng = &mut thread_rng();
+        Transcript(self.0.generate_transcript(rng))
     }
 
     pub fn aggregate_transcripts(
-        &self,
+        // TODO: Avoid mutating current state
+        &mut self,
         messages: Vec<ValidatorMessage>,
     ) -> AggregatedTranscript {
-        let messages = messages
+        let messages = &messages
             .into_iter()
             .map(|message| (message.0 .0, message.1 .0))
             .collect();

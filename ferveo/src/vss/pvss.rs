@@ -21,11 +21,11 @@ use subproductdomain::fast_multiexp;
 pub type ShareEncryptions<E> = <E as PairingEngine>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
-#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug, PartialEq)]
 pub struct Unaggregated;
 
 /// Marker struct for aggregated PVSS transcripts
-#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug, PartialEq)]
 pub struct Aggregated;
 
 /// Trait gate used to add extra methods to aggregated PVSS transcripts
@@ -50,7 +50,7 @@ pub struct PubliclyVerifiableParams<E: PairingEngine> {
 /// Each validator posts a transcript to the chain. Once enough
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
-#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug, PartialEq)]
 pub struct PubliclyVerifiableSS<E: PairingEngine, T = Unaggregated> {
     /// Used in Feldman commitment to the VSS polynomial, F = g^{\phi}
     pub coeffs: Vec<E::G1Affine>,

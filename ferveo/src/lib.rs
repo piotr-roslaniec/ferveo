@@ -46,6 +46,8 @@ mod test_dkg_full {
         Ciphertext, DecryptionShareSimple, DecryptionShareSimplePrecomputed,
     };
     use itertools::{zip_eq, Itertools};
+    use rand::prelude::StdRng;
+    use rand::SeedableRng;
 
     type Fqk = <E as PairingEngine>::Fqk;
 
