@@ -18,7 +18,7 @@ rand = "0.8"
 rayon = "1.5"
 thiserror = "=1.0.30"
 anyhow = "=1.0"
-blake2b_simd = "=1"
+rust-crypto = "0.2.36"
 miracl_core = "=2.3.0"
 ark-ff = "0.3"
 ark-ec = "0.3"
@@ -41,7 +41,7 @@ name = "tpke"
 path = "benches/tpke.rs"
 harness = false
 
-# Hide this benchmark from boa-dev/criterion-compare-action@v3
+# Disabling these benchmarks for now, as they are stable and we only ever run them locally.
 #[[bench]]
 #name = "arkworks"
 #path = "benches/arkworks.rs"

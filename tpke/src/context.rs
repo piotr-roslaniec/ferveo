@@ -44,7 +44,11 @@ impl<E: PairingEngine> PrivateDecryptionContextFast<E> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
     ) -> Result<DecryptionShareFast<E>> {
-        check_ciphertext_validity::<E>(ciphertext, aad)?;
+        check_ciphertext_validity::<E>(
+            ciphertext,
+            aad,
+            &self.setup_params.g_inv,
+        )?;
 
         let decryption_share = ciphertext
             .commitment
@@ -80,6 +84,7 @@ impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
             &self.private_key_share,
             ciphertext,
             aad,
+            &self.setup_params.g_inv,
         )
     }
 
@@ -102,6 +107,7 @@ impl<E: PairingEngine> PrivateDecryptionContextSimple<E> {
             ciphertext,
             aad,
             &lagrange_coeffs[self.index],
+            &self.setup_params.g_inv,
         )
     }
 }

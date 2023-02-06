@@ -286,5 +286,5 @@ criterion_group!(
     bench_random_poly,
 );
 
-// Hide this benchmark from boa-dev/criterion-compare-action@v3
+// Disabling these benchmarks for now, as they are stable and we only ever run them locally.
 // criterion_main!(benches);

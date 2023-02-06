@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 
 pub mod dkg;
-pub mod msg;
 pub mod vss;
 
 pub mod primitives;
@@ -12,7 +11,6 @@ pub use primitives::*;
 use ferveo_common::Rng;
 
 use crate::dkg::*;
-use crate::msg::*;
 
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{Field, One, Zero};
@@ -25,7 +23,6 @@ use serde::*;
 
 use anyhow::{anyhow, Result};
 pub use dkg::*;
-pub use msg::*;
 pub use vss::*;
 
 use ark_ec::msm::FixedBaseMSM;
@@ -86,6 +83,7 @@ mod test_dkg_full {
                         aad,
                         &validator_keypair.decryption_key,
                         validator_index,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -127,9 +125,13 @@ mod test_dkg_full {
             &validator_keypairs,
         );
 
-        let plaintext =
-            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                .unwrap();
+        let plaintext = tpke::decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &dkg.pvss_params.g_inv(),
+            &shared_secret,
+        )
+        .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -162,6 +164,7 @@ mod test_dkg_full {
                         &validator_keypair.decryption_key,
                         validator_index,
                         &domain_points,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -169,9 +172,13 @@ mod test_dkg_full {
         let shared_secret =
             tpke::share_combine_simple_precomputed::<E>(&decryption_shares);
 
-        let plaintext =
-            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                .unwrap();
+        let plaintext = tpke::decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &dkg.pvss_params.g_inv(),
+            &shared_secret,
+        )
+        .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -323,6 +330,7 @@ mod test_dkg_full {
                         aad,
                         &validator_keypair.decryption_key,
                         validator_index,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -337,6 +345,7 @@ mod test_dkg_full {
                 &new_private_key_share,
                 &ciphertext,
                 aad,
+                &dkg.pvss_params.g_inv(),
             )
             .unwrap(),
         );

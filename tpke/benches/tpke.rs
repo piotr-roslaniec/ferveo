@@ -350,6 +350,7 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
                     decrypt_with_shared_secret::<E>(
                         &setup.shared.ciphertext,
                         &setup.shared.aad,
+                        &setup.contexts[0].setup_params.g_inv,
                         &setup.shared.shared_secret,
                     )
                     .unwrap(),
@@ -381,6 +382,7 @@ pub fn bench_ciphertext_validity_checks(c: &mut Criterion) {
                 black_box(check_ciphertext_validity(
                     &setup.shared.ciphertext,
                     &setup.shared.aad,
+                    &setup.contexts[0].setup_params.g_inv,
                 ))
                 .unwrap();
             }

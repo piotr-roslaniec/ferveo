@@ -77,6 +77,29 @@ jobs:
       - run: cargo check --all-features
       - run: cargo test --release --all-features
 
+  codecov:
+    runs-on: ubuntu-latest
+    needs: [ test ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      # Only checking the coverage of the main library,
+      # bindings are covered by their language's tests.
+      - name: Generate code coverage
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --all-features
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov.info
+          fail_ci_if_error: true
+
   benchmark:
     runs-on: ubuntu-latest
     needs: [ test ]
@@ -103,7 +126,6 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-
       - name: Run benchmark for base branch comparison
         uses: boa-dev/criterion-compare-action@v3
         if: github.event_name == 'pull_request'
@@ -115,6 +137,10 @@ jobs:
 
       # Benchmarking & dashboards job > Run benchmark.
 
+      - name: Install cargo-criterion
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
+        run: cargo install cargo-criterion
+
       - name: Run benchmark for dashboard
         # only merges to main (implies PR is finished and approved by this point)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
@@ -123,10 +149,9 @@ jobs:
           export REL_OUTPUT_PATH="`dirs +1`/benchmarks/perf/${{ matrix.component }}";
           eval OUTPUT_PATH=$REL_OUTPUT_PATH;
           mkdir -p $OUTPUT_PATH;
-          touch $OUTPUT_PATH/output.txt;
-          # Currently fails to extract benchmark information https://github.com/rhysd/github-action-benchmark/issues/39
-          # Thats why '::' is replaced with ' '
-          cargo bench -- --output-format bencher | sed 's/::/__/' | tee $OUTPUT_PATH/output.txt;
+          # Criterion outputs the actual bench results to stderr "2>&1 tee output.txt" takes stderr,
+          # passes to tee which displays it in the terminal and writes to output.txt
+          cargo criterion --output-format bencher 2>&1 | tee -a $OUTPUT_PATH/output.txt;
           echo "Saved output to $OUTPUT_PATH/output.txt";
           popd
 
@@ -143,7 +168,7 @@ jobs:
       - name: Store benchmark result & create dashboard (merge to main only)
         # only merges to main (implies PR is finished and approved by this point)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
-        uses: rhysd/github-action-benchmark@v1
+        uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Rust Benchmark
           tool: 'cargo'

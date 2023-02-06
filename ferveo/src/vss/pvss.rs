@@ -46,6 +46,12 @@ pub struct PubliclyVerifiableParams<E: PairingEngine> {
     pub h: E::G2Projective,
 }
 
+impl<E: PairingEngine> PubliclyVerifiableParams<E> {
+    pub fn g_inv(&self) -> E::G1Prepared {
+        E::G1Prepared::from(-self.g.into_affine())
+    }
+}
+
 /// Each validator posts a transcript to the chain. Once enough
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
@@ -161,8 +167,6 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 let a_i = commitment[validator.share_index];
                 // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
                 // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
-                // Y = \sum_i y_i \alpha^i
-                // A = \sum_i a_i \alpha^i
                 // e(G,Y) = e(A, ek)
                 E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
             })
@@ -220,6 +224,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
         aad: &[u8],
         validator_decryption_key: &E::Fr,
         validator_index: usize,
+        g_inv: &E::G1Prepared,
     ) -> DecryptionShareSimple<E> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
@@ -231,6 +236,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &private_key_share,
             ciphertext,
             aad,
+            g_inv,
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -242,6 +248,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::Fr,
         validator_index: usize,
         domain_points: &[E::Fr],
+        g_inv: &E::G1Prepared,
     ) -> DecryptionShareSimplePrecomputed<E> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
@@ -257,6 +264,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             ciphertext,
             aad,
             &lagrange_coeffs[validator_index],
+            g_inv,
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -275,6 +283,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             validator_index,
         );
         let h = dkg.pvss_params.h;
+        let g_inv = dkg.pvss_params.g_inv();
         let domain_point = dkg.domain.element(validator_index);
         let refreshed_private_key_share = refresh_private_key_share(
             &h,
@@ -288,6 +297,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &refreshed_private_key_share,
             ciphertext,
             aad,
+            &g_inv,
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -405,7 +415,7 @@ mod test_pvss {
         assert!(!pvss.verify_optimistic());
     }
 
-    /// Check that if PVSS shares are tempered with, the full verification fails
+    /// Check that if PVSS shares are tampered with, the full verification fails
     #[test]
     fn test_verify_pvss_bad_shares() {
         let rng = &mut ark_std::test_rng();
