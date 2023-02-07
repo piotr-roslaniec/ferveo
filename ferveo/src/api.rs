@@ -193,6 +193,21 @@ impl AggregatedTranscript {
             &domain_points,
         ))
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self(
+            crate::PubliclyVerifiableSS::<E, crate::Aggregated>::deserialize(
+                bytes,
+            )
+            .unwrap(),
+        )
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = vec![];
+        self.0.serialize(&mut buf).unwrap();
+        buf
+    }
 }
 
 #[cfg(test)]

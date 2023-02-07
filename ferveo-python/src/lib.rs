@@ -1,6 +1,7 @@
 extern crate alloc;
 
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use rand::thread_rng;
 
 #[pyfunction]
@@ -54,8 +55,9 @@ impl Keypair {
         Self(ferveo::api::Keypair::from_bytes(bytes))
     }
 
-    fn __bytes__(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    fn __bytes__(&self) -> PyObject {
+        let serialized = self.0.to_bytes();
+        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
     }
 
     #[getter]
@@ -75,8 +77,9 @@ impl PublicKey {
         Self(ferveo::api::PublicKey::from_bytes(bytes))
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    fn __bytes__(&self) -> PyObject {
+        let serialized = self.0.to_bytes();
+        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
     }
 }
 
@@ -103,8 +106,9 @@ impl Transcript {
         Self(ferveo::api::Transcript::from_bytes(bytes))
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    fn __bytes__(&self) -> PyObject {
+        let serialized = self.0.to_bytes();
+        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
     }
 }
 
@@ -197,6 +201,16 @@ impl AggregatedTranscript {
             aad,
             &validator_keypair.0,
         ))
+    }
+
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self(ferveo::api::AggregatedTranscript::from_bytes(bytes))
+    }
+
+    fn __bytes__(&self) -> PyObject {
+        let serialized = self.0.to_bytes();
+        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
     }
 }
 
