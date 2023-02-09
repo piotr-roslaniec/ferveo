@@ -12,13 +12,18 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
+test-common = ["group-threshold-cryptography/test-common"]
+
+[[test]]
+name = "wasm-node"
+path = "tests/node.rs"
+required-features = ["test-common"]
 
 [dependencies]
+group-threshold-cryptography = { path = "../tpke" }
 wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }
-js-sys = "0.3.51"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 wee_alloc = { version = "0.4.5" }
-group-threshold-cryptography = { path = "../tpke"}
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8.5"
 ark-bls12-381 = "0.3.0"
@@ -31,6 +36,10 @@ ark-ec = "0.3"
 ark-std = "0.3.0"
 
 [dev-dependencies]
+group-threshold-cryptography = { path = "../tpke", features = ["test-common"] }
 wasm-bindgen-test = "0.3.13"
 console_error_panic_hook = "0.1.7"
 rand_core = "0.6"
+
+[package.metadata.cargo-udeps.ignore]
+development = ["wasm-bindgen-test"]

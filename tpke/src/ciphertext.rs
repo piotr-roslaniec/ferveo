@@ -219,10 +219,9 @@ fn construct_tag_hash<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        check_ciphertext_validity, decrypt_symmetric, encrypt, setup_fast,
-        Ciphertext,
-    };
+    use crate::test_common::*;
+    use crate::*;
+
     use ark_bls12_381::{Fr, G1Projective, G2Projective};
     use ark_ec::ProjectiveCurve;
     use ark_ff::PrimeField;

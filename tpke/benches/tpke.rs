@@ -10,6 +10,7 @@ use criterion::{
 };
 use group_threshold_cryptography::*;
 
+use group_threshold_cryptography::test_common::{setup_fast, setup_simple};
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 

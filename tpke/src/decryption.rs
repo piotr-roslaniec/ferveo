@@ -1,13 +1,22 @@
 use crate::*;
 use ark_ec::ProjectiveCurve;
 use ark_ff::FromBytes;
-
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use itertools::zip_eq;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 #[derive(Debug, Clone)]
 pub struct DecryptionShareFast<E: PairingEngine> {
     pub decrypter_index: usize,
     pub decryption_share: E::G1Affine,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatorShareChecksum<E: PairingEngine> {
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub checksum: E::G1Affine,
 }
 
 impl<E: PairingEngine> DecryptionShareFast<E> {
@@ -35,11 +44,6 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
             decryption_share,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ValidatorShareChecksum<E: PairingEngine> {
-    pub checksum: E::G1Affine,
 }
 
 impl<E: PairingEngine> ValidatorShareChecksum<E> {
@@ -159,7 +163,7 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
     pub decrypter_index: usize,
     pub decryption_share: E::Fqk,

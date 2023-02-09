@@ -11,6 +11,9 @@ readme = "README.md"
 [lib]
 bench = false
 
+[features]
+test-common = []
+
 [dependencies]
 hex = "=0.4.3"
 rand_core = "0.6"
@@ -40,6 +43,7 @@ criterion = { version = "0.4", features = ["html_reports"] }
 name = "tpke"
 path = "benches/tpke.rs"
 harness = false
+required-features = ["test-common"]
 
 # Hide this benchmark from boa-dev/criterion-compare-action@v3
 #[[bench]]

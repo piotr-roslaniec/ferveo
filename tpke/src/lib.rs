@@ -1,30 +1,34 @@
-use crate::hash_to_curve::htp_bls12381_g2;
-use crate::SetupParams;
-
 use ark_ec::{AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
-use ark_poly::{
-    univariate::DensePolynomial, EvaluationDomain, Polynomial, UVPolynomial,
-};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_poly::{EvaluationDomain, UVPolynomial};
 use itertools::izip;
 use rand_core::RngCore;
 use std::usize;
-use subproductdomain::{fast_multiexp, SubproductDomain};
+use subproductdomain::SubproductDomain;
 use thiserror::Error;
 
-mod ciphertext;
-mod combine;
-mod context;
-mod decryption;
-mod hash_to_curve;
-mod key_share;
-mod refresh;
+pub mod ciphertext;
+pub mod combine;
+pub mod context;
+pub mod decryption;
+pub mod hash_to_curve;
+pub mod key_share;
+pub mod refresh;
+
+// TODO: Only show the public API, tpke::api
+// use ciphertext::*;
+// use combine::*;
+// use context::*;
+// use decryption::*;
+// use hash_to_curve::*;
+// use key_share::*;
+// use refresh::*;
 
 pub use ciphertext::*;
 pub use combine::*;
 pub use context::*;
 pub use decryption::*;
+pub use hash_to_curve::*;
 pub use key_share::*;
 pub use refresh::*;
 
@@ -58,197 +62,213 @@ pub enum ThresholdEncryptionError {
 
 pub type Result<T> = std::result::Result<T, ThresholdEncryptionError>;
 
-pub fn setup_fast<E: PairingEngine>(
-    threshold: usize,
-    shares_num: usize,
-    rng: &mut impl RngCore,
-) -> (
-    E::G1Affine,
-    E::G2Affine,
-    Vec<PrivateDecryptionContextFast<E>>,
-) {
-    assert!(shares_num >= threshold);
+/// Factory functions for testing
+#[cfg(any(test, feature = "test-common"))]
+pub mod test_common {
+    pub use super::*;
+    pub use ark_bls12_381::Bls12_381 as EllipticCurve;
+    pub use ark_ff::UniformRand;
+    use ark_poly::univariate::DensePolynomial;
+    use ark_poly::Polynomial;
+    use subproductdomain::fast_multiexp;
 
-    // Generators G∈G1, H∈G2
-    let g = E::G1Affine::prime_subgroup_generator();
-    let h = E::G2Affine::prime_subgroup_generator();
+    pub fn setup_fast<E: PairingEngine>(
+        threshold: usize,
+        shares_num: usize,
+        rng: &mut impl RngCore,
+    ) -> (
+        E::G1Affine,
+        E::G2Affine,
+        Vec<PrivateDecryptionContextFast<E>>,
+    ) {
+        assert!(shares_num >= threshold);
 
-    // The dealer chooses a uniformly random polynomial f of degree t-1
-    let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
-    // Domain, or omega Ω
-    let fft_domain =
-        ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
-    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
-    let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
+        // Generators G∈G1, H∈G2
+        let g = E::G1Affine::prime_subgroup_generator();
+        let h = E::G2Affine::prime_subgroup_generator();
 
-    // A - public key shares of participants
-    let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
-    let pubkey_share = g.mul(evals.evals[0]);
-    debug_assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
+        // The dealer chooses a uniformly random polynomial f of degree t-1
+        let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
+        // Domain, or omega Ω
+        let fft_domain =
+            ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
+        // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
+        let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
-    // Y, but only when b = 1 - private key shares of participants
-    let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
+        // A - public key shares of participants
+        let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
+        let pubkey_share = g.mul(evals.evals[0]);
+        debug_assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
 
-    // a_0
-    let x = threshold_poly.coeffs[0];
+        // Y, but only when b = 1 - private key shares of participants
+        let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
 
-    // F_0 - The commitment to the constant term, and is the public key output Y from PVDKG
-    let pubkey = g.mul(x);
-    let privkey = h.mul(x);
+        // a_0
+        let x = threshold_poly.coeffs[0];
 
-    let mut domain_points = Vec::with_capacity(shares_num);
-    let mut point = E::Fr::one();
-    let mut domain_points_inv = Vec::with_capacity(shares_num);
-    let mut point_inv = E::Fr::one();
+        // F_0 - The commitment to the constant term, and is the public key output Y from PVDKG
+        let pubkey = g.mul(x);
+        let privkey = h.mul(x);
 
-    for _ in 0..shares_num {
-        domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar generator fft_domain.group_gen
-        point *= fft_domain.group_gen;
-        domain_points_inv.push(point_inv);
-        point_inv *= fft_domain.group_gen_inv;
-    }
+        let mut domain_points = Vec::with_capacity(shares_num);
+        let mut point = E::Fr::one();
+        let mut domain_points_inv = Vec::with_capacity(shares_num);
+        let mut point_inv = E::Fr::one();
 
-    let mut private_contexts = vec![];
-    let mut public_contexts = vec![];
+        for _ in 0..shares_num {
+            domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar generator fft_domain.group_gen
+            point *= fft_domain.group_gen;
+            domain_points_inv.push(point_inv);
+            point_inv *= fft_domain.group_gen_inv;
+        }
 
-    // (domain, domain_inv, A, Y)
-    for (index, (domain, domain_inv, public, private)) in izip!(
-        domain_points.iter(),
-        domain_points_inv.iter(),
-        pubkey_shares.iter(),
-        privkey_shares.iter()
-    )
-    .enumerate()
-    {
-        let private_key_share = PrivateKeyShare::<E> {
-            private_key_share: *private,
-        };
-        let b = E::Fr::rand(rng);
-        let mut blinded_key_shares = private_key_share.blind(b);
-        blinded_key_shares.multiply_by_omega_inv(domain_inv);
-        private_contexts.push(PrivateDecryptionContextFast::<E> {
-            index,
-            setup_params: SetupParams {
-                b,
-                b_inv: b.inverse().unwrap(),
-                g,
+        let mut private_contexts = vec![];
+        let mut public_contexts = vec![];
+
+        // (domain, domain_inv, A, Y)
+        for (index, (domain, domain_inv, public, private)) in izip!(
+            domain_points.iter(),
+            domain_points_inv.iter(),
+            pubkey_shares.iter(),
+            privkey_shares.iter()
+        )
+        .enumerate()
+        {
+            let private_key_share = PrivateKeyShare::<E> {
+                private_key_share: *private,
+            };
+            let b = E::Fr::rand(rng);
+            let mut blinded_key_shares = private_key_share.blind(b);
+            blinded_key_shares.multiply_by_omega_inv(domain_inv);
+            private_contexts.push(PrivateDecryptionContextFast::<E> {
+                index,
+                setup_params: SetupParams {
+                    b,
+                    b_inv: b.inverse().unwrap(),
+                    g,
+                    h_inv: E::G2Prepared::from(-h),
+                    g_inv: E::G1Prepared::from(-g),
+                    h,
+                },
+                private_key_share,
+                public_decryption_contexts: vec![],
+            });
+            public_contexts.push(PublicDecryptionContextFast::<E> {
+                domain: *domain,
+                public_key_share: PublicKeyShare::<E> {
+                    public_key_share: *public,
+                },
+                blinded_key_share: blinded_key_shares,
+                lagrange_n_0: *domain,
                 h_inv: E::G2Prepared::from(-h),
-                g_inv: E::G1Prepared::from(-g),
+            });
+        }
+        for private in private_contexts.iter_mut() {
+            private.public_decryption_contexts = public_contexts.clone();
+        }
+
+        (pubkey.into(), privkey.into(), private_contexts)
+    }
+
+    pub fn setup_simple<E: PairingEngine>(
+        threshold: usize,
+        shares_num: usize,
+        rng: &mut impl RngCore,
+    ) -> (
+        E::G1Affine,
+        E::G2Affine,
+        Vec<PrivateDecryptionContextSimple<E>>,
+    ) {
+        assert!(shares_num >= threshold);
+
+        let g = E::G1Affine::prime_subgroup_generator();
+        let h = E::G2Affine::prime_subgroup_generator();
+
+        // The dealer chooses a uniformly random polynomial f of degree t-1
+        let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
+        // Domain, or omega Ω
+        let fft_domain =
+            ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
+        // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
+        let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
+
+        let shares_x = fft_domain.elements().collect::<Vec<_>>();
+
+        // A - public key shares of participants
+        let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
+        let pubkey_share = g.mul(evals.evals[0]);
+        assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
+
+        // Y, but only when b = 1 - private key shares of participants
+        let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
+
+        // a_0
+        let x = threshold_poly.coeffs[0];
+        // F_0
+        let pubkey = g.mul(x);
+        let privkey = h.mul(x);
+
+        let secret = threshold_poly.evaluate(&E::Fr::zero());
+        assert_eq!(secret, x);
+
+        let mut private_contexts = vec![];
+        let mut public_contexts = vec![];
+
+        // (domain, A, Y)
+        for (index, (domain, public, private)) in
+            izip!(shares_x.iter(), pubkey_shares.iter(), privkey_shares.iter())
+                .enumerate()
+        {
+            let private_key_share = PrivateKeyShare::<E> {
+                private_key_share: *private,
+            };
+            let b = E::Fr::rand(rng);
+            let blinded_key_share = private_key_share.blind(b);
+            private_contexts.push(PrivateDecryptionContextSimple::<E> {
+                index,
+                setup_params: SetupParams {
+                    b,
+                    b_inv: b.inverse().unwrap(),
+                    g,
+                    h_inv: E::G2Prepared::from(-h),
+                    g_inv: E::G1Prepared::from(-g),
+                    h,
+                },
+                private_key_share,
+                validator_private_key: b,
+                public_decryption_contexts: vec![],
+            });
+            public_contexts.push(PublicDecryptionContextSimple::<E> {
+                domain: *domain,
+                public_key_share: PublicKeyShare::<E> {
+                    public_key_share: *public,
+                },
+                blinded_key_share,
                 h,
-            },
-            private_key_share,
-            public_decryption_contexts: vec![],
-        });
-        public_contexts.push(PublicDecryptionContextFast::<E> {
-            domain: *domain,
-            public_key_share: PublicKeyShare::<E> {
-                public_key_share: *public,
-            },
-            blinded_key_share: blinded_key_shares,
-            lagrange_n_0: *domain,
-            h_inv: E::G2Prepared::from(-h),
-        });
+                validator_public_key: h.mul(b),
+            });
+        }
+        for private in private_contexts.iter_mut() {
+            private.public_decryption_contexts = public_contexts.clone();
+        }
+
+        (pubkey.into(), privkey.into(), private_contexts)
     }
-    for private in private_contexts.iter_mut() {
-        private.public_decryption_contexts = public_contexts.clone();
-    }
-
-    (pubkey.into(), privkey.into(), private_contexts)
-}
-
-pub fn setup_simple<E: PairingEngine>(
-    threshold: usize,
-    shares_num: usize,
-    rng: &mut impl RngCore,
-) -> (
-    E::G1Affine,
-    E::G2Affine,
-    Vec<PrivateDecryptionContextSimple<E>>,
-) {
-    assert!(shares_num >= threshold);
-
-    let g = E::G1Affine::prime_subgroup_generator();
-    let h = E::G2Affine::prime_subgroup_generator();
-
-    // The dealer chooses a uniformly random polynomial f of degree t-1
-    let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
-    // Domain, or omega Ω
-    let fft_domain =
-        ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
-    // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
-    let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
-
-    let shares_x = fft_domain.elements().collect::<Vec<_>>();
-
-    // A - public key shares of participants
-    let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
-    let pubkey_share = g.mul(evals.evals[0]);
-    assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
-
-    // Y, but only when b = 1 - private key shares of participants
-    let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
-
-    // a_0
-    let x = threshold_poly.coeffs[0];
-    // F_0
-    let pubkey = g.mul(x);
-    let privkey = h.mul(x);
-
-    let secret = threshold_poly.evaluate(&E::Fr::zero());
-    assert_eq!(secret, x);
-
-    let mut private_contexts = vec![];
-    let mut public_contexts = vec![];
-
-    // (domain, A, Y)
-    for (index, (domain, public, private)) in
-        izip!(shares_x.iter(), pubkey_shares.iter(), privkey_shares.iter())
-            .enumerate()
-    {
-        let private_key_share = PrivateKeyShare::<E> {
-            private_key_share: *private,
-        };
-        let b = E::Fr::rand(rng);
-        let blinded_key_share = private_key_share.blind(b);
-        private_contexts.push(PrivateDecryptionContextSimple::<E> {
-            index,
-            setup_params: SetupParams {
-                b,
-                b_inv: b.inverse().unwrap(),
-                g,
-                h_inv: E::G2Prepared::from(-h),
-                g_inv: E::G1Prepared::from(-g),
-                h,
-            },
-            private_key_share,
-            validator_private_key: b,
-            public_decryption_contexts: vec![],
-        });
-        public_contexts.push(PublicDecryptionContextSimple::<E> {
-            domain: *domain,
-            public_key_share: PublicKeyShare::<E> {
-                public_key_share: *public,
-            },
-            blinded_key_share,
-            h,
-            validator_public_key: h.mul(b),
-        });
-    }
-    for private in private_contexts.iter_mut() {
-        private.public_decryption_contexts = public_contexts.clone();
-    }
-
-    (pubkey.into(), privkey.into(), private_contexts)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::test_common::*;
+
+    use crate::refresh::{
+        make_random_polynomial_at, prepare_share_updates_for_recovery,
+        recover_share_from_updated_private_shares, refresh_private_key_share,
+        update_share_for_recovery,
+    };
     use ark_bls12_381::{Fr, FrParameters};
     use ark_ec::ProjectiveCurve;
     use ark_ff::{BigInteger256, Fp256};
     use ark_std::test_rng;
-
     use rand::prelude::StdRng;
     use std::collections::HashMap;
     use std::ops::Mul;
