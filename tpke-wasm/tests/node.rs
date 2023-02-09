@@ -11,14 +11,9 @@ use wasm_bindgen_test::*;
 #[test]
 #[wasm_bindgen_test]
 fn tdec_simple_precomputed() {
-    // TODO: This test is not working. Fix it.
-    // It only works for these parameters:
     let shares_num = 16;
-    let threshold = 16;
-    // Uncomment to see the error:
-    // let shares_num = 16;
-    // let threshold = shares_num * 2 / 3;
-    let message = "my-secret-message".as_bytes().to_vec();
+    let threshold = shares_num * 2 / 3;
+    let msg = "abc".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
     let dkg = Dkg::new(threshold, shares_num);
@@ -29,7 +24,7 @@ fn tdec_simple_precomputed() {
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&message, &aad, &dkg_pk);
+    let ciphertext = encrypt(&msg, &aad, &dkg_pk);
 
     // Serialize and send to validators
     let ciphertext_bytes = ciphertext.to_bytes();
@@ -42,7 +37,11 @@ fn tdec_simple_precomputed() {
     assert_eq!(ciphertext, ciphertext2);
 
     // Create decryption shares
-    let decryption_shares = (0..threshold)
+
+    // Note that in this variant, if we use less than `share_num` shares, we will get a
+    // decryption error.
+
+    let decryption_shares = (0..shares_num)
         .map(|i| dkg.make_decryption_share(&ciphertext, &aad, i))
         .collect::<Vec<DecryptionShare>>();
 
@@ -72,7 +71,8 @@ fn tdec_simple_precomputed() {
     // Decrypt the message
     let plaintext =
         decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret);
-    assert_eq!(message, plaintext)
+
+    assert_eq!(msg, plaintext)
 }
 
 #[test]

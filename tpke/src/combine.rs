@@ -94,7 +94,7 @@ pub fn share_combine_fast<E: PairingEngine>(
     );
     if !is_valid_shares {
         return Err(
-            ThresholdEncryptionError::DecryptionShareVerificationFailed,
+            ThresholdEncryptionError::DecryptionShareVerificationFailed.into(),
         );
     }
     Ok(share_combine_fast_unchecked(

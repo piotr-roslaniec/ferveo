@@ -19,11 +19,11 @@ pub type TpkePrivateDecryptionContext =
 pub fn encrypt(
     message: &[u8],
     aad: &[u8],
-    pubkey: &TpkeDkgPublicKey,
+    public_key: &TpkeDkgPublicKey,
 ) -> Ciphertext {
     // TODO: Should rng be a parameter?
     let rng = &mut rand::thread_rng();
-    Ciphertext(crate::encrypt(message, aad, pubkey, rng))
+    Ciphertext(crate::encrypt(message, aad, public_key, rng))
 }
 
 pub fn decrypt_with_shared_secret(

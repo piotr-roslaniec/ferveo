@@ -1,6 +1,7 @@
 use ark_ec::{AffineCurve, PairingEngine};
 use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_poly::{EvaluationDomain, UVPolynomial};
+use ark_serialize::*;
 use itertools::izip;
 use rand_core::RngCore;
 use std::usize;
@@ -42,12 +43,16 @@ pub trait ThresholdEncryptionParameters {
 
 #[derive(Debug, Error)]
 pub enum ThresholdEncryptionError {
-    /// Error
+    /// Ciphertext verification failed
     /// Refers to the check 4.4.2 in the paper: https://eprint.iacr.org/2022/898.pdf
-    #[error("ciphertext verification failed")]
+    #[error("Ciphertext verification failed")]
     CiphertextVerificationFailed,
 
-    /// Error
+    /// Symmetric ciphertext decryption failed
+    #[error("Ciphertext decryption failed")]
+    CiphertextDecryptionFailed,
+
+    /// Decryption share verification failed
     /// Refers to the check 4.4.4 in the paper: https://eprint.iacr.org/2022/898.pdf
     #[error("Decryption share verification failed")]
     DecryptionShareVerificationFailed,
@@ -56,11 +61,12 @@ pub enum ThresholdEncryptionError {
     #[error("Could not hash to curve")]
     HashToCurveError,
 
-    #[error("plaintext verification failed")]
+    #[error("Plaintext verification failed")]
     PlaintextVerificationFailed,
 }
 
-pub type Result<T> = std::result::Result<T, ThresholdEncryptionError>;
+// pub type Result<T> = std::result::Result<T, ThresholdEncryptionError>;
+pub type Result<T> = anyhow::Result<T>;
 
 /// Factory functions for testing
 #[cfg(any(test, feature = "test-common"))]
@@ -254,29 +260,8 @@ pub mod test_common {
 
         (pubkey.into(), privkey.into(), private_contexts)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::test_common::*;
-
-    use crate::refresh::{
-        make_random_polynomial_at, prepare_share_updates_for_recovery,
-        recover_share_from_updated_private_shares, refresh_private_key_share,
-        update_share_for_recovery,
-    };
-    use ark_bls12_381::{Fr, FrParameters};
-    use ark_ec::ProjectiveCurve;
-    use ark_ff::{BigInteger256, Fp256};
-    use ark_std::test_rng;
-    use rand::prelude::StdRng;
-    use std::collections::HashMap;
-    use std::ops::Mul;
-
-    type E = ark_bls12_381::Bls12_381;
-    type Fqk = <ark_bls12_381::Bls12_381 as PairingEngine>::Fqk;
-
-    fn test_ciphertext_validation_fails<E: PairingEngine>(
+    pub fn test_ciphertext_validation_fails<E: PairingEngine>(
         msg: &[u8],
         aad: &[u8],
         ciphertext: &Ciphertext<E>,
@@ -298,6 +283,27 @@ mod tests {
         assert!(decrypt_with_shared_secret(&ciphertext, aad, shared_secret)
             .is_err());
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_common::*;
+
+    use crate::refresh::{
+        make_random_polynomial_at, prepare_share_updates_for_recovery,
+        recover_share_from_updated_private_shares, refresh_private_key_share,
+        update_share_for_recovery,
+    };
+    use ark_bls12_381::{Fr, FrParameters};
+    use ark_ec::ProjectiveCurve;
+    use ark_ff::{BigInteger256, Fp256};
+    use ark_std::test_rng;
+    use rand::prelude::StdRng;
+    use std::collections::HashMap;
+    use std::ops::Mul;
+
+    type E = ark_bls12_381::Bls12_381;
+    type Fqk = <ark_bls12_381::Bls12_381 as PairingEngine>::Fqk;
 
     fn make_new_share_fragments(
         rng: &mut StdRng,
@@ -472,8 +478,8 @@ mod tests {
     #[test]
     fn simple_threshold_decryption_precomputed() {
         let mut rng = &mut test_rng();
-        let threshold = 16 * 2 / 3;
         let shares_num = 16;
+        let threshold = shares_num * 2 / 3;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
 
@@ -493,6 +499,19 @@ mod tests {
             share_combine_simple_precomputed::<E>(&decryption_shares);
 
         test_ciphertext_validation_fails(msg, aad, &ciphertext, &shared_secret);
+
+        // Note that in this variant, if we use less than `share_num` shares, we will get a
+        // decryption error.
+
+        let not_enough_shares = &decryption_shares[0..shares_num - 1];
+        let bad_shared_secret =
+            share_combine_simple_precomputed::<E>(not_enough_shares);
+        assert!(decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &bad_shared_secret,
+        )
+        .is_err());
     }
 
     #[test]

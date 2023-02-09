@@ -115,7 +115,6 @@ pub fn decrypt_with_private_key(
     private_key: &PrivateKey,
 ) -> Vec<u8> {
     set_panic_hook();
-
     tpke::api::decrypt_symmetric(&ciphertext.0, aad, private_key.0)
 }
 
@@ -148,11 +147,9 @@ impl SharedSecretBuilder {
     #[wasm_bindgen]
     pub fn build(&self) -> SharedSecret {
         set_panic_hook();
-
         if self.shares.len() < self.threshold {
             panic!("Number of shares below threshold");
         }
-
         SharedSecret(tpke::share_combine_simple_precomputed(&self.shares))
     }
 }
@@ -164,13 +161,11 @@ pub fn decrypt_with_shared_secret(
     shared_secret: &SharedSecret,
 ) -> Vec<u8> {
     set_panic_hook();
-
     tpke::api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
         .unwrap()
 }
 
 /// Factory functions for testing
-#[cfg(any(test, feature = "test-common"))]
 pub mod test_common {
     use super::*;
 
@@ -184,10 +179,10 @@ pub mod test_common {
 
     #[wasm_bindgen]
     impl Dkg {
+        // TODO: Consider removing threshold from precomputed variant parameters
         #[wasm_bindgen(constructor)]
         pub fn new(threshold: usize, shares_num: usize) -> Self {
             set_panic_hook();
-
             let mut rng = rand::thread_rng();
             let (public_key, private_key, private_contexts) =
                 tpke::test_common::setup_simple::<tpke::api::E>(

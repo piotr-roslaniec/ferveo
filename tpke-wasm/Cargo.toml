@@ -14,13 +14,8 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 test-common = ["group-threshold-cryptography/test-common"]
 
-[[test]]
-name = "wasm-node"
-path = "tests/node.rs"
-required-features = ["test-common"]
-
 [dependencies]
-group-threshold-cryptography = { path = "../tpke" }
+group-threshold-cryptography = { path = "../tpke", features = ["test-common"] }
 wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }
 console_error_panic_hook = { version = "0.1.7", optional = true }
 wee_alloc = { version = "0.4.5" }
@@ -34,9 +29,9 @@ serde_with = "2.0.1"
 ark-serialize = { version = "0.3", features = ["derive"] }
 ark-ec = "0.3"
 ark-std = "0.3.0"
+rand_core = "0.6"
 
 [dev-dependencies]
-group-threshold-cryptography = { path = "../tpke", features = ["test-common"] }
 wasm-bindgen-test = "0.3.13"
 console_error_panic_hook = "0.1.7"
 rand_core = "0.6"

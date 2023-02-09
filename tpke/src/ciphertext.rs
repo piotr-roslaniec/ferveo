@@ -1,19 +1,24 @@
 use crate::*;
 
 use ark_ec::{AffineCurve, PairingEngine};
-use ark_ff::{FromBytes, One, ToBytes, UniformRand};
+use ark_ff::{One, ToBytes, UniformRand};
 use ark_serialize::CanonicalSerialize;
 use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
 use rand_core::RngCore;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-#[derive(Clone, Debug, PartialEq)]
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ciphertext<E: PairingEngine> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub commitment: E::G1Affine, // U
-    pub auth_tag: E::G2Affine,   // W
-    pub ciphertext: Vec<u8>,     // V
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub auth_tag: E::G2Affine, // W
+    pub ciphertext: Vec<u8>, // V
 }
 
 impl<E: PairingEngine> Ciphertext<E> {
@@ -41,33 +46,11 @@ impl<E: PairingEngine> Ciphertext<E> {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        self.commitment.write(&mut bytes).unwrap();
-        self.auth_tag.write(&mut bytes).unwrap();
-        self.ciphertext.write(&mut bytes).unwrap();
-        bytes
+        bincode::serialize(self).unwrap()
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        const COMMITMENT_LEN: usize = 97;
-        let mut commitment_bytes = [0u8; COMMITMENT_LEN];
-        commitment_bytes.copy_from_slice(&bytes[..COMMITMENT_LEN]);
-        let commitment = E::G1Affine::read(&commitment_bytes[..]).unwrap();
-
-        const AUTH_TAG_LEN: usize = 193;
-        let mut auth_tag_bytes = [0u8; AUTH_TAG_LEN];
-        auth_tag_bytes.copy_from_slice(
-            &bytes[COMMITMENT_LEN..COMMITMENT_LEN + AUTH_TAG_LEN],
-        );
-        let auth_tag = E::G2Affine::read(&auth_tag_bytes[..]).unwrap();
-
-        let ciphertext = bytes[COMMITMENT_LEN + AUTH_TAG_LEN..].to_vec();
-
-        Self {
-            commitment,
-            ciphertext,
-            auth_tag,
-        }
+        bincode::deserialize(bytes).unwrap()
     }
 }
 
@@ -130,7 +113,7 @@ pub fn check_ciphertext_validity<E: PairingEngine>(
     if is_ciphertext_valid {
         Ok(())
     } else {
-        Err(ThresholdEncryptionError::CiphertextVerificationFailed)
+        Err(ThresholdEncryptionError::CiphertextVerificationFailed.into())
     }
 }
 
@@ -144,20 +127,22 @@ pub fn decrypt_symmetric<E: PairingEngine>(
         E::G1Prepared::from(ciphertext.commitment),
         E::G2Prepared::from(privkey),
     )]);
-    Ok(decrypt_with_shared_secret_unchecked(ciphertext, &s))
+    decrypt_with_shared_secret_unchecked(ciphertext, &s)
 }
 
 fn decrypt_with_shared_secret_unchecked<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     shared_secret: &E::Fqk,
-) -> Vec<u8> {
+) -> Result<Vec<u8>> {
     let nonce = nonce_from_commitment::<E>(ciphertext.commitment);
     let ciphertext = ciphertext.ciphertext.to_vec();
 
     let cipher = shared_secret_to_chacha::<E>(shared_secret);
-    let plaintext = cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+    let plaintext = cipher
+        .decrypt(&nonce, ciphertext.as_ref())
+        .map_err(|_| ThresholdEncryptionError::CiphertextVerificationFailed)?;
 
-    plaintext
+    Ok(plaintext)
 }
 
 pub fn decrypt_with_shared_secret<E: PairingEngine>(
@@ -166,10 +151,7 @@ pub fn decrypt_with_shared_secret<E: PairingEngine>(
     shared_secret: &E::Fqk,
 ) -> Result<Vec<u8>> {
     check_ciphertext_validity(ciphertext, aad)?;
-    Ok(decrypt_with_shared_secret_unchecked(
-        ciphertext,
-        shared_secret,
-    ))
+    decrypt_with_shared_secret_unchecked(ciphertext, shared_secret)
 }
 
 fn blake2s_hash(input: &[u8]) -> Vec<u8> {
