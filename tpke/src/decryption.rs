@@ -1,5 +1,6 @@
 use crate::*;
 use ark_ec::ProjectiveCurve;
+use ark_ff::FromBytes;
 
 use itertools::zip_eq;
 
@@ -38,7 +39,6 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidatorShareChecksum<E: PairingEngine> {
-    // TODO: Consider replacing named inner variable with () syntax
     pub checksum: E::G1Affine,
 }
 
@@ -76,6 +76,17 @@ impl<E: PairingEngine> ValidatorShareChecksum<E> {
         }
 
         true
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let checksum = CanonicalDeserialize::deserialize(bytes).unwrap();
+        Self { checksum }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        CanonicalSerialize::serialize(&self.checksum, &mut bytes).unwrap();
+        bytes
     }
 }
 
@@ -216,6 +227,46 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
             h,
             ciphertext,
         )
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        // TODO: usize type has different type in WASM (32 vs 64 bits)
+        let mut decrypter_index_bytes = [0u8; 8];
+        let decrypter_index_len = decrypter_index_bytes.len();
+        decrypter_index_bytes.copy_from_slice(&bytes[..decrypter_index_len]);
+        let decrypter_index = usize::from_be_bytes(decrypter_index_bytes);
+
+        const DECRYPTION_SHARE_LEN: usize = 576;
+        let mut decryption_share_bytes = [0u8; DECRYPTION_SHARE_LEN];
+        decryption_share_bytes.copy_from_slice(
+            &bytes[decrypter_index_len
+                ..decrypter_index_len + DECRYPTION_SHARE_LEN],
+        );
+        let decryption_share =
+            E::Fqk::read(&decryption_share_bytes[..]).unwrap();
+
+        let validator_checksum_bytes =
+            &bytes[decrypter_index_len + DECRYPTION_SHARE_LEN..];
+        let validator_checksum =
+            ValidatorShareChecksum::from_bytes(validator_checksum_bytes);
+
+        Ok(Self {
+            decrypter_index,
+            decryption_share,
+            validator_checksum,
+        })
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.decrypter_index.to_be_bytes());
+        let mut decryption_share_bytes = vec![];
+        self.decryption_share
+            .serialize(&mut decryption_share_bytes)
+            .unwrap();
+        bytes.extend_from_slice(&decryption_share_bytes);
+        bytes.extend_from_slice(&self.validator_checksum.to_bytes());
+        bytes
     }
 }
 

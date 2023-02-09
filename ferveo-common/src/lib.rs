@@ -54,13 +54,16 @@ pub mod ark_serde {
 #[test]
 fn test_ark_serde() {
     use ark_bls12_381::G1Affine;
+    use ark_ec::AffineCurve;
+
     use serde::{Deserialize, Serialize};
+
     #[derive(Serialize, Deserialize)]
     struct Test {
         #[serde(with = "ark_serde")]
         pub p: G1Affine,
     }
-    use ark_ec::AffineCurve;
+
     let p = G1Affine::prime_subgroup_generator();
     let t = Test { p };
     let m = serde_json::to_string(&t).unwrap();

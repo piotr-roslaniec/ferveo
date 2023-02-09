@@ -16,26 +16,10 @@ impl DecryptionShare {
     }
 }
 
-#[pyclass(module = "tpke")]
-pub struct ParticipantPayload(tpke::api::ParticipantPayload);
-
-#[pymethods]
-impl ParticipantPayload {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(tpke::api::ParticipantPayload::from_bytes(bytes))
-    }
-
-    pub fn to_decryption_share(&self) -> DecryptionShare {
-        DecryptionShare(self.0.to_decryption_share())
-    }
-}
-
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _tpke(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<DecryptionShare>()?;
-    m.add_class::<ParticipantPayload>()?;
 
     Ok(())
 }

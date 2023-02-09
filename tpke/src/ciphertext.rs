@@ -9,7 +9,7 @@ use chacha20poly1305::{
 };
 use rand_core::RngCore;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Ciphertext<E: PairingEngine> {
     pub commitment: E::G1Affine, // U
     pub auth_tag: E::G2Affine,   // W
@@ -34,10 +34,17 @@ impl<E: PairingEngine> Ciphertext<E> {
         hash_to_g2(&hash_input)
     }
 
+    pub fn serialized_length(&self) -> usize {
+        self.commitment.serialized_size()
+            + self.auth_tag.serialized_size()
+            + self.ciphertext.len()
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         self.commitment.write(&mut bytes).unwrap();
         self.auth_tag.write(&mut bytes).unwrap();
+        self.ciphertext.write(&mut bytes).unwrap();
         bytes
     }
 
@@ -142,12 +149,12 @@ pub fn decrypt_symmetric<E: PairingEngine>(
 
 fn decrypt_with_shared_secret_unchecked<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
-    s: &E::Fqk,
+    shared_secret: &E::Fqk,
 ) -> Vec<u8> {
     let nonce = nonce_from_commitment::<E>(ciphertext.commitment);
     let ciphertext = ciphertext.ciphertext.to_vec();
 
-    let cipher = shared_secret_to_chacha::<E>(s);
+    let cipher = shared_secret_to_chacha::<E>(shared_secret);
     let plaintext = cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
 
     plaintext
@@ -230,12 +237,12 @@ mod tests {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let pubkey = G1Projective::rand(rng).into_affine();
+
         let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+        let deserialized: Ciphertext<E> =
+            Ciphertext::from_bytes(&ciphertext.to_bytes());
 
-        let serialized = ciphertext.to_bytes();
-        let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
-
-        assert_eq!(serialized, deserialized.to_bytes())
+        assert_eq!(ciphertext, deserialized)
     }
 
     #[test]

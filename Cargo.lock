@@ -2174,7 +2174,6 @@ dependencies = [
  "ark-std",
  "bincode",
  "console_error_panic_hook",
- "criterion 0.4.0",
  "getrandom 0.2.7",
  "group-threshold-cryptography",
  "js-sys",

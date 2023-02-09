@@ -30,7 +30,7 @@ pub fn decrypt_with_shared_secret(
     aad: &[u8],
     shared_secret: &SharedSecret,
 ) -> Vec<u8> {
-    tpke::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
+    tpke::api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
         .unwrap()
 }
 
@@ -161,12 +161,12 @@ impl Dkg {
     }
 }
 
-pub struct Ciphertext(pub tpke::api::TpkeCiphertext);
+pub struct Ciphertext(pub tpke::api::Ciphertext);
 
 pub struct UnblindingKey(tpke::api::TpkeUnblindingKey);
 
 #[derive(Clone)]
-pub struct DecryptionShare(tpke::api::TpkeDecryptionShareSimplePrecomputed);
+pub struct DecryptionShare(tpke::api::TpkeDecryptionShare);
 
 pub struct AggregatedTranscript(
     crate::PubliclyVerifiableSS<E, crate::Aggregated>,
@@ -186,7 +186,7 @@ impl AggregatedTranscript {
     ) -> DecryptionShare {
         let domain_points: Vec<_> = dkg.0.domain.elements().collect();
         DecryptionShare(self.0.make_decryption_share_simple_precomputed(
-            &ciphertext.0,
+            &ciphertext.0 .0,
             aad,
             &validator_keypair.0.decryption_key,
             dkg.0.me,
