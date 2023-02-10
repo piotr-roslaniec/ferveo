@@ -1,5 +1,3 @@
-use thiserror::Error;
-
 pub mod ciphertext;
 pub mod combine;
 pub mod context;
@@ -29,7 +27,7 @@ pub use refresh::*;
 pub mod api;
 pub mod serialization;
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ThresholdEncryptionError {
     /// Ciphertext verification failed
     /// Refers to the check 4.4.2 in the paper: https://eprint.iacr.org/2022/898.pdf
@@ -49,11 +47,11 @@ pub enum ThresholdEncryptionError {
     #[error("Could not hash to curve")]
     HashToCurveError,
 
+    /// Plaintext verification failed
     #[error("Plaintext verification failed")]
     PlaintextVerificationFailed,
 }
 
-// pub type Result<T> = std::result::Result<T, ThresholdEncryptionError>;
 pub type Result<T> = anyhow::Result<T>;
 
 /// Factory functions for testing

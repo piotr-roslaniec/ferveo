@@ -11,6 +11,9 @@ categories = ["cryptography"]
 authors = ["Heliax AG <hello@heliax.dev>"]
 
 [dependencies]
+group-threshold-cryptography = { path = "../tpke" }
+ferveo-common = { path = "../ferveo-common" }
+subproductdomain = { path = "../subproductdomain" }
 ark-std = "0.3"
 ark-bls12-381 = "0.3"
 ark-ec = "0.3"
@@ -31,14 +34,15 @@ anyhow = "1.0"
 subtle = "2.4"
 itertools = "0.10.1"
 measure_time = "0.8"
-group-threshold-cryptography = { path = "../tpke" }
-ferveo-common = { path = "../ferveo-common" }
-subproductdomain = { path = "../subproductdomain" }
 rand_core = "0.6.4"
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4
+pprof = { version = "0.6", features = ["flamegraph", "criterion"] }
 digest = { version = "0.10.0", features = ["alloc"] }
+
+[package.metadata.cargo-udeps.ignore]
+development = ["pprof"]
 
 [[example]]
 name = "pvdkg"
@@ -53,7 +57,6 @@ path = "examples/pvdkg.rs"
 name = "benchmarks"
 path = "benches/bench_main.rs"
 harness = false
-
 
 [profile.release]
 opt-level = 3

@@ -15,6 +15,8 @@ bench = false
 test-common = []
 
 [dependencies]
+subproductdomain = { path = "../subproductdomain" }
+ferveo-common = { path = "../ferveo-common" }
 hex = "=0.4.3"
 rand_core = "0.6"
 rand = "0.8"
@@ -30,8 +32,6 @@ ark-serialize = "0.3"
 ark-std = "0.3"
 ark-bls12-381 = "0.3"
 itertools = "0.10"
-subproductdomain = { path = "../subproductdomain" }
-ferveo-common = { path = "../ferveo-common" }
 chacha20poly1305 = "0.10.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.0.1"
