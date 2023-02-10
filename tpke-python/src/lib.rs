@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 #[pyclass(module = "tpke")]
-pub struct DecryptionShare(tpke::api::DecryptionShare);
+pub struct DecryptionShare(tpke::api::DecryptionShareSimplePrecomputed);
 
 impl DecryptionShare {
     pub fn to_bytes(&self) -> PyResult<PyObject> {

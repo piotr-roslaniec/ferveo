@@ -166,7 +166,7 @@ pub struct Ciphertext(pub tpke::api::Ciphertext);
 pub struct UnblindingKey(tpke::api::TpkeUnblindingKey);
 
 #[derive(Clone)]
-pub struct DecryptionShare(tpke::api::TpkeDecryptionShare);
+pub struct DecryptionShare(tpke::api::TpkeDecryptionShareSimplePrecomputed);
 
 pub struct AggregatedTranscript(
     crate::PubliclyVerifiableSS<E, crate::Aggregated>,

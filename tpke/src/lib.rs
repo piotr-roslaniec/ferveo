@@ -370,8 +370,8 @@ mod tests {
         decryption_shares: &[DecryptionShareSimple<E>],
     ) -> E::Fqk {
         let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
-        let lagrange = prepare_combine_simple::<E>(&domain);
-        share_combine_simple::<E>(decryption_shares, &lagrange)
+        let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
+        share_combine_simple::<E>(decryption_shares, &lagrange_coeffs)
     }
 
     #[test]

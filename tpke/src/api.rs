@@ -4,12 +4,17 @@
 
 // TODO: Refactor this module to deduplicate shared code from tpke-wasm and tpke-wasm.
 
+use ark_serialize::*;
+
 pub type E = ark_bls12_381::Bls12_381;
 pub type TpkeDkgPublicKey = ark_bls12_381::G1Affine;
 pub type TpkePrivateKey = ark_bls12_381::G2Affine;
 pub type TpkeUnblindingKey = ark_bls12_381::Fr;
+pub type TpkeDomainPoint = ark_bls12_381::Fr;
 pub type TpkeCiphertext = crate::Ciphertext<E>;
-pub type TpkeDecryptionShare = crate::DecryptionShareSimplePrecomputed<E>;
+pub type TpkeDecryptionShareSimplePrecomputed =
+    crate::DecryptionShareSimplePrecomputed<E>;
+pub type TpkeDecryptionShareSimple = crate::DecryptionShareSimple<E>;
 pub type TpkePublicDecryptionContext = crate::PublicDecryptionContextSimple<E>;
 pub type TpkeSharedSecret = <E as ark_ec::PairingEngine>::Fqk;
 pub type TpkeResult<T> = crate::Result<T>;
@@ -42,16 +47,49 @@ pub fn decrypt_symmetric(
     crate::decrypt_symmetric(&ciphertext.0, aad, private_key).unwrap()
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct DecryptionShare(pub TpkeDecryptionShare);
+#[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
+pub struct DomainPoint(pub TpkeDomainPoint);
 
-impl DecryptionShare {
+impl DomainPoint {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = vec![];
+        CanonicalSerialize::serialize(&self.0, &mut bytes[..]).unwrap();
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let mut reader = bytes;
+        let domain_point =
+            CanonicalDeserialize::deserialize(&mut reader).unwrap();
+        Self(domain_point)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecryptionShareSimple(pub TpkeDecryptionShareSimple);
+
+impl DecryptionShareSimple {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(TpkeDecryptionShare::from_bytes(bytes).unwrap())
+        Self(TpkeDecryptionShareSimple::from_bytes(bytes))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecryptionShareSimplePrecomputed(
+    pub TpkeDecryptionShareSimplePrecomputed,
+);
+
+impl DecryptionShareSimplePrecomputed {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(bytes).unwrap())
     }
 }
 

@@ -33,7 +33,6 @@ impl<E: PairingEngine> DecryptionShareFast<E> {
     }
 }
 
-#[serde_as]
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone, PartialEq)]
 pub struct ValidatorShareChecksum<E: PairingEngine> {
     pub checksum: E::G1Affine,
@@ -86,11 +85,14 @@ impl<E: PairingEngine> ValidatorShareChecksum<E> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DecryptionShareSimple<E: PairingEngine> {
     // TODO: Add decryptor public key? Replace decryptor_index with public key?
     pub decrypter_index: usize,
+    #[serde_as(as = "serialization::SerdeAs")]
     pub decryption_share: E::Fqk,
+    #[serde(with = "ferveo_common::ark_serde")]
     pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
@@ -152,6 +154,14 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
             h,
             ciphertext,
         )
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        bincode::deserialize(bytes).unwrap()
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
 }
 
