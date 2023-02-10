@@ -1,13 +1,28 @@
-use crate::*;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+
 use anyhow::Context;
+use anyhow::{anyhow, Result};
 use ark_ec::bn::TwistType::D;
-use ark_ec::PairingEngine;
-use ark_ff::Field;
+use ark_ec::{msm::FixedBaseMSM, AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::{Field, One, PrimeField, Zero};
+use ark_poly::{
+    polynomial::univariate::DensePolynomial, polynomial::UVPolynomial,
+    EvaluationDomain,
+};
 use ark_serialize::*;
 use ark_std::{end_timer, start_timer};
+use ferveo_common::Rng;
 use ferveo_common::{ExternalValidator, PublicKey};
+use itertools::{izip, zip_eq};
+use measure_time::print_time;
 use rand::RngCore;
-use std::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    aggregate, make_validators, AggregatedPvss, DkgState, Params,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss,
+};
 
 /// The DKG context that holds all of the local state for participating in the DKG
 // TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
@@ -194,8 +209,7 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                 } = &mut self.state
                 {
                     *accumulated_shares += 1;
-                    // TODO: Should be `== self.params.shares_num` instead?
-                    if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
+                    if *accumulated_shares >= self.params.security_threshold {
                         self.state = DkgState::Dealt;
                     }
                 }
@@ -258,9 +272,10 @@ pub enum Message<E: PairingEngine> {
 /// Factory functions for testing
 #[cfg(test)]
 pub(crate) mod test_common {
-    pub use super::*;
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     pub use ark_ff::UniformRand;
+
+    pub use super::*;
 
     pub type G1 = <EllipticCurve as PairingEngine>::G1Affine;
 

@@ -1,11 +1,3 @@
-use ark_ec::{AffineCurve, PairingEngine};
-use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
-use ark_poly::{EvaluationDomain, UVPolynomial};
-use ark_serialize::*;
-use itertools::izip;
-use rand_core::RngCore;
-use std::usize;
-use subproductdomain::SubproductDomain;
 use thiserror::Error;
 
 pub mod ciphertext;
@@ -37,10 +29,6 @@ pub use refresh::*;
 pub mod api;
 pub mod serialization;
 
-pub trait ThresholdEncryptionParameters {
-    type E: PairingEngine;
-}
-
 #[derive(Debug, Error)]
 pub enum ThresholdEncryptionError {
     /// Ciphertext verification failed
@@ -71,12 +59,20 @@ pub type Result<T> = anyhow::Result<T>;
 /// Factory functions for testing
 #[cfg(any(test, feature = "test-common"))]
 pub mod test_common {
-    pub use super::*;
+    use std::usize;
+
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
+    use ark_ec::{AffineCurve, PairingEngine};
     pub use ark_ff::UniformRand;
+    use ark_ff::{Field, One, Zero};
     use ark_poly::univariate::DensePolynomial;
     use ark_poly::Polynomial;
+    use ark_poly::{EvaluationDomain, UVPolynomial};
+    use itertools::izip;
+    use rand_core::RngCore;
     use subproductdomain::fast_multiexp;
+
+    pub use super::*;
 
     pub fn setup_fast<E: PairingEngine>(
         threshold: usize,
@@ -287,20 +283,21 @@ pub mod test_common {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_common::*;
+    use std::collections::HashMap;
+    use std::ops::Mul;
+
+    use ark_bls12_381::{Fr, FrParameters};
+    use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+    use ark_ff::{BigInteger256, Fp256, Zero};
+    use ark_std::test_rng;
+    use rand::prelude::StdRng;
 
     use crate::refresh::{
         make_random_polynomial_at, prepare_share_updates_for_recovery,
         recover_share_from_updated_private_shares, refresh_private_key_share,
         update_share_for_recovery,
     };
-    use ark_bls12_381::{Fr, FrParameters};
-    use ark_ec::ProjectiveCurve;
-    use ark_ff::{BigInteger256, Fp256};
-    use ark_std::test_rng;
-    use rand::prelude::StdRng;
-    use std::collections::HashMap;
-    use std::ops::Mul;
+    use crate::test_common::*;
 
     type E = ark_bls12_381::Bls12_381;
     type Fqk = <ark_bls12_381::Bls12_381 as PairingEngine>::Fqk;

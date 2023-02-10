@@ -380,13 +380,14 @@ pub fn toeplitz_mul<E: PairingEngine, const NORMALIZE: bool>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_ec::PairingEngine;
     use ark_ff::{One, Zero};
     use ark_poly::polynomial::univariate::DensePolynomial;
     use ark_poly::Polynomial;
     use ark_poly::UVPolynomial;
     use ark_std::UniformRand;
+
+    use super::*;
 
     type Fr = <ark_bls12_381::Bls12_381 as PairingEngine>::Fr;
     #[test]

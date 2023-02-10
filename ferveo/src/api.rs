@@ -212,8 +212,9 @@ impl AggregatedTranscript {
 
 #[cfg(test)]
 mod test_ferveo_api {
-    use crate::api::*;
-    use crate::dkg::test_common::*;
+    use std::collections::HashMap;
+    use std::fmt::format;
+
     use ark_bls12_381::{Bls12_381 as E, Fr, G2Projective};
     use ark_ec::ProjectiveCurve;
     use ark_poly::EvaluationDomain;
@@ -224,8 +225,9 @@ mod test_ferveo_api {
     use itertools::{iproduct, izip};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
-    use std::collections::HashMap;
-    use std::fmt::format;
+
+    use crate::api::*;
+    use crate::dkg::test_common::*;
 
     #[test]
     fn test_server_api_simple_tdec_precomputed() {

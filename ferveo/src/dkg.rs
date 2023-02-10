@@ -2,7 +2,6 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use crate::*;
 use anyhow::anyhow;
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::Zero;

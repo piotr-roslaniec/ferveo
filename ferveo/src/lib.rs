@@ -1,21 +1,5 @@
 #![allow(unused_imports)]
 
-use anyhow::{anyhow, Result};
-use ark_ec::msm::FixedBaseMSM;
-use ark_ec::PairingEngine;
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::PrimeField;
-use ark_ff::{Field, One, Zero};
-use ark_poly::{
-    polynomial::univariate::DensePolynomial, polynomial::UVPolynomial,
-    EvaluationDomain,
-};
-use ark_std::{end_timer, start_timer};
-use ferveo_common::Rng;
-use itertools::{izip, zip_eq};
-use measure_time::print_time;
-use serde::{Deserialize, Serialize};
-
 pub mod api;
 pub mod dkg;
 pub mod msg;
@@ -29,25 +13,40 @@ pub use vss::*;
 
 #[cfg(test)]
 mod test_dkg_full {
-    use super::*;
     use std::collections::HashMap;
 
-    use crate::dkg::pv::test_common::*;
+    use anyhow::{anyhow, Result};
     use ark_bls12_381::{
         Bls12_381 as E, Bls12_381, Fr, G1Affine, G2Projective,
     };
     use ark_ec::bls12::G2Affine;
     use ark_ec::group::Group;
+    use ark_ec::{
+        msm::FixedBaseMSM, AffineCurve, PairingEngine, ProjectiveCurve,
+    };
+    use ark_ff::{Field, One, PrimeField, Zero};
     use ark_ff::{Fp12, UniformRand};
+    use ark_poly::{
+        polynomial::univariate::DensePolynomial, polynomial::UVPolynomial,
+        EvaluationDomain,
+    };
     use ark_std::test_rng;
+    use ark_std::{end_timer, start_timer};
+    use ferveo_common::Rng;
     use ferveo_common::{ExternalValidator, Keypair};
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
         Ciphertext, DecryptionShareSimple, DecryptionShareSimplePrecomputed,
     };
-    use itertools::{zip_eq, Itertools};
+    use itertools::Itertools;
+    use itertools::{izip, zip_eq};
+    use measure_time::print_time;
     use rand::prelude::StdRng;
     use rand::SeedableRng;
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::dkg::pv::test_common::*;
 
     type Fqk = <E as PairingEngine>::Fqk;
 

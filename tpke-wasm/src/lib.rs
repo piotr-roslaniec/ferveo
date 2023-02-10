@@ -2,11 +2,10 @@ extern crate group_threshold_cryptography as tpke;
 
 mod utils;
 
-use utils::*;
-
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use utils::*;
 use wasm_bindgen::prelude::*;
 
 extern crate wee_alloc;

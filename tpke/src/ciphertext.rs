@@ -1,5 +1,3 @@
-use crate::*;
-
 use ark_ec::{AffineCurve, PairingEngine};
 use ark_ff::{One, ToBytes, UniformRand};
 use ark_serialize::CanonicalSerialize;
@@ -10,6 +8,9 @@ use chacha20poly1305::{
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+
+use crate::serialization;
+use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -201,14 +202,14 @@ fn construct_tag_hash<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-    use crate::test_common::*;
-    use crate::*;
-
     use ark_bls12_381::{Fr, G1Projective, G2Projective};
     use ark_ec::ProjectiveCurve;
     use ark_ff::PrimeField;
     use ark_std::{test_rng, UniformRand};
     use rand::prelude::StdRng;
+
+    use crate::test_common::*;
+    use crate::*;
 
     type E = ark_bls12_381::Bls12_381;
 

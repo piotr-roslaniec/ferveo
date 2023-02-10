@@ -1,16 +1,15 @@
 #![allow(clippy::redundant_closure)]
 
+use std::collections::HashMap;
+
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
 use ark_ec::AffineCurve;
 use ark_ff::Zero;
-use std::collections::HashMap;
-
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::*;
-
 use group_threshold_cryptography::test_common::{setup_fast, setup_simple};
+use group_threshold_cryptography::*;
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 

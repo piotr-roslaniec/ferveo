@@ -1,11 +1,12 @@
-use crate::{lagrange_basis_at, PrivateKeyShare};
+use std::usize;
+
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{PrimeField, Zero};
 use ark_poly::{univariate::DensePolynomial, Polynomial, UVPolynomial};
 use itertools::zip_eq;
 use rand_core::RngCore;
 
-use std::usize;
+use crate::{lagrange_basis_at, PrivateKeyShare};
 
 /// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
 pub fn prepare_share_updates_for_recovery<E: PairingEngine>(

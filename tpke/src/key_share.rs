@@ -1,5 +1,7 @@
-use crate::*;
-use ark_ec::ProjectiveCurve;
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::One;
+use ark_std::UniformRand;
+use rand_core::RngCore;
 
 #[derive(Debug, Clone)]
 pub struct PublicKeyShare<E: PairingEngine> {

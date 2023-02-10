@@ -14,8 +14,9 @@ pub mod ser {
     //! Simply use the following attribute on your field:
     //! `#[serde(with = "serialization::ser") attribute"]`
 
-    use super::*;
     use serde_with::{DeserializeAs, SerializeAs};
+
+    use super::*;
 
     /// You can use this to serialize an arkworks type with serde and the "serialize_with" attribute.
     /// See <https://serde.rs/field-attrs.html>

@@ -7,7 +7,6 @@ use ark_ec::{
 };
 use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
-
 use group_threshold_cryptography::make_random_polynomial_at;
 use itertools::izip;
 use rand::prelude::StdRng;

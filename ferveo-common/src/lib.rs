@@ -55,7 +55,6 @@ pub mod ark_serde {
 fn test_ark_serde() {
     use ark_bls12_381::G1Affine;
     use ark_ec::AffineCurve;
-
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
