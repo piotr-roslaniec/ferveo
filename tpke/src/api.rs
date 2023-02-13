@@ -8,6 +8,8 @@ use ark_serialize::*;
 
 pub type E = ark_bls12_381::Bls12_381;
 pub type TpkeDkgPublicKey = ark_bls12_381::G1Affine;
+pub type TpkeG1Prepared = <E as ark_ec::PairingEngine>::G1Prepared;
+pub type TpkeG1Affine = <E as ark_ec::PairingEngine>::G1Affine;
 pub type TpkePrivateKey = ark_bls12_381::G2Affine;
 pub type TpkeUnblindingKey = ark_bls12_381::Fr;
 pub type TpkeDomainPoint = ark_bls12_381::Fr;
@@ -35,16 +37,18 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &TpkeSharedSecret,
+    g_inv: &TpkeG1Prepared,
 ) -> TpkeResult<Vec<u8>> {
-    crate::decrypt_with_shared_secret(&ciphertext.0, aad, shared_secret)
+    crate::decrypt_with_shared_secret(&ciphertext.0, aad, shared_secret, g_inv)
 }
 
 pub fn decrypt_symmetric(
     ciphertext: &Ciphertext,
     aad: &[u8],
-    private_key: TpkePrivateKey,
+    private_key: &TpkePrivateKey,
+    g_inv: &TpkeG1Prepared,
 ) -> Vec<u8> {
-    crate::decrypt_symmetric(&ciphertext.0, aad, private_key).unwrap()
+    crate::decrypt_symmetric(&ciphertext.0, aad, private_key, g_inv).unwrap()
 }
 
 #[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]

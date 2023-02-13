@@ -60,6 +60,12 @@ pub struct PubliclyVerifiableParams<E: PairingEngine> {
     pub h: E::G2Projective,
 }
 
+impl<E: PairingEngine> PubliclyVerifiableParams<E> {
+    pub fn g_inv(&self) -> E::G1Prepared {
+        E::G1Prepared::from(-self.g.into_affine())
+    }
+}
+
 /// Each validator posts a transcript to the chain. Once enough
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
@@ -91,7 +97,7 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
     ) -> Result<Self> {
         // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
         let mut phi = DensePolynomial::<E::Fr>::rand(
-            (dkg.params.shares_num - dkg.params.security_threshold) as usize,
+            (dkg.params.security_threshold - 1) as usize,
             rng,
         );
         phi.coeffs[0] = *s; // setting the first coefficient to secret value
@@ -175,8 +181,6 @@ impl<E: PairingEngine, T> PubliclyVerifiableSS<E, T> {
                 let a_i = commitment[validator.share_index];
                 // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
                 // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
-                // Y = \sum_i y_i \alpha^i
-                // A = \sum_i a_i \alpha^i
                 // e(G,Y) = e(A, ek)
                 E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
             })
@@ -234,6 +238,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
         aad: &[u8],
         validator_decryption_key: &E::Fr,
         validator_index: usize,
+        g_inv: &E::G1Prepared,
     ) -> DecryptionShareSimple<E> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
@@ -245,6 +250,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &private_key_share,
             ciphertext,
             aad,
+            g_inv,
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -256,6 +262,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::Fr,
         validator_index: usize,
         domain_points: &[E::Fr],
+        g_inv: &E::G1Prepared,
     ) -> DecryptionShareSimplePrecomputed<E> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
@@ -271,6 +278,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             ciphertext,
             aad,
             &lagrange_coeffs[validator_index],
+            g_inv,
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -302,6 +310,7 @@ impl<E: PairingEngine, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &refreshed_private_key_share,
             ciphertext,
             aad,
+            &dkg.pvss_params.g_inv(),
         )
         .unwrap() // TODO: Add proper error handling
     }
@@ -361,6 +370,63 @@ pub fn aggregate<E: PairingEngine>(
     }
 }
 
+pub fn aggregate_for_decryption<E: PairingEngine>(
+    dkg: &PubliclyVerifiableDkg<E>,
+) -> Vec<ShareEncryptions<E>> {
+    // From docs: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
+    // "Two PVSS instances may be aggregated into a single PVSS instance by adding elementwise each of the corresponding group elements."
+    let shares = dkg
+        .vss
+        .values()
+        .map(|pvss| pvss.shares.clone())
+        .collect::<Vec<_>>();
+    let first_share = shares.first().unwrap().to_vec();
+    shares
+        .into_iter()
+        .skip(1)
+        // We're assuming that in every PVSS instance, the shares are in the same order
+        .fold(first_share, |acc, shares| {
+            acc.into_iter()
+                .zip_eq(shares.into_iter())
+                .map(|(a, b)| a + b)
+                .collect()
+        })
+}
+
+pub fn make_decryption_shares<E: PairingEngine>(
+    ciphertext: &Ciphertext<E>,
+    validator_keypairs: &[Keypair<E>],
+    aggregate: &[E::G2Affine],
+    aad: &[u8],
+    g_inv: &E::G1Prepared,
+) -> Vec<DecryptionShareSimple<E>> {
+    // TODO: Calculate separately for each validator
+    aggregate
+        .iter()
+        .zip_eq(validator_keypairs.iter())
+        .enumerate()
+        .map(|(decrypter_index, (encrypted_share, keypair))| {
+            // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
+            let z_i = encrypted_share
+                .mul(keypair.decryption_key.inverse().unwrap().into_repr());
+            // TODO: Consider using "container" structs from `tpke` for other primitives
+            let private_key_share = PrivateKeyShare {
+                private_key_share: z_i.into_affine(),
+            };
+
+            DecryptionShareSimple::create(
+                decrypter_index,
+                &keypair.decryption_key,
+                &private_key_share,
+                ciphertext,
+                aad,
+                g_inv,
+            )
+            .unwrap() // Unwrapping here only because this is a test method!
+        })
+        .collect::<Vec<_>>()
+}
+
 #[cfg(test)]
 mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
@@ -386,10 +452,7 @@ mod test_pvss {
         // check that the chosen secret coefficient is correct
         assert_eq!(pvss.coeffs[0], G1::prime_subgroup_generator().mul(s));
         //check that a polynomial of the correct degree was created
-        assert_eq!(
-            pvss.coeffs.len(),
-            dkg.params.security_threshold as usize + 1
-        );
+        assert_eq!(pvss.coeffs.len(), dkg.params.security_threshold as usize);
         // check that the correct number of shares were created
         assert_eq!(pvss.shares.len(), dkg.validators.len());
         // check that the prove of knowledge is correct
@@ -419,7 +482,7 @@ mod test_pvss {
         assert!(!pvss.verify_optimistic());
     }
 
-    /// Check that if PVSS shares are tempered with, the full verification fails
+    /// Check that if PVSS shares are tampered with, the full verification fails
     #[test]
     fn test_verify_pvss_bad_shares() {
         let rng = &mut ark_std::test_rng();
@@ -450,7 +513,7 @@ mod test_pvss {
         //check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
-            dkg.params.security_threshold as usize + 1
+            dkg.params.security_threshold as usize
         );
         // check that the correct number of shares were created
         assert_eq!(aggregate.shares.len(), dkg.validators.len());

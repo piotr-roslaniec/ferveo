@@ -27,13 +27,19 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
+    g1_inv: &G1Prepared,
 ) -> Vec<u8> {
     ferveo::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
         &shared_secret.0,
+        &g1_inv.0,
     )
 }
+
+#[pyclass(module = "ferveo")]
+#[derive(derive_more::From, derive_more::AsRef)]
+pub struct G1Prepared(ferveo::api::G1Prepared);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]

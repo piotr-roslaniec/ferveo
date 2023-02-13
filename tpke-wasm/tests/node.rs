@@ -16,14 +16,13 @@ fn tdec_simple() {
     let aad = "my-aad".as_bytes().to_vec();
 
     let dkg = Dkg::new(threshold, shares_num);
-    let dkg_pk = dkg.public_key;
 
     //
     // On the client side
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg_pk);
+    let ciphertext = encrypt(&msg, &aad, &dkg.public_key);
 
     // Serialize and send to validators
     let ciphertext_bytes = ciphertext.to_bytes();
@@ -73,8 +72,12 @@ fn tdec_simple() {
     let shared_secret = ss_builder.build();
 
     // Decrypt the message
-    let plaintext =
-        decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret);
+    let plaintext = decrypt_with_shared_secret(
+        &ciphertext,
+        &aad,
+        &shared_secret,
+        &dkg.g_inv(),
+    );
 
     assert_eq!(msg, plaintext)
 }
@@ -141,8 +144,12 @@ fn tdec_simple_precomputed() {
     let shared_secret = ss_builder.build();
 
     // Decrypt the message
-    let plaintext =
-        decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret);
+    let plaintext = decrypt_with_shared_secret(
+        &ciphertext,
+        &aad,
+        &shared_secret,
+        &dkg.g_inv(),
+    );
 
     assert_eq!(msg, plaintext)
 }
@@ -155,11 +162,15 @@ fn encrypts_and_decrypts() {
     let message = "my-secret-message".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
-    let setup = Dkg::new(threshold, shares_num);
+    let dkg = Dkg::new(threshold, shares_num);
 
-    let ciphertext = encrypt(&message, &aad, &setup.public_key);
-    let plaintext =
-        decrypt_with_private_key(&ciphertext, &aad, &setup.private_key);
+    let ciphertext = encrypt(&message, &aad, &dkg.public_key);
+    let plaintext = decrypt_with_private_key(
+        &ciphertext,
+        &aad,
+        &dkg.private_key,
+        &dkg.g_inv(),
+    );
 
     // TODO: Plaintext is padded to 32 bytes. Fix this.
     assert_eq!(message, plaintext[..message.len()])

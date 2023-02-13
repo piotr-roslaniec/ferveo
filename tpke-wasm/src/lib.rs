@@ -12,6 +12,10 @@ extern crate wee_alloc;
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq)]
+pub struct G1Prepared(tpke::api::TpkeG1Prepared);
+
+#[wasm_bindgen]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
@@ -132,9 +136,10 @@ pub fn decrypt_with_private_key(
     ciphertext: &Ciphertext,
     aad: &[u8],
     private_key: &PrivateKey,
+    g_inv: &G1Prepared,
 ) -> Vec<u8> {
     set_panic_hook();
-    tpke::api::decrypt_symmetric(&ciphertext.0, aad, private_key.0)
+    tpke::api::decrypt_symmetric(&ciphertext.0, aad, &private_key.0, &g_inv.0)
 }
 
 #[wasm_bindgen]
@@ -226,10 +231,16 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
+    g_inv: &G1Prepared,
 ) -> Vec<u8> {
     set_panic_hook();
-    tpke::api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
-        .unwrap()
+    tpke::api::decrypt_with_shared_secret(
+        &ciphertext.0,
+        aad,
+        &shared_secret.0,
+        &g_inv.0,
+    )
+    .unwrap()
 }
 
 /// Factory functions for testing
@@ -301,6 +312,12 @@ pub mod test_common {
                     [validator_index]
                     .domain,
             ))
+        }
+
+        #[wasm_bindgen(getter)]
+        pub fn g_inv(&self) -> G1Prepared {
+            set_panic_hook();
+            G1Prepared(self.private_contexts[0].setup_params.g_inv.clone())
         }
     }
 }

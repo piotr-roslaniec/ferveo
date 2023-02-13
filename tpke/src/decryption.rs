@@ -105,8 +105,9 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
+        g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        check_ciphertext_validity::<E>(ciphertext, aad)?;
+        check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
         Ok(Self::create_unchecked(
             validator_index,
             validator_decryption_key,
@@ -183,8 +184,9 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         lagrange_coeff: &E::Fr,
+        g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        check_ciphertext_validity::<E>(ciphertext, aad)?;
+        check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
 
         Ok(Self::create_unchecked(
             validator_index,

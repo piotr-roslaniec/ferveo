@@ -34,6 +34,7 @@ measure_time = "0.8"
 group-threshold-cryptography = { path = "../tpke" }
 ferveo-common = { path = "../ferveo-common" }
 subproductdomain = { path = "../subproductdomain" }
+rand_core = "0.6.4"
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4

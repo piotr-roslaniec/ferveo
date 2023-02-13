@@ -29,10 +29,17 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
+    g_inv: &G1Prepared,
 ) -> Vec<u8> {
-    tpke::api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
-        .unwrap()
+    tpke::api::decrypt_with_shared_secret(
+        &ciphertext.0,
+        aad,
+        &shared_secret.0,
+        &g_inv.0,
+    )
+    .unwrap()
 }
+pub struct G1Prepared(pub tpke::api::TpkeG1Prepared);
 
 pub struct SharedSecret(tpke::api::TpkeSharedSecret);
 
@@ -191,6 +198,7 @@ impl AggregatedTranscript {
             &validator_keypair.0.decryption_key,
             dkg.0.me,
             &domain_points,
+            &dkg.0.pvss_params.g_inv(),
         ))
     }
 
@@ -307,8 +315,12 @@ mod test_ferveo_api {
 
         let shared_secret = combine_decryption_shares(&decryption_shares);
 
-        let plaintext =
-            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
+        let plaintext = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+            &G1Prepared(dkg.0.pvss_params.g_inv()),
+        );
         assert_eq!(plaintext, msg);
     }
 }

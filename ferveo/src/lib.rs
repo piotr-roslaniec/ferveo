@@ -2,12 +2,10 @@
 
 pub mod api;
 pub mod dkg;
-pub mod msg;
 pub mod primitives;
 pub mod vss;
 
 pub use dkg::*;
-pub use msg::*;
 pub use primitives::*;
 pub use vss::*;
 
@@ -80,6 +78,7 @@ mod test_dkg_full {
                         aad,
                         &validator_keypair.decryption_key,
                         validator_index,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -121,9 +120,13 @@ mod test_dkg_full {
             &validator_keypairs,
         );
 
-        let plaintext =
-            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                .unwrap();
+        let plaintext = tpke::decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+            &dkg.pvss_params.g_inv(),
+        )
+        .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -136,6 +139,7 @@ mod test_dkg_full {
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
         let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let _g_inv = dkg.pvss_params.g_inv();
         let validator_keypairs = gen_n_keypairs(4);
 
         let pvss_aggregated = aggregate(&dkg);
@@ -156,6 +160,7 @@ mod test_dkg_full {
                         &validator_keypair.decryption_key,
                         validator_index,
                         &domain_points,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -163,9 +168,15 @@ mod test_dkg_full {
         let shared_secret =
             tpke::share_combine_simple_precomputed::<E>(&decryption_shares);
 
-        let plaintext =
-            tpke::decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                .unwrap();
+        // Combination works, let's decrypt
+
+        let plaintext = tpke::decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+            &dkg.pvss_params.g_inv(),
+        )
+        .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -317,6 +328,7 @@ mod test_dkg_full {
                         aad,
                         &validator_keypair.decryption_key,
                         validator_index,
+                        &dkg.pvss_params.g_inv(),
                     )
                 })
                 .collect();
@@ -331,6 +343,7 @@ mod test_dkg_full {
                 &new_private_key_share,
                 &ciphertext,
                 aad,
+                &dkg.pvss_params.g_inv(),
             )
             .unwrap(),
         );

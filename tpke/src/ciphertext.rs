@@ -5,6 +5,7 @@ use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
+use crypto::{digest::Digest, sha2::Sha256};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,9 +17,11 @@ use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ciphertext<E: PairingEngine> {
     #[serde_as(as = "serialization::SerdeAs")]
-    pub commitment: E::G1Affine, // U
+    pub commitment: E::G1Affine,
+    // U
     #[serde_as(as = "serialization::SerdeAs")]
-    pub auth_tag: E::G2Affine, // W
+    pub auth_tag: E::G2Affine,
+    // W
     pub ciphertext: Vec<u8>, // V
 }
 
@@ -96,8 +99,8 @@ pub fn encrypt<R: RngCore, E: PairingEngine>(
 pub fn check_ciphertext_validity<E: PairingEngine>(
     c: &Ciphertext<E>,
     aad: &[u8],
+    g_inv: &E::G1Prepared,
 ) -> Result<()> {
-    let g_inv = E::G1Prepared::from(-E::G1Affine::prime_subgroup_generator());
     // H_G2(U, aad)
     let hash_g2 = E::G2Prepared::from(construct_tag_hash::<E>(
         c.commitment,
@@ -108,7 +111,7 @@ pub fn check_ciphertext_validity<E: PairingEngine>(
     let is_ciphertext_valid = E::product_of_pairings(&[
         // e(U, H_G2(U, aad)) = e(G, W)
         (E::G1Prepared::from(c.commitment), hash_g2),
-        (g_inv, E::G2Prepared::from(c.auth_tag)),
+        (g_inv.clone(), E::G2Prepared::from(c.auth_tag)),
     ]) == E::Fqk::one();
 
     if is_ciphertext_valid {
@@ -121,14 +124,15 @@ pub fn check_ciphertext_validity<E: PairingEngine>(
 pub fn decrypt_symmetric<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
-    privkey: E::G2Affine,
+    private_key: &E::G2Affine,
+    g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
-    check_ciphertext_validity(ciphertext, aad)?;
-    let s = E::product_of_pairings(&[(
+    check_ciphertext_validity(ciphertext, aad, g_inv)?;
+    let shared_secret = E::product_of_pairings(&[(
         E::G1Prepared::from(ciphertext.commitment),
-        E::G2Prepared::from(privkey),
+        E::G2Prepared::from(*private_key),
     )]);
-    decrypt_with_shared_secret_unchecked(ciphertext, &s)
+    decrypt_with_shared_secret_unchecked(ciphertext, &shared_secret)
 }
 
 fn decrypt_with_shared_secret_unchecked<E: PairingEngine>(
@@ -150,15 +154,18 @@ pub fn decrypt_with_shared_secret<E: PairingEngine>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
     shared_secret: &E::Fqk,
+    g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
-    check_ciphertext_validity(ciphertext, aad)?;
+    check_ciphertext_validity(ciphertext, aad, g_inv)?;
     decrypt_with_shared_secret_unchecked(ciphertext, shared_secret)
 }
 
-fn blake2s_hash(input: &[u8]) -> Vec<u8> {
-    let mut hasher = blake2b_simd::Params::new().hash_length(32).to_state();
-    hasher.update(input);
-    hasher.finalize().as_bytes().to_vec()
+fn sha256(input: &[u8]) -> Vec<u8> {
+    let mut result = [0u8; 32];
+    let mut hasher = Sha256::new();
+    hasher.input(input);
+    hasher.result(&mut result);
+    result.to_vec()
 }
 
 pub fn shared_secret_to_chacha<E: PairingEngine>(
@@ -166,7 +173,7 @@ pub fn shared_secret_to_chacha<E: PairingEngine>(
 ) -> ChaCha20Poly1305 {
     let mut prf_key = Vec::new();
     s.write(&mut prf_key).unwrap();
-    let prf_key_32 = blake2s_hash(&prf_key);
+    let prf_key_32 = sha256(&prf_key);
 
     ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32))
 }
@@ -176,7 +183,7 @@ fn nonce_from_commitment<E: PairingEngine>(commitment: E::G1Affine) -> Nonce {
     commitment
         .serialize_unchecked(&mut commitment_bytes)
         .unwrap();
-    let commitment_hash = blake2s_hash(&commitment_bytes);
+    let commitment_hash = sha256(&commitment_bytes);
     *Nonce::from_slice(&commitment_hash[..12])
 }
 
@@ -202,9 +209,8 @@ fn construct_tag_hash<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fr, G1Projective, G2Projective};
+    use ark_bls12_381::G1Projective;
     use ark_ec::ProjectiveCurve;
-    use ark_ff::PrimeField;
     use ark_std::{test_rng, UniformRand};
     use rand::prelude::StdRng;
 
@@ -230,19 +236,19 @@ mod tests {
     #[test]
     fn symmetric_encryption() {
         let rng = &mut test_rng();
+        let shares_num = 16;
+        let threshold = shares_num * 2 / 3;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
 
-        let x = Fr::rand(rng).into_repr();
-        let pubkey = G1Projective::prime_subgroup_generator()
-            .mul(x)
-            .into_affine();
-        let privkey = G2Projective::prime_subgroup_generator()
-            .mul(x)
-            .into_affine();
+        let (pubkey, privkey, contexts) =
+            setup_fast::<E>(threshold, shares_num, rng);
+        let g_inv = &contexts[0].setup_params.g_inv;
 
         let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
-        let plaintext = decrypt_symmetric(&ciphertext, aad, privkey).unwrap();
+
+        let plaintext =
+            decrypt_symmetric(&ciphertext, aad, &privkey, g_inv).unwrap();
 
         assert_eq!(msg, plaintext)
     }
@@ -254,18 +260,19 @@ mod tests {
         let threshold = shares_num * 2 / 3;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
+        let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
+        let g_inv = contexts[0].setup_params.g_inv.clone();
         let mut ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
 
         // So far, the ciphertext is valid
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_ok());
+        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_ok());
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
+        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
-        assert!(check_ciphertext_validity(&ciphertext, aad).is_err());
+        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_err());
     }
 }
