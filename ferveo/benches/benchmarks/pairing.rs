@@ -17,12 +17,12 @@ pub fn lagrange(c: &mut Criterion) {
     group.measurement_time(core::time::Duration::new(30, 0));
     let mut u = vec![];
     for _ in 0..(8192 * 2 / 3) {
-        u.push(Fr::rand(rng));
+        u.push(ScalarField::rand(rng));
     }
     group.bench_function("BLS12-381 Fr 8192*2/3 lagrange coefficients", |b| {
         b.iter(|| {
             black_box(
-                subproductdomain::SubproductDomain::<Fr>::new(u.clone())
+                subproductdomain::SubproductDomain::<ScalarField>::new(u.clone())
                     .inverse_lagrange_coefficients(),
             )
         })
@@ -32,13 +32,13 @@ pub fn lagrange(c: &mut Criterion) {
 
     let mut u = vec![];
     for _ in 0..(8192 * 2 / 3) {
-        u.push(jubjub::Fr::rand(rng));
+        u.push(jubjub::ScalarField::rand(rng));
     }
 
     group.bench_function("Jubjub Fr 8192*2/3 lagrange coefficients", |b| {
         b.iter(|| {
             black_box(
-                subproductdomain::SubproductDomain::<jubjub::Fr>::new(
+                subproductdomain::SubproductDomain::<jubjub::ScalarField>::new(
                     u.clone(),
                 )
                 .inverse_lagrange_coefficients(),
@@ -52,20 +52,20 @@ pub fn pairing(c: &mut Criterion) {
     let mut group = c.benchmark_group("pairing running time");
     group.sample_size(10);
 
-    type G1Prepared = <Bls12_381 as PairingEngine>::G1Prepared;
-    type G2Prepared = <Bls12_381 as PairingEngine>::G2Prepared;
+    type G1Prepared = <Bls12_381 as Pairing>::G1Prepared;
+    type G2Prepared = <Bls12_381 as Pairing>::G2Prepared;
 
     let P = (0..100)
         .map(|_| {
-            G1Affine::prime_subgroup_generator()
-                .mul(Fr::rand(rng))
+            G1Affine::generator()
+                .mul(ScalarField::rand(rng))
                 .into_affine()
         })
         .collect::<Vec<G1Affine>>();
     let Q = (0..100)
         .map(|_| {
-            G2Affine::prime_subgroup_generator()
-                .mul(Fr::rand(rng))
+            G2Affine::generator()
+                .mul(ScalarField::rand(rng))
                 .into_affine()
         })
         .collect::<Vec<G2Affine>>();
@@ -99,21 +99,21 @@ pub fn pairing(c: &mut Criterion) {
                 black_box(
                     P.iter().map(|i| G1Prepared::from(*i)).collect::<Vec<_>>(),
                 ),
-                black_box(Bls12_381::product_of_pairings(PQ.iter())),
+                black_box(Bls12_381::multi_pairing(PQ.iter())),
             )
         })
     });
     group.bench_function("BLS12-381 product_of_pairing both prepared", |b| {
-        b.iter(|| black_box(Bls12_381::product_of_pairings(PQ.iter())))
+        b.iter(|| black_box(Bls12_381::multi_pairing(PQ.iter())))
     });
 
-    let Q_j = G2Affine::prime_subgroup_generator()
-        .mul(Fr::rand(rng))
+    let Q_j = G2Affine::generator()
+        .mul(ScalarField::rand(rng))
         .into_affine();
-    let r = Fr::rand(rng);
+    let r = ScalarField::rand(rng);
 
     group.bench_function("BLS12-381 100 linear combine G1", |b| {
-        b.iter(|| black_box(P.iter().map(|i| i.mul(r)).sum::<G1Projective>()))
+        b.iter(|| black_box(P.iter().map(|i| i.mul(r)).sum::<G1>()))
     });
 
     group.bench_function("BLS12-381 100 linear combine G2", |b| {
@@ -122,18 +122,18 @@ pub fn pairing(c: &mut Criterion) {
 
     let P = (0..(8192 * 2 / 3))
         .map(|_| {
-            G1Affine::prime_subgroup_generator()
-                .mul(Fr::rand(rng))
+            G1Affine::generator()
+                .mul(ScalarField::rand(rng))
                 .into_affine()
         })
         .collect::<Vec<G1Affine>>();
 
     let mut u = vec![];
     for _ in 0..(8192 * 2 / 3) {
-        u.push(Fr::rand(rng));
+        u.push(ScalarField::rand(rng));
     }
 
-    let lagrange = subproductdomain::SubproductDomain::<Fr>::new(u.clone())
+    let lagrange = subproductdomain::SubproductDomain::<ScalarField>::new(u.clone())
         .inverse_lagrange_coefficients()
         .iter()
         .map(|x| x.inverse().unwrap())
@@ -145,21 +145,21 @@ pub fn pairing(c: &mut Criterion) {
                 P.iter()
                     .zip(lagrange.iter())
                     .map(|(i, lambda)| i.mul(*lambda))
-                    .sum::<G1Projective>()
+                    .sum::<G1>()
                     .into_affine(),
             )
         })
     });
 
-    use ark_ec::msm::FixedBaseMSM;
-    let window_size = FixedBaseMSM::get_mul_window_size(3000);
+    use ark_ec::msm::FixedBase;
+    let window_size = FixedBase::get_mul_window_size(3000);
 
     use ark_ff::PrimeField;
-    let scalar_bits = Fr::size_in_bits();
-    let base_table = FixedBaseMSM::get_window_table(
+    let scalar_bits = ScalarField::size_in_bits();
+    let base_table = FixedBase::get_window_table(
         scalar_bits,
         window_size,
-        Q_j.into_projective(),
+        Q_j.into_group(),
     );
     group.measurement_time(core::time::Duration::new(30, 0));
 
@@ -168,7 +168,7 @@ pub fn pairing(c: &mut Criterion) {
             black_box(
                 Q.iter()
                     .map(|_| {
-                        FixedBaseMSM::multi_scalar_mul::<G2Projective>(
+                        FixedBase::msm::<G2Projective>(
                             scalar_bits,
                             window_size,
                             &base_table,
@@ -182,8 +182,8 @@ pub fn pairing(c: &mut Criterion) {
 
     let Q = (0..(8192 * 2 / 3))
         .map(|_| {
-            G2Affine::prime_subgroup_generator()
-                .mul(Fr::rand(rng))
+            G2Affine::generator()
+                .mul(ScalarField::rand(rng))
                 .into_affine()
         })
         .collect::<Vec<G2Affine>>();
@@ -198,10 +198,10 @@ pub fn pairing(c: &mut Criterion) {
     let _base_tables = Q
         .iter()
         .map(|q| {
-            FixedBaseMSM::get_window_table(
+            FixedBase::get_window_table(
                 scalar_bits,
                 window_size,
-                q.into_projective(),
+                q.into_group(),
             )
         })
         .collect::<Vec<_>>();
@@ -212,7 +212,7 @@ pub fn pairing(c: &mut Criterion) {
                 Q.iter()
                     .zip(lagrange.iter())
                     .map(|(_, lambda)| {
-                        FixedBaseMSM::multi_scalar_mul::<G2Projective>(
+                        FixedBase::msm::<G2Projective>(
                             scalar_bits,
                             window_size,
                             &base_table,
@@ -227,17 +227,17 @@ pub fn pairing(c: &mut Criterion) {
     use ark_ed_on_bls12_381 as jubjub;
     let P = (0..(8192 * 2 / 3))
         .map(|_| {
-            jubjub::EdwardsAffine::prime_subgroup_generator()
-                .mul(jubjub::Fr::rand(rng))
+            jubjub::EdwardsAffine::generator()
+                .mul(jubjub::ScalarField::rand(rng))
                 .into_affine()
         })
         .collect::<Vec<_>>();
 
     let mut u = vec![];
     for _ in 0..(8192 * 2 / 3) {
-        u.push(jubjub::Fr::rand(rng));
+        u.push(jubjub::ScalarField::rand(rng));
     }
-    /*let lagrange = ferveo::SubproductDomain::<jubjub::Fr>::new(u.clone())
+    /*let lagrange = ferveo::SubproductDomain::<jubjub::ScalarField>::new(u.clone())
     .inverse_lagrange_coefficients()
     .iter()
     .map(|x| x.inverse().unwrap())
@@ -359,7 +359,7 @@ pub fn bench_batch_inverse(c: &mut Criterion) {
     let rng = &mut ark_std::test_rng();
     let n = 8192 * 2 / 3;
     let a = (0..n)
-        .map(|_| ark_bls12_381::Fr::rand(rng))
+        .map(|_| ark_bls12_381::ScalarField::rand(rng))
         .collect::<Vec<_>>();
 
     let mut group = c.benchmark_group("BLS12-381 Batch inverse");

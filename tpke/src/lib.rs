@@ -25,7 +25,6 @@ pub use refresh::*;
 
 // TODO: Turn into a crate features
 pub mod api;
-pub mod serialization;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ThresholdEncryptionError {
@@ -57,22 +56,23 @@ pub type Result<T> = anyhow::Result<T>;
 /// Factory functions for testing
 #[cfg(any(test, feature = "test-common"))]
 pub mod test_common {
+    use std::ops::Mul;
     use std::usize;
 
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
-    use ark_ec::{AffineCurve, PairingEngine};
+    use ark_ec::{pairing::Pairing, AffineRepr};
     pub use ark_ff::UniformRand;
     use ark_ff::{Field, One, Zero};
     use ark_poly::univariate::DensePolynomial;
-    use ark_poly::Polynomial;
-    use ark_poly::{EvaluationDomain, UVPolynomial};
+    use ark_poly::DenseUVPolynomial;
+    use ark_poly::{EvaluationDomain, Polynomial};
     use itertools::izip;
     use rand_core::RngCore;
     use subproductdomain::fast_multiexp;
 
     pub use super::*;
 
-    pub fn setup_fast<E: PairingEngine>(
+    pub fn setup_fast<E: Pairing>(
         threshold: usize,
         shares_num: usize,
         rng: &mut impl RngCore,
@@ -84,24 +84,26 @@ pub mod test_common {
         assert!(shares_num >= threshold);
 
         // Generators G∈G1, H∈G2
-        let g = E::G1Affine::prime_subgroup_generator();
-        let h = E::G2Affine::prime_subgroup_generator();
+        let g = E::G1Affine::generator();
+        let h = E::G2Affine::generator();
 
         // The dealer chooses a uniformly random polynomial f of degree t-1
-        let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
+        let threshold_poly =
+            DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
+            ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(shares_num)
+                .unwrap();
         // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
         let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
         // A - public key shares of participants
-        let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
+        let pubkey_shares = fast_multiexp(&evals.evals, g.into_group());
         let pubkey_share = g.mul(evals.evals[0]);
         debug_assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
 
         // Y, but only when b = 1 - private key shares of participants
-        let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
+        let privkey_shares = fast_multiexp(&evals.evals, h.into_group());
 
         // a_0
         let x = threshold_poly.coeffs[0];
@@ -111,9 +113,9 @@ pub mod test_common {
         let privkey = h.mul(x);
 
         let mut domain_points = Vec::with_capacity(shares_num);
-        let mut point = E::Fr::one();
+        let mut point = E::ScalarField::one();
         let mut domain_points_inv = Vec::with_capacity(shares_num);
-        let mut point_inv = E::Fr::one();
+        let mut point_inv = E::ScalarField::one();
 
         for _ in 0..shares_num {
             domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar generator fft_domain.group_gen
@@ -137,7 +139,7 @@ pub mod test_common {
             let private_key_share = PrivateKeyShare::<E> {
                 private_key_share: *private,
             };
-            let b = E::Fr::rand(rng);
+            let b = E::ScalarField::rand(rng);
             let mut blinded_key_shares = private_key_share.blind(b);
             blinded_key_shares.multiply_by_omega_inv(domain_inv);
             private_contexts.push(PrivateDecryptionContextFast::<E> {
@@ -146,8 +148,8 @@ pub mod test_common {
                     b,
                     b_inv: b.inverse().unwrap(),
                     g,
-                    h_inv: E::G2Prepared::from(-h),
-                    g_inv: E::G1Prepared::from(-g),
+                    h_inv: E::G2Prepared::from(-h.into_group()),
+                    g_inv: E::G1Prepared::from(-g.into_group()),
                     h,
                 },
                 private_key_share,
@@ -160,7 +162,7 @@ pub mod test_common {
                 },
                 blinded_key_share: blinded_key_shares,
                 lagrange_n_0: *domain,
-                h_inv: E::G2Prepared::from(-h),
+                h_inv: E::G2Prepared::from(-h.into_group()),
             });
         }
         for private in private_contexts.iter_mut() {
@@ -170,10 +172,10 @@ pub mod test_common {
         (pubkey.into(), privkey.into(), private_contexts)
     }
 
-    pub fn setup_simple<E: PairingEngine>(
+    pub fn setup_simple<E: Pairing>(
         threshold: usize,
         shares_num: usize,
-        rng: &mut impl RngCore,
+        rng: &mut impl rand::Rng,
     ) -> (
         E::G1Affine,
         E::G2Affine,
@@ -181,26 +183,28 @@ pub mod test_common {
     ) {
         assert!(shares_num >= threshold);
 
-        let g = E::G1Affine::prime_subgroup_generator();
-        let h = E::G2Affine::prime_subgroup_generator();
+        let g = E::G1Affine::generator();
+        let h = E::G2Affine::generator();
 
         // The dealer chooses a uniformly random polynomial f of degree t-1
-        let threshold_poly = DensePolynomial::<E::Fr>::rand(threshold - 1, rng);
+        let threshold_poly =
+            DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::Radix2EvaluationDomain::<E::Fr>::new(shares_num).unwrap();
+            ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(shares_num)
+                .unwrap();
         // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
         let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
         let shares_x = fft_domain.elements().collect::<Vec<_>>();
 
         // A - public key shares of participants
-        let pubkey_shares = fast_multiexp(&evals.evals, g.into_projective());
+        let pubkey_shares = fast_multiexp(&evals.evals, g.into_group());
         let pubkey_share = g.mul(evals.evals[0]);
         debug_assert!(pubkey_shares[0] == E::G1Affine::from(pubkey_share));
 
         // Y, but only when b = 1 - private key shares of participants
-        let privkey_shares = fast_multiexp(&evals.evals, h.into_projective());
+        let privkey_shares = fast_multiexp(&evals.evals, h.into_group());
 
         // a_0
         let x = threshold_poly.coeffs[0];
@@ -208,7 +212,7 @@ pub mod test_common {
         let pubkey = g.mul(x);
         let privkey = h.mul(x);
 
-        let secret = threshold_poly.evaluate(&E::Fr::zero());
+        let secret = threshold_poly.evaluate(&E::ScalarField::zero());
         debug_assert!(secret == x);
 
         let mut private_contexts = vec![];
@@ -222,7 +226,7 @@ pub mod test_common {
             let private_key_share = PrivateKeyShare::<E> {
                 private_key_share: *private,
             };
-            let b = E::Fr::rand(rng);
+            let b = E::ScalarField::rand(rng);
             let blinded_key_share = private_key_share.blind(b);
             private_contexts.push(PrivateDecryptionContextSimple::<E> {
                 index,
@@ -230,8 +234,8 @@ pub mod test_common {
                     b,
                     b_inv: b.inverse().unwrap(),
                     g,
-                    h_inv: E::G2Prepared::from(-h),
-                    g_inv: E::G1Prepared::from(-g),
+                    h_inv: E::G2Prepared::from(-h.into_group()),
+                    g_inv: E::G1Prepared::from(-g.into_group()),
                     h,
                 },
                 private_key_share,
@@ -261,11 +265,12 @@ mod tests {
     use std::collections::HashMap;
     use std::ops::Mul;
 
-    use ark_bls12_381::{Fr, FrParameters};
-    use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-    use ark_ff::{BigInteger256, Fp256, Zero};
+    use ark_bls12_381::Fr;
+    use ark_ec::pairing::Pairing;
+    use ark_ec::{AffineRepr, CurveGroup};
+    use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
-    use rand::prelude::StdRng;
+    use rand_core::RngCore;
 
     use crate::refresh::{
         make_random_polynomial_at, prepare_share_updates_for_recovery,
@@ -276,14 +281,15 @@ mod tests {
     use crate::test_common::*;
 
     type E = ark_bls12_381::Bls12_381;
-    type Fqk = <ark_bls12_381::Bls12_381 as PairingEngine>::Fqk;
+    type TargetField = <E as Pairing>::TargetField;
+    type ScalarField = <E as Pairing>::ScalarField;
 
-    fn make_shared_secret_from_contexts<E: PairingEngine>(
+    fn make_shared_secret_from_contexts<E: Pairing>(
         contexts: &[PrivateDecryptionContextSimple<E>],
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         _g_inv: &E::G1Prepared,
-    ) -> E::Fqk {
+    ) -> E::TargetField {
         let decryption_shares: Vec<_> = contexts
             .iter()
             .map(|c| c.create_share(ciphertext, aad).unwrap())
@@ -304,7 +310,7 @@ mod tests {
 
         let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
 
-        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let serialized = ciphertext.to_bytes();
         let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
@@ -312,11 +318,11 @@ mod tests {
         assert_eq!(serialized, deserialized.to_bytes())
     }
 
-    fn test_ciphertext_validation_fails<E: PairingEngine>(
+    fn test_ciphertext_validation_fails<E: Pairing>(
         msg: &[u8],
         aad: &[u8],
         ciphertext: &Ciphertext<E>,
-        shared_secret: &E::Fqk,
+        shared_secret: &E::TargetField,
         g_inv: &E::G1Prepared,
     ) {
         // So far, the ciphertext is valid
@@ -332,7 +338,7 @@ mod tests {
             &ciphertext,
             aad,
             shared_secret,
-            g_inv
+            g_inv,
         )
         .is_err());
 
@@ -342,15 +348,15 @@ mod tests {
             &ciphertext,
             aad,
             shared_secret,
-            g_inv
+            g_inv,
         )
         .is_err());
     }
 
-    fn make_new_share_fragments(
-        rng: &mut StdRng,
+    fn make_new_share_fragments<R: RngCore>(
+        rng: &mut R,
         threshold: usize,
-        x_r: &Fp256<FrParameters>,
+        x_r: &Fr,
         remaining_participants: &[PrivateDecryptionContextSimple<E>],
     ) -> Vec<PrivateKeyShare<E>> {
         // Each participant prepares an update for each other participant
@@ -395,10 +401,10 @@ mod tests {
         new_share_fragments
     }
 
-    fn make_shared_secret<E: PairingEngine>(
+    fn make_shared_secret<E: Pairing>(
         pub_contexts: &[PublicDecryptionContextSimple<E>],
         decryption_shares: &[DecryptionShareSimple<E>],
-    ) -> E::Fqk {
+    ) -> E::TargetField {
         let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
         share_combine_simple::<E>(decryption_shares, &lagrange_coeffs)
@@ -413,7 +419,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -429,7 +435,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<StdRng, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -445,7 +451,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_fast::<E>(threshold, shares_num, &mut rng);
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
@@ -495,7 +501,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -527,7 +533,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -573,7 +579,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -602,24 +608,24 @@ mod tests {
         has_bad_checksum.validator_checksum.checksum = has_bad_checksum
             .validator_checksum
             .checksum
-            .mul(BigInteger256::rand(rng))
+            .mul(ScalarField::rand(rng))
             .into_affine();
 
         assert!(!has_bad_checksum.verify(
             &pub_contexts[0].blinded_key_share.blinded_key_share,
             &pub_contexts[0].validator_public_key.into_affine(),
-            &pub_contexts[0].h.into_projective(),
+            &pub_contexts[0].h.into_group(),
             &ciphertext,
         ));
 
         let mut has_bad_share = decryption_shares[0].clone();
         has_bad_share.decryption_share =
-            has_bad_share.decryption_share.mul(Fqk::rand(rng));
+            has_bad_share.decryption_share.mul(TargetField::rand(rng));
 
         assert!(!has_bad_share.verify(
             &pub_contexts[0].blinded_key_share.blinded_key_share,
             &pub_contexts[0].validator_public_key.into_affine(),
-            &pub_contexts[0].h.into_projective(),
+            &pub_contexts[0].h.into_group(),
             &ciphertext,
         ));
     }
@@ -688,7 +694,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         // Create an initial shared secret
         let old_shared_secret = make_shared_secret_from_contexts(
@@ -701,7 +707,7 @@ mod tests {
         // Now, we're going to recover a new share at a random point and check that the shared secret is still the same
 
         // Our random point
-        let x_r = Fr::rand(rng);
+        let x_r = ScalarField::rand(rng);
 
         // Remove one participant from the contexts and all nested structures
         let mut remaining_participants = contexts.clone();
@@ -736,7 +742,7 @@ mod tests {
             .collect();
 
         // Create a decryption share from a recovered private key share
-        let new_validator_decryption_key = Fr::rand(rng);
+        let new_validator_decryption_key = ScalarField::rand(rng);
         let validator_index = removed_participant.index;
         decryption_shares.push(
             DecryptionShareSimple::create(
@@ -774,7 +780,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
         let pub_contexts = contexts[0].public_decryption_contexts.clone();
-        let ciphertext = encrypt::<_, E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         // Create an initial shared secret
         let old_shared_secret = make_shared_secret_from_contexts(
@@ -787,8 +793,11 @@ mod tests {
         // Now, we're going to refresh the shares and check that the shared secret is the same
 
         // Dealer computes a new random polynomial with constant term x_r
-        let polynomial =
-            make_random_polynomial_at::<E>(threshold, &Fr::zero(), rng);
+        let polynomial = make_random_polynomial_at::<E>(
+            threshold,
+            &ScalarField::zero(),
+            rng,
+        );
 
         // Dealer shares the polynomial with participants
 
@@ -799,7 +808,7 @@ mod tests {
             .map(|(i, p)| {
                 // Participant computes share updates and update their private key shares
                 let private_key_share = refresh_private_key_share::<E>(
-                    &p.setup_params.h.into_projective(),
+                    &p.setup_params.h.into_group(),
                     &p.public_decryption_contexts[i].domain,
                     &polynomial,
                     &p.private_key_share,

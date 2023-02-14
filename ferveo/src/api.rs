@@ -1,9 +1,11 @@
 use ark_poly::EvaluationDomain;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bincode::Options;
+use ferveo_common::serialization::ser::serialize;
 use group_threshold_cryptography as tpke;
 use rand::rngs::StdRng;
 use rand::{thread_rng, RngCore, SeedableRng};
+use serde::{Deserialize, Serialize};
 
 pub type E = ark_bls12_381::Bls12_381;
 
@@ -43,6 +45,7 @@ pub struct G1Prepared(pub tpke::api::TpkeG1Prepared);
 
 pub struct SharedSecret(tpke::api::TpkeSharedSecret);
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Keypair(ferveo_common::Keypair<E>);
 
 impl Keypair {
@@ -55,28 +58,24 @@ impl Keypair {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo_common::Keypair::<E>::deserialize(bytes).unwrap())
+        Self(bincode::deserialize(bytes).unwrap())
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![];
-        self.0.serialize(&mut buf).unwrap();
-        buf
+        bincode::serialize(&self.0).unwrap()
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(ferveo_common::PublicKey<E>);
 
 impl PublicKey {
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo_common::PublicKey::<E>::deserialize(bytes).unwrap())
+        Self(bincode::deserialize(bytes).unwrap())
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![];
-        self.0.serialize(&mut buf).unwrap();
-        buf
+        bincode::serialize(&self.0).unwrap()
     }
 }
 
@@ -92,18 +91,16 @@ impl ExternalValidator {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Transcript(crate::PubliclyVerifiableSS<E>);
 
 impl Transcript {
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(crate::PubliclyVerifiableSS::<E>::deserialize(bytes).unwrap())
+        Self(bincode::deserialize(bytes).unwrap())
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![];
-        self.0.serialize(&mut buf).unwrap();
-        buf
+        bincode::serialize(&self.0).unwrap()
     }
 }
 
@@ -175,6 +172,7 @@ pub struct UnblindingKey(tpke::api::TpkeUnblindingKey);
 #[derive(Clone)]
 pub struct DecryptionShare(tpke::api::TpkeDecryptionShareSimplePrecomputed);
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AggregatedTranscript(
     crate::PubliclyVerifiableSS<E, crate::Aggregated>,
 );
@@ -203,18 +201,11 @@ impl AggregatedTranscript {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(
-            crate::PubliclyVerifiableSS::<E, crate::Aggregated>::deserialize(
-                bytes,
-            )
-            .unwrap(),
-        )
+        Self(bincode::deserialize(bytes).unwrap())
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![];
-        self.0.serialize(&mut buf).unwrap();
-        buf
+        bincode::serialize(&self.0).unwrap()
     }
 }
 
@@ -223,8 +214,8 @@ mod test_ferveo_api {
     use std::collections::HashMap;
     use std::fmt::format;
 
-    use ark_bls12_381::{Bls12_381 as E, Fr, G2Projective};
-    use ark_ec::ProjectiveCurve;
+    use ark_bls12_381::{Bls12_381 as E, G2Projective};
+    use ark_ec::CurveGroup;
     use ark_poly::EvaluationDomain;
     use ark_serialize::CanonicalSerialize;
     use ark_std::UniformRand;

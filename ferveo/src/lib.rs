@@ -3,7 +3,7 @@
 pub mod api;
 pub mod dkg;
 pub mod primitives;
-pub mod vss;
+mod vss;
 
 pub use dkg::*;
 pub use primitives::*;
@@ -18,16 +18,11 @@ mod test_dkg_full {
         Bls12_381 as E, Bls12_381, Fr, G1Affine, G2Projective,
     };
     use ark_ec::bls12::G2Affine;
-    use ark_ec::group::Group;
-    use ark_ec::{
-        msm::FixedBaseMSM, AffineCurve, PairingEngine, ProjectiveCurve,
-    };
+    use ark_ec::pairing::Pairing;
+    use ark_ec::{AffineRepr, CurveGroup};
     use ark_ff::{Field, One, PrimeField, Zero};
     use ark_ff::{Fp12, UniformRand};
-    use ark_poly::{
-        polynomial::univariate::DensePolynomial, polynomial::UVPolynomial,
-        EvaluationDomain,
-    };
+    use ark_poly::{polynomial::univariate::DensePolynomial, EvaluationDomain};
     use ark_std::test_rng;
     use ark_std::{end_timer, start_timer};
     use ferveo_common::Rng;
@@ -46,7 +41,7 @@ mod test_dkg_full {
     use super::*;
     use crate::dkg::pv::test_common::*;
 
-    type Fqk = <E as PairingEngine>::Fqk;
+    type TargetField = <E as Pairing>::TargetField;
 
     fn make_shared_secret_simple_tdec(
         dkg: &PubliclyVerifiableDkg<E>,
@@ -56,7 +51,7 @@ mod test_dkg_full {
     ) -> (
         PubliclyVerifiableSS<E, Aggregated>,
         Vec<DecryptionShareSimple<E>>,
-        Fqk,
+        TargetField,
     ) {
         // Make sure validators are in the same order dkg is by comparing their public keys
         dkg.validators
@@ -110,7 +105,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
         let validator_keypairs = gen_n_keypairs(4);
 
         let (_, _, shared_secret) = make_shared_secret_simple_tdec(
@@ -138,7 +133,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
         let _g_inv = dkg.pvss_params.g_inv();
         let validator_keypairs = gen_n_keypairs(4);
 
@@ -188,7 +183,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
         let validator_keypairs = gen_n_keypairs(4);
 
         let (pvss_aggregated, decryption_shares, _) =
@@ -220,7 +215,7 @@ mod test_dkg_full {
 
         // Should fail because of the bad decryption share
         let mut with_bad_decryption_share = decryption_share.clone();
-        with_bad_decryption_share.decryption_share = Fqk::zero();
+        with_bad_decryption_share.decryption_share = TargetField::zero();
         assert!(!with_bad_decryption_share.verify(
             &pvss_aggregated.shares[0],
             &validator_keypairs[0].public().encryption_key,
@@ -247,7 +242,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng);
         let mut validator_keypairs = gen_n_keypairs(4);
 
         // Create an initial shared secret
@@ -363,7 +358,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<_, E>(msg, aad, &public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
 
         let validator_keypairs = gen_n_keypairs(4);
         let pvss_aggregated = aggregate(&dkg);

@@ -4,12 +4,14 @@
 
 // TODO: Refactor this module to deduplicate shared code from tpke-wasm and tpke-wasm.
 
-use ark_serialize::*;
+use ferveo_common::serialization;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 pub type E = ark_bls12_381::Bls12_381;
 pub type TpkeDkgPublicKey = ark_bls12_381::G1Affine;
-pub type TpkeG1Prepared = <E as ark_ec::PairingEngine>::G1Prepared;
-pub type TpkeG1Affine = <E as ark_ec::PairingEngine>::G1Affine;
+pub type TpkeG1Prepared = <E as ark_ec::pairing::Pairing>::G1Prepared;
+pub type TpkeG1Affine = <E as ark_ec::pairing::Pairing>::G1Affine;
 pub type TpkePrivateKey = ark_bls12_381::G2Affine;
 pub type TpkeUnblindingKey = ark_bls12_381::Fr;
 pub type TpkeDomainPoint = ark_bls12_381::Fr;
@@ -18,7 +20,7 @@ pub type TpkeDecryptionShareSimplePrecomputed =
     crate::DecryptionShareSimplePrecomputed<E>;
 pub type TpkeDecryptionShareSimple = crate::DecryptionShareSimple<E>;
 pub type TpkePublicDecryptionContext = crate::PublicDecryptionContextSimple<E>;
-pub type TpkeSharedSecret = <E as ark_ec::PairingEngine>::Fqk;
+pub type TpkeSharedSecret = <E as ark_ec::pairing::Pairing>::TargetField;
 pub type TpkeResult<T> = crate::Result<T>;
 pub type TpkePrivateDecryptionContext =
     crate::PrivateDecryptionContextSimple<E>;
@@ -51,21 +53,19 @@ pub fn decrypt_symmetric(
     crate::decrypt_symmetric(&ciphertext.0, aad, private_key, g_inv).unwrap()
 }
 
-#[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
-pub struct DomainPoint(pub TpkeDomainPoint);
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DomainPoint(
+    #[serde_as(as = "serialization::SerdeAs")] pub TpkeDomainPoint,
+);
 
 impl DomainPoint {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![];
-        CanonicalSerialize::serialize(&self.0, &mut bytes[..]).unwrap();
-        bytes
+        bincode::serialize(&self).unwrap()
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let mut reader = bytes;
-        let domain_point =
-            CanonicalDeserialize::deserialize(&mut reader).unwrap();
-        Self(domain_point)
+        bincode::deserialize(bytes).unwrap()
     }
 }
 
@@ -93,7 +93,7 @@ impl DecryptionShareSimplePrecomputed {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(bytes).unwrap())
+        Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(bytes))
     }
 }
 

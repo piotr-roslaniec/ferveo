@@ -56,7 +56,7 @@ impl DecryptionShareSimplePrecomputed {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct PublicKey(
-    #[serde_as(as = "tpke::serialization::SerdeAs")]
+    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
     pub(crate)  tpke::api::TpkeDkgPublicKey,
 );
 
@@ -83,7 +83,7 @@ impl PublicKey {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct PrivateKey(
-    #[serde_as(as = "tpke::serialization::SerdeAs")]
+    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
     pub(crate)  tpke::api::TpkePrivateKey,
 );
 
