@@ -5,10 +5,10 @@ use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
-use crypto::{digest::Digest, sha2::Sha256};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use sha2::{digest::Digest, Sha256};
 
 use crate::serialization;
 use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
@@ -17,11 +17,9 @@ use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ciphertext<E: PairingEngine> {
     #[serde_as(as = "serialization::SerdeAs")]
-    pub commitment: E::G1Affine,
-    // U
+    pub commitment: E::G1Affine, // U
     #[serde_as(as = "serialization::SerdeAs")]
-    pub auth_tag: E::G2Affine,
-    // W
+    pub auth_tag: E::G2Affine, // W
     pub ciphertext: Vec<u8>, // V
 }
 
@@ -161,10 +159,9 @@ pub fn decrypt_with_shared_secret<E: PairingEngine>(
 }
 
 fn sha256(input: &[u8]) -> Vec<u8> {
-    let mut result = [0u8; 32];
     let mut hasher = Sha256::new();
-    hasher.input(input);
-    hasher.result(&mut result);
+    hasher.update(input);
+    let result = hasher.finalize();
     result.to_vec()
 }
 
