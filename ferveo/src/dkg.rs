@@ -24,7 +24,6 @@ pub use pv::*;
 // DKG parameters
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
-    // TODO: Rename to ritual_id?
     pub tau: u64,
     pub security_threshold: u32,
     pub shares_num: u32,

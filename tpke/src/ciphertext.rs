@@ -22,7 +22,7 @@ pub struct Ciphertext<E: Pairing> {
     pub commitment: E::G1Affine, // U
     #[serde_as(as = "serialization::SerdeAs")]
     pub auth_tag: E::G2Affine, // W
-    // #[serde(with = "serde_bytes")] // TODO: Consider using serde_bytes for raw bytes
+    #[serde(with = "serde_bytes")]
     pub ciphertext: Vec<u8>, // V
 }
 

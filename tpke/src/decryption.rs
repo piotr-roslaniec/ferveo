@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::ops::Mul;
 
 use anyhow::Result;
@@ -98,7 +97,6 @@ pub struct DecryptionShareSimple<E: Pairing> {
     #[serde_as(as = "serialization::SerdeAs")]
     pub decryption_share: E::TargetField,
     pub validator_checksum: ValidatorShareChecksum<E>,
-    phantom2: PhantomData<E>,
 }
 
 impl<E: Pairing> DecryptionShareSimple<E> {
@@ -143,10 +141,8 @@ impl<E: Pairing> DecryptionShareSimple<E> {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-            phantom2: PhantomData,
         }
     }
-
     /// Verify that the decryption share is valid.
     pub fn verify(
         &self,

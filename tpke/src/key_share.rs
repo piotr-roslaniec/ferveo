@@ -13,11 +13,8 @@ pub struct PublicKeyShare<E: Pairing> {
 
 #[derive(Debug, Clone)]
 pub struct BlindedKeyShare<E: Pairing> {
-    pub blinding_key: E::G2Affine,
-    // [b] H
-    pub blinded_key_share: E::G2Affine,
-    // [b] Z_{i, \omega_i}
-    // TODO: Should we use this kind of optizmization here or anywhere else?
+    pub blinding_key: E::G2Affine,      // [b] H
+    pub blinded_key_share: E::G2Affine, // [b] Z_{i, \omega_i}
     pub blinding_key_prepared: E::G2Prepared,
 }
 

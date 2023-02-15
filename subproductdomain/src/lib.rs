@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+use std::mem;
+
 use ark_ec::pairing::Pairing;
 use ark_ec::scalar_mul::fixed_base::FixedBase;
 use ark_ec::AffineRepr;
@@ -20,8 +22,7 @@ pub fn fast_multiexp<Group: CurveGroup>(
 ) -> Vec<Group::Affine> {
     let window_size = FixedBase::get_mul_window_size(scalars.len());
 
-    // let scalar_bits = mem::size_of::<Group::ScalarField>();
-    let scalar_bits: usize = 255; // TODO: How to get this from the scalar field?
+    let scalar_bits: usize = mem::size_of::<Group::ScalarField>() * 8 - 1;
     let base_table =
         FixedBase::get_window_table(scalar_bits, window_size, base);
 
