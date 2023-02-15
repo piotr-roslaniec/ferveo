@@ -8,10 +8,10 @@ use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
-use crypto::{digest::Digest, sha2::Sha256};
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use sha2::{digest::Digest, Sha256};
 
 use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
 
@@ -167,10 +167,9 @@ pub fn decrypt_with_shared_secret<E: Pairing>(
 }
 
 fn sha256(input: &[u8]) -> Vec<u8> {
-    let mut result = [0u8; 32];
     let mut hasher = Sha256::new();
-    hasher.input(input);
-    hasher.result(&mut result);
+    hasher.update(input);
+    let result = hasher.finalize();
     result.to_vec()
 }
 

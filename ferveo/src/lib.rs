@@ -164,7 +164,6 @@ mod test_dkg_full {
             tpke::share_combine_simple_precomputed::<E>(&decryption_shares);
 
         // Combination works, let's decrypt
-
         let plaintext = tpke::decrypt_with_shared_secret(
             &ciphertext,
             aad,

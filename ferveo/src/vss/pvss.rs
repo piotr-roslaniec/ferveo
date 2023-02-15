@@ -301,6 +301,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             validator_index,
         );
         let h = dkg.pvss_params.h;
+        let _g_inv = dkg.pvss_params.g_inv();
         let domain_point = dkg.domain.element(validator_index);
         let refreshed_private_key_share = refresh_private_key_share(
             &h,

@@ -288,7 +288,6 @@ mod tests {
         contexts: &[PrivateDecryptionContextSimple<E>],
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-        _g_inv: &E::G1Prepared,
     ) -> E::TargetField {
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -697,12 +696,8 @@ mod tests {
         let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         // Create an initial shared secret
-        let old_shared_secret = make_shared_secret_from_contexts(
-            &contexts,
-            &ciphertext,
-            aad,
-            g_inv,
-        );
+        let old_shared_secret =
+            make_shared_secret_from_contexts(&contexts, &ciphertext, aad);
 
         // Now, we're going to recover a new share at a random point and check that the shared secret is still the same
 
@@ -783,12 +778,8 @@ mod tests {
         let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
 
         // Create an initial shared secret
-        let old_shared_secret = make_shared_secret_from_contexts(
-            &contexts,
-            &ciphertext,
-            aad,
-            g_inv,
-        );
+        let old_shared_secret =
+            make_shared_secret_from_contexts(&contexts, &ciphertext, aad);
 
         // Now, we're going to refresh the shares and check that the shared secret is the same
 
