@@ -24,12 +24,12 @@ pub struct DecryptionShareFast<E: Pairing> {
 }
 
 impl<E: Pairing> DecryptionShareFast<E> {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(&self).map_err(|err| err.into())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|err| err.into())
     }
 }
 
@@ -44,13 +44,20 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
     pub fn new(
         validator_decryption_key: &E::ScalarField,
         ciphertext: &Ciphertext<E>,
-    ) -> Self {
+    ) -> Result<Self> {
         // C_i = dk_i^{-1} * U
         let checksum = ciphertext
             .commitment
-            .mul(validator_decryption_key.inverse().unwrap())
+            // TODO: Should we panic here? I think we should since that would mean that the decryption key is invalid.
+            //   And so, the validator should not be able to create a decryption share.
+            //   And so, the validator should remake their keypair.
+            .mul(
+                validator_decryption_key
+                    .inverse()
+                    .expect("Inverse of this key doesn't exist"),
+            )
             .into_affine();
-        Self { checksum }
+        Ok(Self { checksum })
     }
 
     pub fn verify(
@@ -111,12 +118,12 @@ impl<E: Pairing> DecryptionShareSimple<E> {
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
-        Ok(Self::create_unchecked(
+        Self::create_unchecked(
             validator_index,
             validator_decryption_key,
             private_key_share,
             ciphertext,
-        ))
+        )
     }
 
     /// Create a decryption share from the given parameters.
@@ -126,7 +133,7 @@ impl<E: Pairing> DecryptionShareSimple<E> {
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
-    ) -> Self {
+    ) -> Result<Self> {
         // D_i = e(U, Z_i)
         let decryption_share = E::pairing(
             ciphertext.commitment,
@@ -135,13 +142,13 @@ impl<E: Pairing> DecryptionShareSimple<E> {
         .0;
 
         let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
 
-        Self {
+        Ok(Self {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-        }
+        })
     }
     /// Verify that the decryption share is valid.
     pub fn verify(
@@ -160,12 +167,12 @@ impl<E: Pairing> DecryptionShareSimple<E> {
         )
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|err| err.into())
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(&self).map_err(|err| err.into())
     }
 }
 
@@ -194,13 +201,13 @@ impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
 
-        Ok(Self::create_unchecked(
+        Self::create_unchecked(
             validator_index,
             validator_decryption_key,
             private_key_share,
             ciphertext,
             lagrange_coeff,
-        ))
+        )
     }
 
     pub fn create_unchecked(
@@ -209,7 +216,7 @@ impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
         lagrange_coeff: &E::ScalarField,
-    ) -> Self {
+    ) -> Result<Self> {
         // U_{λ_i} = [λ_{i}(0)] U
         let u_to_lagrange_coeff = ciphertext.commitment.mul(lagrange_coeff);
         // C_{λ_i} = e(U_{λ_i}, Z_i)
@@ -220,13 +227,13 @@ impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
         .0;
 
         let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
 
-        Self {
+        Ok(Self {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-        }
+        })
     }
 
     /// Verify that the decryption share is valid.
@@ -246,12 +253,12 @@ impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
         )
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|e| e.into())
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self).map_err(|e| e.into())
     }
 }
 
@@ -400,9 +407,9 @@ mod tests {
             decryption_share: ark_bls12_381::G1Affine::generator(),
         };
 
-        let serialized = decryption_share.to_bytes();
+        let serialized = decryption_share.to_bytes().unwrap();
         let deserialized: DecryptionShareFast<E> =
-            DecryptionShareFast::from_bytes(&serialized);
-        assert_eq!(serialized, deserialized.to_bytes())
+            DecryptionShareFast::from_bytes(&serialized).unwrap();
+        assert_eq!(serialized, deserialized.to_bytes().unwrap())
     }
 }

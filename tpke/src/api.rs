@@ -29,10 +29,10 @@ pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     public_key: &TpkeDkgPublicKey,
-) -> Ciphertext {
+) -> TpkeResult<Ciphertext> {
     // TODO: Should rng be a parameter?
     let rng = &mut rand::thread_rng();
-    Ciphertext(crate::encrypt(message, aad, public_key, rng))
+    Ok(Ciphertext(crate::encrypt(message, aad, public_key, rng)?))
 }
 
 pub fn decrypt_with_shared_secret(
@@ -73,12 +73,12 @@ impl DomainPoint {
 pub struct DecryptionShareSimple(pub TpkeDecryptionShareSimple);
 
 impl DecryptionShareSimple {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> TpkeResult<Vec<u8>> {
         self.0.to_bytes()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(TpkeDecryptionShareSimple::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> TpkeResult<Self> {
+        Ok(Self(TpkeDecryptionShareSimple::from_bytes(bytes)?))
     }
 }
 
@@ -88,12 +88,14 @@ pub struct DecryptionShareSimplePrecomputed(
 );
 
 impl DecryptionShareSimplePrecomputed {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> TpkeResult<Vec<u8>> {
         self.0.to_bytes()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> TpkeResult<Self> {
+        Ok(Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(
+            bytes,
+        )?))
     }
 }
 
@@ -101,11 +103,11 @@ impl DecryptionShareSimplePrecomputed {
 pub struct Ciphertext(pub TpkeCiphertext);
 
 impl Ciphertext {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Ciphertext(TpkeCiphertext::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> crate::Result<Self> {
+        Ok(Ciphertext(TpkeCiphertext::from_bytes(bytes)?))
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
         self.0.to_bytes()
     }
 }

@@ -841,6 +841,7 @@ dependencies = [
  "ark-ec",
  "ark-serialize",
  "ark-std",
+ "bincode",
  "serde",
  "serde_with",
 ]
@@ -2059,6 +2060,7 @@ dependencies = [
  "ferveo-common",
  "getrandom 0.2.8",
  "group-threshold-cryptography",
+ "js-sys",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",

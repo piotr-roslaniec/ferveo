@@ -50,7 +50,7 @@ impl SetupFast {
 
         let (pubkey, privkey, contexts) =
             setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
         for context in contexts.iter() {
@@ -106,7 +106,7 @@ impl SetupSimple {
             setup_simple::<E>(threshold, shares_num, rng);
 
         // Ciphertext.commitment is already computed to match U
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         // Creating decryption shares
         let decryption_shares: Vec<_> = contexts
@@ -336,12 +336,15 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
             let mut rng = rng.clone();
             let setup = SetupFast::new(shares_num, msg_size, &mut rng);
             move || {
-                black_box(encrypt::<E>(
-                    &setup.shared.msg,
-                    &setup.shared.aad,
-                    &setup.shared.pubkey,
-                    &mut rng,
-                ));
+                black_box(
+                    encrypt::<E>(
+                        &setup.shared.msg,
+                        &setup.shared.aad,
+                        &setup.shared.pubkey,
+                        &mut rng,
+                    )
+                    .unwrap(),
+                );
             }
         };
         let decrypt = {

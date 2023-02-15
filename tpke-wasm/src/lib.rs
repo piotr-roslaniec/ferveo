@@ -3,6 +3,7 @@ extern crate group_threshold_cryptography as tpke;
 mod utils;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use js_sys::Error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use utils::*;
@@ -21,13 +22,16 @@ pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 #[wasm_bindgen]
 impl DecryptionShareSimple {
     #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        self.0.to_bytes().map_err(map_js_err)
     }
 
     #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(tpke::api::DecryptionShareSimple::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple, Error> {
+        let decryption_shares =
+            tpke::api::DecryptionShareSimple::from_bytes(bytes)
+                .map_err(map_js_err)?;
+        Ok(Self(decryption_shares))
     }
 }
 
@@ -40,15 +44,18 @@ pub struct DecryptionShareSimplePrecomputed(
 #[wasm_bindgen]
 impl DecryptionShareSimplePrecomputed {
     #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        self.0.to_bytes().map_err(map_js_err)
     }
 
     #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(tpke::api::DecryptionShareSimplePrecomputed::from_bytes(
-            bytes,
-        ))
+    pub fn from_bytes(
+        bytes: &[u8],
+    ) -> Result<DecryptionShareSimplePrecomputed, Error> {
+        let decryption_share =
+            tpke::api::DecryptionShareSimplePrecomputed::from_bytes(bytes)
+                .map_err(map_js_err)?;
+        Ok(Self(decryption_share))
     }
 }
 
@@ -63,19 +70,21 @@ pub struct PublicKey(
 #[wasm_bindgen]
 impl PublicKey {
     #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, Error> {
         let mut reader = bytes;
         let pk =
             tpke::api::TpkeDkgPublicKey::deserialize_uncompressed(&mut reader)
-                .unwrap();
-        PublicKey(pk)
+                .map_err(map_js_err)?;
+        Ok(PublicKey(pk))
     }
 
     #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        self.0.serialize_uncompressed(&mut bytes).unwrap();
-        bytes
+        self.0
+            .serialize_uncompressed(&mut bytes)
+            .map_err(map_js_err)?;
+        Ok(bytes)
     }
 }
 
@@ -90,19 +99,21 @@ pub struct PrivateKey(
 #[wasm_bindgen]
 impl PrivateKey {
     #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey, Error> {
         let mut reader = bytes;
         let pk =
             tpke::api::TpkePrivateKey::deserialize_uncompressed(&mut reader)
-                .unwrap();
-        PrivateKey(pk)
+                .map_err(map_js_err)?;
+        Ok(PrivateKey(pk))
     }
 
     #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        self.0.serialize_uncompressed(&mut bytes).unwrap();
-        bytes
+        self.0
+            .serialize_uncompressed(&mut bytes)
+            .map_err(map_js_err)?;
+        Ok(bytes)
     }
 }
 
@@ -112,12 +123,14 @@ pub struct Ciphertext(tpke::api::Ciphertext);
 
 #[wasm_bindgen]
 impl Ciphertext {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Ciphertext(tpke::api::Ciphertext::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext, Error> {
+        let ciphertext =
+            tpke::api::Ciphertext::from_bytes(bytes).map_err(map_js_err)?;
+        Ok(Ciphertext(ciphertext))
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        self.0.to_bytes().map_err(map_js_err)
     }
 }
 
@@ -126,9 +139,11 @@ pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     public_key: &PublicKey,
-) -> Ciphertext {
+) -> Result<Ciphertext, Error> {
     set_panic_hook();
-    Ciphertext(tpke::api::encrypt(message, aad, &public_key.0))
+    let ciphertext =
+        tpke::api::encrypt(message, aad, &public_key.0).map_err(map_js_err)?;
+    Ok(Ciphertext(ciphertext))
 }
 
 #[wasm_bindgen]

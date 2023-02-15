@@ -22,16 +22,16 @@ fn tdec_simple() {
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg.public_key);
+    let ciphertext = encrypt(&msg, &aad, &dkg.public_key).unwrap();
 
     // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes();
+    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
 
     //
     // On the server side
     //
 
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes);
+    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
     assert_eq!(ciphertext, ciphertext2);
 
     // Create decryption shares
@@ -47,7 +47,7 @@ fn tdec_simple() {
     // Serialize and send back to client
     let decryption_shares_bytes = decryption_shares
         .iter()
-        .map(|s| s.to_bytes())
+        .map(|s| s.to_bytes().unwrap())
         .collect::<Vec<Vec<u8>>>();
 
     //
@@ -57,7 +57,7 @@ fn tdec_simple() {
     let decryption_shares_2: Vec<DecryptionShareSimple> =
         decryption_shares_bytes
             .iter()
-            .map(|s| DecryptionShareSimple::from_bytes(s))
+            .map(|s| DecryptionShareSimple::from_bytes(s).unwrap())
             .collect();
     assert_eq!(decryption_shares, decryption_shares_2);
 
@@ -98,16 +98,16 @@ fn tdec_simple_precomputed() {
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg_pk);
+    let ciphertext = encrypt(&msg, &aad, &dkg_pk).unwrap();
 
     // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes();
+    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
 
     //
     // On the server side
     //
 
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes);
+    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
     assert_eq!(ciphertext, ciphertext2);
 
     // Create decryption shares
@@ -122,7 +122,7 @@ fn tdec_simple_precomputed() {
     // Serialize and send back to client
     let decryption_shares_bytes = decryption_shares
         .iter()
-        .map(|s| s.to_bytes())
+        .map(|s| s.to_bytes().unwrap())
         .collect::<Vec<Vec<u8>>>();
 
     //
@@ -132,7 +132,7 @@ fn tdec_simple_precomputed() {
     let decryption_shares_2: Vec<DecryptionShareSimplePrecomputed> =
         decryption_shares_bytes
             .iter()
-            .map(|s| DecryptionShareSimplePrecomputed::from_bytes(s))
+            .map(|s| DecryptionShareSimplePrecomputed::from_bytes(s).unwrap())
             .collect();
     assert_eq!(decryption_shares, decryption_shares_2);
 
@@ -164,7 +164,7 @@ fn encrypts_and_decrypts() {
 
     let dkg = Dkg::new(threshold, shares_num);
 
-    let ciphertext = encrypt(&message, &aad, &dkg.public_key);
+    let ciphertext = encrypt(&message, &aad, &dkg.public_key).unwrap();
     let plaintext = decrypt_with_private_key(
         &ciphertext,
         &aad,

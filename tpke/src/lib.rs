@@ -49,6 +49,18 @@ pub enum ThresholdEncryptionError {
     /// Plaintext verification failed
     #[error("Plaintext verification failed")]
     PlaintextVerificationFailed,
+
+    /// Serialization failed
+    #[error("Bytes serialization failed")]
+    BytesSerializationError(#[from] bincode::Error),
+
+    /// Symmetric encryption failed"
+    #[error("Symmetric encryption failed")]
+    SymmetricEncryptionError(chacha20poly1305::aead::Error),
+
+    /// Serialization failed
+    #[error("Arkworks serialization failed")]
+    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
 }
 
 pub type Result<T> = anyhow::Result<T>;
@@ -309,12 +321,13 @@ mod tests {
 
         let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
-        let serialized = ciphertext.to_bytes();
-        let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
+        let serialized = ciphertext.to_bytes().unwrap();
+        let deserialized: Ciphertext<E> =
+            Ciphertext::from_bytes(&serialized).unwrap();
 
-        assert_eq!(serialized, deserialized.to_bytes())
+        assert_eq!(serialized, deserialized.to_bytes().unwrap())
     }
 
     fn test_ciphertext_validation_fails<E: Pairing>(
@@ -418,7 +431,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -434,7 +447,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -450,7 +463,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_fast::<E>(threshold, shares_num, &mut rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
         let g_inv = &contexts[0].setup_params.g_inv;
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
@@ -500,7 +513,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -532,7 +545,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -578,7 +591,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -693,7 +706,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =
@@ -775,7 +788,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
         let pub_contexts = contexts[0].public_decryption_contexts.clone();
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =

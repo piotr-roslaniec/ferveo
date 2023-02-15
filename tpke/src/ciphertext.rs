@@ -19,29 +19,29 @@ use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ciphertext<E: Pairing> {
     #[serde_as(as = "serialization::SerdeAs")]
-    pub commitment: E::G1Affine, // U
+    pub commitment: E::G1Affine,
+    // U
     #[serde_as(as = "serialization::SerdeAs")]
-    pub auth_tag: E::G2Affine, // W
+    pub auth_tag: E::G2Affine,
+    // W
     #[serde(with = "serde_bytes")]
     pub ciphertext: Vec<u8>, // V
 }
 
 impl<E: Pairing> Ciphertext<E> {
-    pub fn check(&self, g_inv: &E::G1Prepared) -> bool {
-        let hash_g2 = E::G2Prepared::from(self.construct_tag_hash());
+    pub fn check(&self, g_inv: &E::G1Prepared) -> Result<bool> {
+        let hash_g2 = E::G2Prepared::from(self.construct_tag_hash()?);
 
-        E::multi_pairing(
+        Ok(E::multi_pairing(
             [self.commitment.into(), g_inv.to_owned()],
             [hash_g2, self.auth_tag.into()],
         )
-        .0 == E::TargetField::one()
+        .0 == E::TargetField::one())
     }
 
-    fn construct_tag_hash(&self) -> E::G2Affine {
+    fn construct_tag_hash(&self) -> Result<E::G2Affine> {
         let mut hash_input = Vec::<u8>::new();
-        self.commitment
-            .serialize_uncompressed(&mut hash_input)
-            .unwrap();
+        self.commitment.serialize_uncompressed(&mut hash_input)?;
         hash_input.extend_from_slice(&self.ciphertext);
 
         hash_to_g2(&hash_input)
@@ -53,12 +53,12 @@ impl<E: Pairing> Ciphertext<E> {
             + self.ciphertext.len()
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self).map_err(|err| err.into())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|err| err.into())
     }
 }
 
@@ -67,7 +67,7 @@ pub fn encrypt<E: Pairing>(
     aad: &[u8],
     pubkey: &E::G1Affine,
     rng: &mut impl rand::Rng,
-) -> Ciphertext<E> {
+) -> Result<Ciphertext<E>> {
     // r
     let rand_element = E::ScalarField::rand(rng);
     // g
@@ -81,20 +81,22 @@ pub fn encrypt<E: Pairing>(
     // u
     let commitment = g_gen.mul(rand_element).into();
 
-    let cipher = shared_secret_to_chacha::<E>(&product);
-    let nonce = nonce_from_commitment::<E>(commitment);
-    let ciphertext = cipher.encrypt(&nonce, message).unwrap();
+    let nonce = nonce_from_commitment::<E>(commitment)?;
+    let ciphertext = shared_secret_to_chacha::<E>(&product)?
+        .encrypt(&nonce, message)
+        .map_err(ThresholdEncryptionError::SymmetricEncryptionError)?
+        .to_vec();
     // w
-    let auth_tag = construct_tag_hash::<E>(commitment, &ciphertext, aad)
+    let auth_tag = construct_tag_hash::<E>(commitment, &ciphertext, aad)?
         .mul(rand_element)
         .into();
 
     // TODO: Consider adding aad to the Ciphertext struct
-    Ciphertext::<E> {
+    Ok(Ciphertext::<E> {
         commitment,
         ciphertext,
         auth_tag,
-    }
+    })
 }
 
 /// Implements the check section 4.4.2 of the Ferveo paper, 'TPKE.CheckCiphertextValidity(U,W,aad)'
@@ -110,7 +112,7 @@ pub fn check_ciphertext_validity<E: Pairing>(
         c.commitment,
         &c.ciphertext[..],
         aad,
-    ));
+    )?);
 
     let is_ciphertext_valid = E::multi_pairing(
         // e(U, H_G2(U, aad)) = e(G, W)
@@ -145,13 +147,13 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     shared_secret: &E::TargetField,
 ) -> Result<Vec<u8>> {
-    let nonce = nonce_from_commitment::<E>(ciphertext.commitment);
+    let nonce = nonce_from_commitment::<E>(ciphertext.commitment)?;
     let ciphertext = ciphertext.ciphertext.to_vec();
 
-    let cipher = shared_secret_to_chacha::<E>(shared_secret);
-    let plaintext = cipher
+    let plaintext = shared_secret_to_chacha::<E>(shared_secret)?
         .decrypt(&nonce, ciphertext.as_ref())
-        .map_err(|_| ThresholdEncryptionError::CiphertextVerificationFailed)?;
+        .map_err(|_| ThresholdEncryptionError::CiphertextVerificationFailed)?
+        .to_vec();
 
     Ok(plaintext)
 }
@@ -175,37 +177,39 @@ fn sha256(input: &[u8]) -> Vec<u8> {
 
 pub fn shared_secret_to_chacha<E: Pairing>(
     s: &E::TargetField,
-) -> ChaCha20Poly1305 {
+) -> Result<ChaCha20Poly1305> {
     let mut prf_key = Vec::new();
-    s.serialize_uncompressed(&mut prf_key).unwrap();
+    s.serialize_uncompressed(&mut prf_key)?;
     let prf_key_32 = sha256(&prf_key);
 
-    ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32))
+    Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32)))
 }
 
-fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Nonce {
+fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Result<Nonce> {
     let mut commitment_bytes = Vec::new();
-    commitment
-        .serialize_uncompressed(&mut commitment_bytes)
-        .unwrap();
+    commitment.serialize_uncompressed(&mut commitment_bytes)?;
     let commitment_hash = sha256(&commitment_bytes);
-    *Nonce::from_slice(&commitment_hash[..12])
+    Ok(*Nonce::from_slice(&commitment_hash[..12]))
 }
 
-fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(message: &[u8]) -> T {
+fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
+    message: &[u8],
+) -> Result<T> {
     let point = htp_bls12381_g2(message);
     let mut point_ser: Vec<u8> = Vec::new();
-    point.serialize_uncompressed(&mut point_ser).unwrap();
-    T::deserialize_uncompressed(&point_ser[..]).unwrap()
+    point.serialize_uncompressed(&mut point_ser)?;
+    T::deserialize_uncompressed(&point_ser[..]).map_err(|err| {
+        ThresholdEncryptionError::ArkworksSerializationError(err).into()
+    })
 }
 
 fn construct_tag_hash<E: Pairing>(
     commitment: E::G1Affine,
     stream_ciphertext: &[u8],
     aad: &[u8],
-) -> E::G2Affine {
+) -> Result<E::G2Affine> {
     let mut hash_input = Vec::<u8>::new();
-    commitment.serialize_uncompressed(&mut hash_input).unwrap();
+    commitment.serialize_uncompressed(&mut hash_input)?;
     hash_input.extend_from_slice(stream_ciphertext);
     hash_input.extend_from_slice(aad);
     hash_to_g2(&hash_input)
@@ -229,9 +233,9 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
         let pubkey = G1Projective::rand(rng).into_affine();
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
         let deserialized: Ciphertext<E> =
-            Ciphertext::from_bytes(&ciphertext.to_bytes());
+            Ciphertext::from_bytes(&ciphertext.to_bytes().unwrap()).unwrap();
 
         assert_eq!(ciphertext, deserialized)
     }
@@ -248,7 +252,7 @@ mod tests {
             setup_fast::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let plaintext =
             decrypt_symmetric(&ciphertext, aad, &privkey, g_inv).unwrap();
@@ -265,7 +269,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
         let g_inv = contexts[0].setup_params.g_inv.clone();
-        let mut ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let mut ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         // So far, the ciphertext is valid
         assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_ok());

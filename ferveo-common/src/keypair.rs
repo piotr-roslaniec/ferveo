@@ -36,6 +36,16 @@ impl<E: Pairing> Default for PublicKey<E> {
     }
 }
 
+impl<E: Pairing> PublicKey<E> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
+        bincode::serialize(&self)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
+        bincode::deserialize(bytes)
+    }
+}
+
 #[serde_as]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Keypair<E: Pairing> {
@@ -59,5 +69,13 @@ impl<E: Pairing> Keypair<E> {
         Self {
             decryption_key: E::ScalarField::rand(rng),
         }
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
+        bincode::serialize(&self)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
+        bincode::deserialize(bytes)
     }
 }

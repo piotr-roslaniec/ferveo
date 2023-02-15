@@ -345,7 +345,9 @@ pub fn aggregate<E: Pairing>(
 ) -> PubliclyVerifiableSS<E, Aggregated> {
     let pvss = &dkg.vss;
     let mut pvss_iter = pvss.iter();
-    let (_, first_pvss) = pvss_iter.next().unwrap();
+    let (_, first_pvss) = pvss_iter
+        .next()
+        .expect("May not aggregate empty PVSS instances");
     let mut coeffs = batch_to_projective_g1::<E>(&first_pvss.coeffs);
     let mut sigma = first_pvss.sigma;
 

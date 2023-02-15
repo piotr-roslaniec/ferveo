@@ -5,6 +5,7 @@ pub mod dkg;
 pub mod primitives;
 mod vss;
 
+pub use anyhow::Error;
 pub use dkg::*;
 pub use primitives::*;
 pub use vss::*;
@@ -105,7 +106,8 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
+        let ciphertext =
+            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
         let validator_keypairs = gen_n_keypairs(4);
 
         let (_, _, shared_secret) = make_shared_secret_simple_tdec(
@@ -133,8 +135,8 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
-        let _g_inv = dkg.pvss_params.g_inv();
+        let ciphertext =
+            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
         let validator_keypairs = gen_n_keypairs(4);
 
         let pvss_aggregated = aggregate(&dkg);
@@ -182,7 +184,8 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
+        let ciphertext =
+            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
         let validator_keypairs = gen_n_keypairs(4);
 
         let (pvss_aggregated, decryption_shares, _) =
@@ -241,7 +244,7 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.final_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng);
+        let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng).unwrap();
         let mut validator_keypairs = gen_n_keypairs(4);
 
         // Create an initial shared secret
@@ -357,7 +360,8 @@ mod test_dkg_full {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, &public_key, rng);
+        let ciphertext =
+            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
         let validator_keypairs = gen_n_keypairs(4);
         let pvss_aggregated = aggregate(&dkg);
