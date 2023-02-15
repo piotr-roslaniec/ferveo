@@ -29,6 +29,12 @@ pub struct Params {
     pub shares_num: u32,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PvssScheduler {
+    Wait,
+    Issue,
+}
+
 #[derive(Debug, Clone)]
 pub enum DkgState<E: PairingEngine> {
     Sharing { accumulated_shares: u32, block: u32 },

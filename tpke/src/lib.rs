@@ -25,8 +25,10 @@ pub use hash_to_curve::*;
 pub use key_share::*;
 pub use refresh::*;
 
-// TODO: Turn into a crate features
+#[cfg(feature = "api")]
 pub mod api;
+
+#[cfg(feature = "serialization")]
 pub mod serialization;
 
 #[derive(Debug, Error)]

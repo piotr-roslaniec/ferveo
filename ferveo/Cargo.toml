@@ -54,7 +54,6 @@ name = "benchmarks"
 path = "benches/bench_main.rs"
 harness = false
 
-
 [profile.release]
 opt-level = 3
 lto = true

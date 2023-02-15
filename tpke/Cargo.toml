@@ -12,7 +12,10 @@ readme = "README.md"
 bench = false
 
 [features]
+default = ["api", "serialization"]
 test-common = []
+api = []
+serialization = []
 
 [dependencies]
 hex = "=0.4.3"
