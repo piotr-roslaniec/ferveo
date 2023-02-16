@@ -15,6 +15,15 @@ pub struct ExternalValidator<E: Pairing> {
     pub public_key: PublicKey<E>,
 }
 
+impl<E: Pairing> ExternalValidator<E> {
+    pub fn new(address: String, public_key: PublicKey<E>) -> Self {
+        Self {
+            address,
+            public_key,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Validator<E: Pairing> {
     pub validator: ExternalValidator<E>,

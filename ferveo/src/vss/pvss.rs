@@ -189,6 +189,14 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
             })
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|err| err.into())
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(&self).map_err(|err| err.into())
+    }
 }
 
 /// Extra methods available to aggregated PVSS transcripts
@@ -231,7 +239,11 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             .shares
             .get(validator_index)
             .unwrap()
-            .mul(validator_decryption_key.inverse().unwrap())
+            .mul(
+                validator_decryption_key
+                    .inverse()
+                    .expect("Validator decryption key must have an inverse"),
+            )
             .into_affine();
         PrivateKeyShare { private_key_share }
     }
@@ -243,7 +255,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::ScalarField,
         validator_index: usize,
         g_inv: &E::G1Prepared,
-    ) -> DecryptionShareSimple<E> {
+    ) -> Result<DecryptionShareSimple<E>> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
@@ -256,7 +268,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             aad,
             g_inv,
         )
-        .unwrap() // TODO: Add proper error handling
     }
 
     pub fn make_decryption_share_simple_precomputed(
@@ -267,7 +278,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_index: usize,
         domain_points: &[E::ScalarField],
         g_inv: &E::G1Prepared,
-    ) -> DecryptionShareSimplePrecomputed<E> {
+    ) -> Result<DecryptionShareSimplePrecomputed<E>> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
@@ -284,7 +295,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &lagrange_coeffs[validator_index],
             g_inv,
         )
-        .unwrap() // TODO: Add proper error handling
     }
 
     pub fn refresh_decryption_share(
@@ -295,13 +305,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_index: usize,
         polynomial: &DensePolynomial<E::ScalarField>,
         dkg: &PubliclyVerifiableDkg<E>,
-    ) -> DecryptionShareSimple<E> {
+    ) -> Result<DecryptionShareSimple<E>> {
         let validator_private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
         );
         let h = dkg.pvss_params.h;
-        let _g_inv = dkg.pvss_params.g_inv();
         let domain_point = dkg.domain.element(validator_index);
         let refreshed_private_key_share = refresh_private_key_share(
             &h,
@@ -317,7 +326,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             aad,
             &dkg.pvss_params.g_inv(),
         )
-        .unwrap() // TODO: Add proper error handling
     }
 
     pub fn update_private_key_share_for_recovery(
@@ -387,7 +395,10 @@ pub fn aggregate_for_decryption<E: Pairing>(
         .values()
         .map(|pvss| pvss.shares.clone())
         .collect::<Vec<_>>();
-    let first_share = shares.first().unwrap().to_vec();
+    let first_share = shares
+        .first()
+        .expect("Need one or more decryption shares to aggregate")
+        .to_vec();
     shares
         .into_iter()
         .skip(1)
@@ -398,40 +409,6 @@ pub fn aggregate_for_decryption<E: Pairing>(
                 .map(|(a, b)| (a + b).into())
                 .collect()
         })
-}
-
-pub fn make_decryption_shares<E: Pairing>(
-    ciphertext: &Ciphertext<E>,
-    validator_keypairs: &[Keypair<E>],
-    aggregate: &[E::G2Affine],
-    aad: &[u8],
-    g_inv: &E::G1Prepared,
-) -> Vec<DecryptionShareSimple<E>> {
-    // TODO: Calculate separately for each validator
-    aggregate
-        .iter()
-        .zip_eq(validator_keypairs.iter())
-        .enumerate()
-        .map(|(decrypter_index, (encrypted_share, keypair))| {
-            // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-            let z_i =
-                encrypted_share.mul(keypair.decryption_key.inverse().unwrap());
-            // TODO: Consider using "container" structs from `tpke` for other primitives
-            let private_key_share = PrivateKeyShare {
-                private_key_share: z_i.into_affine(),
-            };
-
-            DecryptionShareSimple::create(
-                decrypter_index,
-                &keypair.decryption_key,
-                &private_key_share,
-                ciphertext,
-                aad,
-                g_inv,
-            )
-            .unwrap() // Unwrapping here only because this is a test method!
-        })
-        .collect::<Vec<_>>()
 }
 
 #[cfg(test)]

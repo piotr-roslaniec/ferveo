@@ -1,113 +1,40 @@
 //! Contains the public API of the library.
 
-#![allow(dead_code)]
-
-// TODO: Refactor this module to deduplicate shared code from tpke-wasm and tpke-wasm.
-
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 pub type E = ark_bls12_381::Bls12_381;
-pub type TpkeDkgPublicKey = ark_bls12_381::G1Affine;
-pub type TpkeG1Prepared = <E as ark_ec::pairing::Pairing>::G1Prepared;
-pub type TpkeG1Affine = <E as ark_ec::pairing::Pairing>::G1Affine;
-pub type TpkePrivateKey = ark_bls12_381::G2Affine;
-pub type TpkeUnblindingKey = ark_bls12_381::Fr;
-pub type TpkeDomainPoint = ark_bls12_381::Fr;
-pub type TpkeCiphertext = crate::Ciphertext<E>;
-pub type TpkeDecryptionShareSimplePrecomputed =
-    crate::DecryptionShareSimplePrecomputed<E>;
-pub type TpkeDecryptionShareSimple = crate::DecryptionShareSimple<E>;
-pub type TpkePublicDecryptionContext = crate::PublicDecryptionContextSimple<E>;
-pub type TpkeSharedSecret = <E as ark_ec::pairing::Pairing>::TargetField;
-pub type TpkeResult<T> = crate::Result<T>;
-pub type TpkePrivateDecryptionContext =
+pub type DkgPublicKey = ark_bls12_381::G1Affine;
+pub type G1Prepared = <E as ark_ec::pairing::Pairing>::G1Prepared;
+pub type PrivateKey = ark_bls12_381::G2Affine;
+pub type UnblindingKey = ark_bls12_381::Fr;
+pub type SharedSecret = <E as ark_ec::pairing::Pairing>::TargetField;
+pub type Result<T> = crate::Result<T>;
+pub type PrivateDecryptionContextSimple =
     crate::PrivateDecryptionContextSimple<E>;
+pub type DecryptionShareSimplePrecomputed =
+    crate::DecryptionShareSimplePrecomputed<E>;
+pub type DecryptionShareSimple = crate::DecryptionShareSimple<E>;
+pub type Ciphertext = crate::Ciphertext<E>;
 
-pub fn encrypt(
-    message: &[u8],
-    aad: &[u8],
-    public_key: &TpkeDkgPublicKey,
-) -> TpkeResult<Ciphertext> {
-    // TODO: Should rng be a parameter?
-    let rng = &mut rand::thread_rng();
-    Ok(Ciphertext(crate::encrypt(message, aad, public_key, rng)?))
-}
-
-pub fn decrypt_with_shared_secret(
-    ciphertext: &Ciphertext,
-    aad: &[u8],
-    shared_secret: &TpkeSharedSecret,
-    g_inv: &TpkeG1Prepared,
-) -> TpkeResult<Vec<u8>> {
-    crate::decrypt_with_shared_secret(&ciphertext.0, aad, shared_secret, g_inv)
-}
-
-pub fn decrypt_symmetric(
-    ciphertext: &Ciphertext,
-    aad: &[u8],
-    private_key: &TpkePrivateKey,
-    g_inv: &TpkeG1Prepared,
-) -> Vec<u8> {
-    crate::decrypt_symmetric(&ciphertext.0, aad, private_key, g_inv).unwrap()
-}
+pub use crate::{
+    decrypt_symmetric, decrypt_with_shared_secret, encrypt,
+    share_combine_simple_precomputed,
+};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DomainPoint(
-    #[serde_as(as = "serialization::SerdeAs")] pub TpkeDomainPoint,
+    #[serde_as(as = "serialization::SerdeAs")] pub ark_bls12_381::Fr,
 );
 
 impl DomainPoint {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(&self).map_err(|e| e.into())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct DecryptionShareSimple(pub TpkeDecryptionShareSimple);
-
-impl DecryptionShareSimple {
-    pub fn to_bytes(&self) -> TpkeResult<Vec<u8>> {
-        self.0.to_bytes()
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> TpkeResult<Self> {
-        Ok(Self(TpkeDecryptionShareSimple::from_bytes(bytes)?))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct DecryptionShareSimplePrecomputed(
-    pub TpkeDecryptionShareSimplePrecomputed,
-);
-
-impl DecryptionShareSimplePrecomputed {
-    pub fn to_bytes(&self) -> TpkeResult<Vec<u8>> {
-        self.0.to_bytes()
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> TpkeResult<Self> {
-        Ok(Self(TpkeDecryptionShareSimplePrecomputed::from_bytes(
-            bytes,
-        )?))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Ciphertext(pub TpkeCiphertext);
-
-impl Ciphertext {
-    pub fn from_bytes(bytes: &[u8]) -> crate::Result<Self> {
-        Ok(Ciphertext(TpkeCiphertext::from_bytes(bytes)?))
-    }
-
-    pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
-        self.0.to_bytes()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|e| e.into())
     }
 }

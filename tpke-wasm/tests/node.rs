@@ -37,7 +37,10 @@ fn tdec_simple() {
     // Create decryption shares
 
     let decryption_shares = (0..threshold)
-        .map(|i| dkg.make_decryption_share_simple(&ciphertext, &aad, i))
+        .map(|i| {
+            dkg.make_decryption_share_simple(&ciphertext, &aad, i)
+                .unwrap()
+        })
         .collect::<Vec<DecryptionShareSimple>>();
 
     let domain_points = (0..threshold)
@@ -77,7 +80,8 @@ fn tdec_simple() {
         &aad,
         &shared_secret,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     assert_eq!(msg, plaintext)
 }
@@ -116,7 +120,10 @@ fn tdec_simple_precomputed() {
     // decryption error.
 
     let decryption_shares = (0..shares_num)
-        .map(|i| dkg.make_decryption_share_precomputed(&ciphertext, &aad, i))
+        .map(|i| {
+            dkg.make_decryption_share_precomputed(&ciphertext, &aad, i)
+                .unwrap()
+        })
         .collect::<Vec<DecryptionShareSimplePrecomputed>>();
 
     // Serialize and send back to client
@@ -149,7 +156,8 @@ fn tdec_simple_precomputed() {
         &aad,
         &shared_secret,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     assert_eq!(msg, plaintext)
 }
@@ -170,7 +178,8 @@ fn encrypts_and_decrypts() {
         &aad,
         &dkg.private_key,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     // TODO: Plaintext is padded to 32 bytes. Fix this.
     assert_eq!(message, plaintext[..message.len()])

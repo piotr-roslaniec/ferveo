@@ -12,7 +12,8 @@ pub fn encrypt(
     aad: &[u8],
     public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
-    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0)
+    let rng = &mut thread_rng();
+    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0, rng)
         .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
     Ok(Ciphertext(ciphertext))
 }
@@ -23,7 +24,7 @@ pub fn combine_decryption_shares(shares: Vec<DecryptionShare>) -> SharedSecret {
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    SharedSecret(ferveo::api::combine_decryption_shares(&shares))
+    SharedSecret(ferveo::api::share_combine_simple_precomputed(&shares))
 }
 
 #[pyfunction]
@@ -43,11 +44,11 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(derive_more::From, derive_more::AsRef)]
+#[derive(derive_more::AsRef)]
 pub struct G1Prepared(ferveo::api::G1Prepared);
 
 #[pyclass(module = "ferveo")]
-#[derive(derive_more::From, derive_more::AsRef)]
+#[derive(derive_more::AsRef)]
 pub struct SharedSecret(ferveo::api::SharedSecret);
 
 #[pyclass(module = "ferveo")]
@@ -60,6 +61,8 @@ impl Keypair {
     pub fn random() -> Self {
         Self(ferveo::api::Keypair::new(&mut thread_rng()))
     }
+
+    // TODO: Consider moving from_bytes and __bytes__ to a separate trait
 
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
@@ -106,7 +109,7 @@ impl PublicKey {
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct ExternalValidator(ferveo::api::ExternalValidator);
+pub struct ExternalValidator(ferveo::api::ExternalValidator<E>);
 
 #[pymethods]
 impl ExternalValidator {
@@ -118,7 +121,7 @@ impl ExternalValidator {
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct Transcript(ferveo::api::Transcript);
+pub struct Transcript(ferveo::api::Transcript<E>);
 
 #[pymethods]
 impl Transcript {
@@ -214,13 +217,17 @@ impl AggregatedTranscript {
         ciphertext: &Ciphertext,
         aad: &[u8],
         validator_keypair: &Keypair,
-    ) -> DecryptionShare {
-        DecryptionShare(self.0.create_decryption_share(
-            &dkg.0,
-            &ciphertext.0,
-            aad,
-            &validator_keypair.0,
-        ))
+    ) -> PyResult<DecryptionShare> {
+        let decryption_share = self
+            .0
+            .create_decryption_share(
+                &dkg.0,
+                &ciphertext.0,
+                aad,
+                &validator_keypair.0,
+            )
+            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        Ok(DecryptionShare(decryption_share))
     }
 
     #[staticmethod]

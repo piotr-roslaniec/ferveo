@@ -85,7 +85,9 @@ fn to_affine(compressed_rev: &mut [u8; 96]) -> Affine<Config> {
     //     .unwrap()
     // In this workaround we use `from_random_bytes` instead of `deserialize_compressed`, because
     //  the former performs checks that prevent the "Unexpected Flag" error.
-    ark_bls12_381::G2Affine::from_random_bytes(&compressed_rev[..]).unwrap()
+    // TODO: Remove expect?
+    ark_bls12_381::G2Affine::from_random_bytes(&compressed_rev[..])
+        .expect("Failed to convert to affine point")
 }
 
 #[cfg(test)]

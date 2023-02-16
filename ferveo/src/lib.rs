@@ -5,6 +5,7 @@ pub mod dkg;
 pub mod primitives;
 mod vss;
 
+// TODO: Replace with concrete error type
 pub use anyhow::Error;
 pub use dkg::*;
 pub use primitives::*;
@@ -69,13 +70,15 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(validator_index, validator_keypair)| {
-                    pvss_aggregated.make_decryption_share_simple(
-                        ciphertext,
-                        aad,
-                        &validator_keypair.decryption_key,
-                        validator_index,
-                        &dkg.pvss_params.g_inv(),
-                    )
+                    pvss_aggregated
+                        .make_decryption_share_simple(
+                            ciphertext,
+                            aad,
+                            &validator_keypair.decryption_key,
+                            validator_index,
+                            &dkg.pvss_params.g_inv(),
+                        )
+                        .unwrap()
                 })
                 .collect();
 
@@ -151,14 +154,16 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(validator_index, validator_keypair)| {
-                    pvss_aggregated.make_decryption_share_simple_precomputed(
-                        &ciphertext,
-                        aad,
-                        &validator_keypair.decryption_key,
-                        validator_index,
-                        &domain_points,
-                        &dkg.pvss_params.g_inv(),
-                    )
+                    pvss_aggregated
+                        .make_decryption_share_simple_precomputed(
+                            &ciphertext,
+                            aad,
+                            &validator_keypair.decryption_key,
+                            validator_index,
+                            &domain_points,
+                            &dkg.pvss_params.g_inv(),
+                        )
+                        .unwrap()
                 })
                 .collect();
 
@@ -320,13 +325,15 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(validator_index, validator_keypair)| {
-                    pvss_aggregated.make_decryption_share_simple(
-                        &ciphertext,
-                        aad,
-                        &validator_keypair.decryption_key,
-                        validator_index,
-                        &dkg.pvss_params.g_inv(),
-                    )
+                    pvss_aggregated
+                        .make_decryption_share_simple(
+                            &ciphertext,
+                            aad,
+                            &validator_keypair.decryption_key,
+                            validator_index,
+                            &dkg.pvss_params.g_inv(),
+                        )
+                        .unwrap()
                 })
                 .collect();
 
@@ -391,14 +398,16 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(validator_index, validator_keypair)| {
-                    pvss_aggregated.refresh_decryption_share(
-                        &ciphertext,
-                        aad,
-                        &validator_keypair.decryption_key,
-                        validator_index,
-                        &polynomial,
-                        &dkg,
-                    )
+                    pvss_aggregated
+                        .refresh_decryption_share(
+                            &ciphertext,
+                            aad,
+                            &validator_keypair.decryption_key,
+                            validator_index,
+                            &polynomial,
+                            &dkg,
+                        )
+                        .unwrap()
                 })
                 .collect();
 
