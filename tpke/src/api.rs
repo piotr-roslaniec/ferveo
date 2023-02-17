@@ -28,13 +28,3 @@ pub use crate::{
 pub struct DomainPoint(
     #[serde_as(as = "serialization::SerdeAs")] pub ark_bls12_381::Fr,
 );
-
-impl DomainPoint {
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&self).map_err(|e| e.into())
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|e| e.into())
-    }
-}

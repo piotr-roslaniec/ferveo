@@ -852,6 +852,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "ferveo",
+ "ferveo-common",
  "group-threshold-cryptography",
  "pyo3",
  "pyo3-build-config 0.18.1",
@@ -2041,6 +2042,7 @@ dependencies = [
 name = "tpke-python"
 version = "0.1.0"
 dependencies = [
+ "ferveo-common",
  "group-threshold-cryptography",
  "pyo3",
  "pyo3-build-config 0.18.1",

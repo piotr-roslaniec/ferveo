@@ -282,6 +282,7 @@ mod tests {
     use ark_ec::{AffineRepr, CurveGroup};
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
+    use ferveo_common::{FromBytes, ToBytes};
     use rand_core::RngCore;
 
     use crate::refresh::{

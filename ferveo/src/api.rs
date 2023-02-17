@@ -93,14 +93,6 @@ impl AggregatedTranscript {
             &dkg.0.pvss_params.g_inv(),
         )
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Self(bincode::deserialize(bytes)?))
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        Ok(bincode::serialize(&self.0)?)
-    }
 }
 
 #[cfg(test)]

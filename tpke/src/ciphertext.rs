@@ -52,14 +52,6 @@ impl<E: Pairing> Ciphertext<E> {
             + self.auth_tag.serialized_size(Compress::No)
             + self.ciphertext.len()
     }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(self).map_err(|err| err.into())
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|err| err.into())
-    }
 }
 
 pub fn encrypt<E: Pairing>(
@@ -217,28 +209,13 @@ fn construct_tag_hash<E: Pairing>(
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::G1Projective;
-    use ark_ec::CurveGroup;
-    use ark_std::{test_rng, UniformRand};
+
+    use ark_std::test_rng;
 
     use crate::test_common::*;
     use crate::*;
 
     type E = ark_bls12_381::Bls12_381;
-
-    #[test]
-    fn ciphertext_serialization() {
-        let rng = &mut test_rng();
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let pubkey = G1Projective::rand(rng).into_affine();
-
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
-        let deserialized: Ciphertext<E> =
-            Ciphertext::from_bytes(&ciphertext.to_bytes().unwrap()).unwrap();
-
-        assert_eq!(ciphertext, deserialized)
-    }
 
     #[test]
     fn symmetric_encryption() {

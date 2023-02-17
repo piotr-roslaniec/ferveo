@@ -3,6 +3,7 @@ extern crate group_threshold_cryptography as tpke;
 mod utils;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ferveo_common::{FromBytes, ToBytes};
 use js_sys::Error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -10,6 +11,14 @@ use utils::*;
 use wasm_bindgen::prelude::*;
 
 extern crate wee_alloc;
+
+fn to_js_bytes<T: ToBytes>(t: &T) -> Result<Vec<u8>, Error> {
+    t.to_bytes().map_err(map_js_err)
+}
+
+fn from_js_bytes<T: FromBytes>(bytes: &[u8]) -> Result<T, Error> {
+    T::from_bytes(bytes).map_err(map_js_err)
+}
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq)]
@@ -23,15 +32,12 @@ pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 impl DecryptionShareSimple {
     #[wasm_bindgen]
     pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
-        self.0.to_bytes().map_err(map_js_err)
+        to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen]
     pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple, Error> {
-        let decryption_shares =
-            tpke::api::DecryptionShareSimple::from_bytes(bytes)
-                .map_err(map_js_err)?;
-        Ok(Self(decryption_shares))
+        from_js_bytes(bytes).map(Self)
     }
 }
 
@@ -45,17 +51,14 @@ pub struct DecryptionShareSimplePrecomputed(
 impl DecryptionShareSimplePrecomputed {
     #[wasm_bindgen]
     pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
-        self.0.to_bytes().map_err(map_js_err)
+        to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen]
     pub fn from_bytes(
         bytes: &[u8],
     ) -> Result<DecryptionShareSimplePrecomputed, Error> {
-        let decryption_share =
-            tpke::api::DecryptionShareSimplePrecomputed::from_bytes(bytes)
-                .map_err(map_js_err)?;
-        Ok(Self(decryption_share))
+        from_js_bytes(bytes).map(Self)
     }
 }
 
@@ -122,13 +125,11 @@ pub struct Ciphertext(tpke::api::Ciphertext);
 #[wasm_bindgen]
 impl Ciphertext {
     pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext, Error> {
-        let ciphertext =
-            tpke::api::Ciphertext::from_bytes(bytes).map_err(map_js_err)?;
-        Ok(Ciphertext(ciphertext))
+        from_js_bytes(bytes).map(Self)
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
-        self.0.to_bytes().map_err(map_js_err)
+        to_js_bytes(&self.0)
     }
 }
 

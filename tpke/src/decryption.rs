@@ -23,16 +23,6 @@ pub struct DecryptionShareFast<E: Pairing> {
     pub decryption_share: E::G1Affine,
 }
 
-impl<E: Pairing> DecryptionShareFast<E> {
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&self).map_err(|err| err.into())
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|err| err.into())
-    }
-}
-
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ValidatorShareChecksum<E: Pairing> {
@@ -81,14 +71,6 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
         }
 
         true
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
     }
 }
 
@@ -165,14 +147,6 @@ impl<E: Pairing> DecryptionShareSimple<E> {
             h,
             ciphertext,
         )
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|err| err.into())
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&self).map_err(|err| err.into())
     }
 }
 
@@ -251,14 +225,6 @@ impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
             h,
             ciphertext,
         )
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|e| e.into())
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(self).map_err(|e| e.into())
     }
 }
 
@@ -395,6 +361,7 @@ pub fn verify_decryption_shares_simple<E: Pairing>(
 #[cfg(test)]
 mod tests {
     use ark_ec::AffineRepr;
+    use ferveo_common::{FromBytes, ToBytes};
 
     use crate::*;
 

@@ -1,10 +1,28 @@
 extern crate alloc;
 
+use std::fmt;
+
 use ferveo::api::E;
+use ferveo_common::serialization::{FromBytes, ToBytes};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use rand::thread_rng;
+
+fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
+    T::from_bytes(bytes).map_err(map_py_error)
+}
+
+fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
+    let bytes = t.to_bytes().map_err(map_py_error)?;
+    Ok(Python::with_gil(|py| -> PyObject {
+        PyBytes::new(py, &bytes).into()
+    }))
+}
+
+fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
+    PyValueError::new_err(format!("{}", err))
+}
 
 #[pyfunction]
 pub fn encrypt(
@@ -14,7 +32,7 @@ pub fn encrypt(
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
     let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0, rng)
-        .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        .map_err(map_py_error)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -62,21 +80,13 @@ impl Keypair {
         Self(ferveo::api::Keypair::new(&mut thread_rng()))
     }
 
-    // TODO: Consider moving from_bytes and __bytes__ to a separate trait
-
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let keypair = ferveo::api::Keypair::from_bytes(bytes)
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Self(keypair))
+        from_py_bytes(bytes).map(Self)
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let serialized = self
-            .0
-            .to_bytes()
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Python::with_gil(|py| Ok(PyBytes::new(py, &serialized).into()))
+        to_py_bytes(self.0)
     }
 
     #[getter]
@@ -93,17 +103,11 @@ pub struct PublicKey(ferveo::api::PublicKey<E>);
 impl PublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let pk = ferveo::api::PublicKey::from_bytes(bytes)
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Self(pk))
+        from_py_bytes(bytes).map(Self)
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let serialized = self
-            .0
-            .to_bytes()
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Python::with_gil(|py| Ok(PyBytes::new(py, &serialized).into()))
+        to_py_bytes(self.0)
     }
 }
 
@@ -127,17 +131,11 @@ pub struct Transcript(ferveo::api::Transcript<E>);
 impl Transcript {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let transcript = ferveo::api::Transcript::from_bytes(bytes)
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Self(transcript))
+        from_py_bytes(bytes).map(Self)
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let serialized = self
-            .0
-            .to_bytes()
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Python::with_gil(|py| PyBytes::new(py, &serialized).into()))
+        to_py_bytes(&self.0)
     }
 }
 
@@ -232,18 +230,11 @@ impl AggregatedTranscript {
 
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let aggregated_transcript =
-            ferveo::api::AggregatedTranscript::from_bytes(bytes)
-                .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Self(aggregated_transcript))
+        from_py_bytes(bytes).map(Self)
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let serialized = self
-            .0
-            .to_bytes()
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-        Ok(Python::with_gil(|py| PyBytes::new(py, &serialized).into()))
+        to_py_bytes(&self.0)
     }
 }
 

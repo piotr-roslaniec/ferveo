@@ -189,14 +189,6 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
             })
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|err| err.into())
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&self).map_err(|err| err.into())
-    }
 }
 
 /// Extra methods available to aggregated PVSS transcripts
