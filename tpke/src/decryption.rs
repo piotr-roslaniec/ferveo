@@ -1,8 +1,6 @@
 use std::ops::Mul;
 
-use anyhow::Result;
-use ark_ec::pairing::Pairing;
-use ark_ec::CurveGroup;
+use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_ff::{Field, One, Zero};
 use ferveo_common::serialization;
 use itertools::{izip, zip_eq};
@@ -12,7 +10,7 @@ use serde_with::serde_as;
 
 use crate::{
     check_ciphertext_validity, generate_random, Ciphertext, PrivateKeyShare,
-    PublicDecryptionContextFast, PublicDecryptionContextSimple,
+    PublicDecryptionContextFast, PublicDecryptionContextSimple, Result,
 };
 
 #[serde_as]

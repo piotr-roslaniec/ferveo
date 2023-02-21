@@ -3,8 +3,7 @@
 //! Adapted from [o1-labs/proof-systems](https://raw.githubusercontent.com/o1-labs/proof-systems/31c76ceae3122f0ce09cded8260960ed5cbbe3d8/utils/src/serialization.rs).
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use serde;
-use serde::{Deserialize, Serialize};
+use serde::{self, Deserialize, Serialize};
 use serde_with::Bytes;
 
 //

@@ -27,7 +27,7 @@ pub use refresh::*;
 pub mod api;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ThresholdEncryptionError {
+pub enum Error {
     /// Ciphertext verification failed
     /// Refers to the check 4.4.2 in the paper: https://eprint.iacr.org/2022/898.pdf
     #[error("Ciphertext verification failed")]
@@ -63,21 +63,21 @@ pub enum ThresholdEncryptionError {
     ArkworksSerializationError(#[from] ark_serialize::SerializationError),
 }
 
-pub type Result<T> = anyhow::Result<T>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Factory functions for testing
 #[cfg(any(test, feature = "test-common"))]
 pub mod test_common {
-    use std::ops::Mul;
-    use std::usize;
+    use std::{ops::Mul, usize};
 
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::{pairing::Pairing, AffineRepr};
     pub use ark_ff::UniformRand;
     use ark_ff::{Field, One, Zero};
-    use ark_poly::univariate::DensePolynomial;
-    use ark_poly::DenseUVPolynomial;
-    use ark_poly::{EvaluationDomain, Polynomial};
+    use ark_poly::{
+        univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
+        Polynomial,
+    };
     use itertools::izip;
     use rand_core::RngCore;
     use subproductdomain::fast_multiexp;
@@ -274,24 +274,23 @@ pub mod test_common {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::ops::Mul;
+    use std::{collections::HashMap, ops::Mul};
 
     use ark_bls12_381::Fr;
-    use ark_ec::pairing::Pairing;
-    use ark_ec::{AffineRepr, CurveGroup};
+    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
     use ferveo_common::{FromBytes, ToBytes};
     use rand_core::RngCore;
 
-    use crate::refresh::{
-        make_random_polynomial_at, prepare_share_updates_for_recovery,
-        recover_share_from_updated_private_shares, refresh_private_key_share,
-        update_share_for_recovery,
+    use crate::{
+        refresh::{
+            make_random_polynomial_at, prepare_share_updates_for_recovery,
+            recover_share_from_updated_private_shares,
+            refresh_private_key_share, update_share_for_recovery,
+        },
+        test_common::{setup_simple, *},
     };
-    use crate::test_common::setup_simple;
-    use crate::test_common::*;
 
     type E = ark_bls12_381::Bls12_381;
     type TargetField = <E as Pairing>::TargetField;

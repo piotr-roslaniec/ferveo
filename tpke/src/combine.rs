@@ -9,8 +9,8 @@ use subproductdomain::SubproductDomain;
 
 use crate::{
     verify_decryption_shares_fast, Ciphertext, DecryptionShareFast,
-    DecryptionShareSimple, DecryptionShareSimplePrecomputed,
-    PublicDecryptionContextFast, Result, ThresholdEncryptionError,
+    DecryptionShareSimple, DecryptionShareSimplePrecomputed, Error,
+    PublicDecryptionContextFast, Result,
 };
 
 pub fn prepare_combine_fast<E: Pairing>(
@@ -106,9 +106,7 @@ pub fn share_combine_fast<E: Pairing>(
         decryption_shares,
     );
     if !is_valid_shares {
-        return Err(
-            ThresholdEncryptionError::DecryptionShareVerificationFailed.into(),
-        );
+        return Err(Error::DecryptionShareVerificationFailed);
     }
     Ok(share_combine_fast_unchecked(
         decryption_shares,

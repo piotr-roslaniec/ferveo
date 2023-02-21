@@ -1,18 +1,15 @@
 use ark_poly::EvaluationDomain;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ferveo_common::serialization::ser::serialize;
 pub use ferveo_common::{ExternalValidator, Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
-use rand::rngs::StdRng;
-use rand::{thread_rng, RngCore, SeedableRng};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, share_combine_simple_precomputed,
     Ciphertext, DecryptionShareSimplePrecomputed as DecryptionShare,
-    DkgPublicKey, G1Prepared, Result, SharedSecret, UnblindingKey, E,
+    DkgPublicKey, G1Prepared, SharedSecret, UnblindingKey, E,
 };
 
-pub use crate::PubliclyVerifiableSS as Transcript;
+pub use crate::{PubliclyVerifiableSS as Transcript, Result};
 
 #[derive(Clone)]
 pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
@@ -97,22 +94,11 @@ impl AggregatedTranscript {
 
 #[cfg(test)]
 mod test_ferveo_api {
-    use std::collections::HashMap;
-    use std::fmt::format;
 
-    use ark_bls12_381::{Bls12_381 as E, G2Projective};
-    use ark_ec::CurveGroup;
-    use ark_poly::EvaluationDomain;
-    use ark_serialize::CanonicalSerialize;
-    use ark_std::UniformRand;
-    use ferveo_common::PublicKey;
-    use group_threshold_cryptography as tpke;
-    use itertools::{iproduct, izip};
-    use rand::prelude::StdRng;
-    use rand::SeedableRng;
+    use itertools::izip;
+    use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
-    use crate::api::*;
-    use crate::dkg::test_common::*;
+    use crate::{api::*, dkg::test_common::*};
 
     #[test]
     fn test_server_api_simple_tdec_precomputed() {

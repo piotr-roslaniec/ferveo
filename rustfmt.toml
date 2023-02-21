@@ -14,3 +14,4 @@ use_field_init_shorthand = false
 force_explicit_abi = true
 unstable_features = true
 group_imports = "StdExternalCrate"
+imports_granularity = "Crate"

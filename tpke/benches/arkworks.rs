@@ -6,8 +6,10 @@ use std::ops::Mul;
 use ark_bls12_381::{
     Bls12_381, Fr, G1Affine, G1Projective, G2Affine, G2Projective,
 };
-use ark_ec::pairing::{prepare_g1, prepare_g2, Pairing};
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{
+    pairing::{prepare_g1, prepare_g2, Pairing},
+    AffineRepr, CurveGroup,
+};
 use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
 use group_threshold_cryptography::make_random_polynomial_at;

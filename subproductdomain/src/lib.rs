@@ -3,15 +3,14 @@
 
 use std::mem;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::scalar_mul::fixed_base::FixedBase;
-use ark_ec::AffineRepr;
-use ark_ec::CurveGroup;
+use ark_ec::{
+    pairing::Pairing, scalar_mul::fixed_base::FixedBase, AffineRepr, CurveGroup,
+};
 use ark_ff::{FftField, Field, Zero};
-use ark_poly::univariate::DensePolynomial;
-use ark_poly::DenseUVPolynomial;
-use ark_poly::EvaluationDomain;
-use ark_poly::{Polynomial, Radix2EvaluationDomain};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
+    Polynomial, Radix2EvaluationDomain,
+};
 
 /// Compute a fast multiexp of many scalars times the same base
 /// Only convenient for when called once with given base; if called
@@ -386,8 +385,7 @@ pub fn toeplitz_mul<E: Pairing, const NORMALIZE: bool>(
 mod tests {
     use ark_ec::pairing::Pairing;
     use ark_ff::{One, Zero};
-    use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly::Polynomial;
+    use ark_poly::{polynomial::univariate::DensePolynomial, Polynomial};
     use ark_std::UniformRand;
 
     use super::*;
