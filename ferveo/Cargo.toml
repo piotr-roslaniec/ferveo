@@ -44,6 +44,12 @@ digest = { version = "0.10.0", features = ["alloc"] }
 [package.metadata.cargo-udeps.ignore]
 development = ["pprof"]
 
+[lib]
+bench = false
+
+[features]
+test-common = []
+
 [[example]]
 name = "pvdkg"
 path = "examples/pvdkg.rs"

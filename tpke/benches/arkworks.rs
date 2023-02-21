@@ -9,7 +9,9 @@ use ark_bls12_381::{
 use ark_ec::pairing::{prepare_g1, prepare_g2, Pairing};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
-use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
+use criterion::{
+    black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
+};
 use group_threshold_cryptography::make_random_polynomial_at;
 use itertools::izip;
 use rand::prelude::StdRng;
@@ -272,19 +274,25 @@ pub fn bench_random_poly(c: &mut Criterion) {
     }
 }
 
+pub fn bench_dummy(_c: &mut Criterion) {
+    // Does nothing on purpose, but is required to make criterion happy.
+}
+
 criterion_group!(
     benches,
-    bench_mul,
-    bench_into_affine,
-    bench_into_projective,
-    bench_prepare_gx,
-    bench_pow,
-    bench_miller_loop,
-    bench_final_exponentiation,
-    bench_pairing,
-    bench_product_of_pairings,
-    bench_random_poly,
+    // Using this dummy benchmark to make criterion happy.
+    bench_dummy,
+    // Disabling these benchmarks for now, as they are stable and we only ever run them locally.
+    // bench_mul,
+    // bench_into_affine,
+    // bench_into_projective,
+    // bench_prepare_gx,
+    // bench_pow,
+    // bench_miller_loop,
+    // bench_final_exponentiation,
+    // bench_pairing,
+    // bench_product_of_pairings,
+    // bench_random_poly,
 );
 
-// Disabling these benchmarks for now, as they are stable and we only ever run them locally.
-// criterion_main!(benches);
+criterion_main!(benches);

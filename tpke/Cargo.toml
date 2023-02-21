@@ -46,11 +46,10 @@ path = "benches/tpke.rs"
 harness = false
 required-features = ["test-common"]
 
-# Disabling these benchmarks for now, as they are stable and we only ever run them locally.
-#[[bench]]
-#name = "arkworks"
-#path = "benches/arkworks.rs"
-#harness = false
+[[bench]]
+name = "arkworks"
+path = "benches/arkworks.rs"
+harness = false
 
 [profile.release]
 opt-level = 3
