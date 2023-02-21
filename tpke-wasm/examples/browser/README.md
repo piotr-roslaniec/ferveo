@@ -1,17 +1,17 @@
-# `tpke-wasm` in Node.js:
+# `tpke-wasm` in the browser:
 
 ## Usage
 
 Make sure `pkg` is build with correct target:
 ```bash
 cd ../../
-wasm-pack build --target nodejs
+wasm-pack build --target web
 ```
 
 Install dependencies and run tests:
 ```bash
 $ yarn install
-$ yarn test
+$ yarn start
 ```
 
-Inspect console output for results.
+Visit http://localhost:8080/ in your browser.
