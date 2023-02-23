@@ -4,9 +4,7 @@ use std::fmt;
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 use rand::thread_rng;
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {

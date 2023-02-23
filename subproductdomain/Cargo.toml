@@ -15,7 +15,3 @@ ark-poly = "0.4"
 
 [dev-dependencies]
 ark-bls12-381 = "0.4"
-
-[profile.release]
-opt-level = 3
-lto = true

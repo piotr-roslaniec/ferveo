@@ -3,9 +3,7 @@ extern crate alloc;
 extern crate group_threshold_cryptography as tpke;
 
 use ferveo_common::serialization::ToBytes;
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
 #[pyclass(module = "tpke")]
 pub struct DecryptionShare(tpke::api::DecryptionShareSimplePrecomputed);

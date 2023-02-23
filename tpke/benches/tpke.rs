@@ -3,14 +3,15 @@
 use std::collections::HashMap;
 
 use ark_bls12_381::{Bls12_381, Fr, G1Affine as G1, G2Affine as G2};
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
+use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::Zero;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::test_common::{setup_fast, setup_simple};
-use group_threshold_cryptography::*;
+use group_threshold_cryptography::{
+    test_common::{setup_fast, setup_simple},
+    *,
+};
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 

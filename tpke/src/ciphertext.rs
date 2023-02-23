@@ -1,7 +1,6 @@
 use std::ops::Mul;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
+use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
 use chacha20poly1305::{
@@ -13,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sha2::{digest::Digest, Sha256};
 
-use crate::{htp_bls12381_g2, Result, ThresholdEncryptionError};
+use crate::{htp_bls12381_g2, Error, Result};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -76,7 +75,7 @@ pub fn encrypt<E: Pairing>(
     let nonce = nonce_from_commitment::<E>(commitment)?;
     let ciphertext = shared_secret_to_chacha::<E>(&product)?
         .encrypt(&nonce, message)
-        .map_err(ThresholdEncryptionError::SymmetricEncryptionError)?
+        .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
     // w
     let auth_tag = construct_tag_hash::<E>(commitment, &ciphertext, aad)?
@@ -116,7 +115,7 @@ pub fn check_ciphertext_validity<E: Pairing>(
     if is_ciphertext_valid {
         Ok(())
     } else {
-        Err(ThresholdEncryptionError::CiphertextVerificationFailed.into())
+        Err(Error::CiphertextVerificationFailed)
     }
 }
 
@@ -144,7 +143,7 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
 
     let plaintext = shared_secret_to_chacha::<E>(shared_secret)?
         .decrypt(&nonce, ciphertext.as_ref())
-        .map_err(|_| ThresholdEncryptionError::CiphertextVerificationFailed)?
+        .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
 
     Ok(plaintext)
@@ -190,9 +189,8 @@ fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
     let point = htp_bls12381_g2(message);
     let mut point_ser: Vec<u8> = Vec::new();
     point.serialize_uncompressed(&mut point_ser)?;
-    T::deserialize_uncompressed(&point_ser[..]).map_err(|err| {
-        ThresholdEncryptionError::ArkworksSerializationError(err).into()
-    })
+    T::deserialize_uncompressed(&point_ser[..])
+        .map_err(Error::ArkworksSerializationError)
 }
 
 fn construct_tag_hash<E: Pairing>(
@@ -212,8 +210,7 @@ mod tests {
 
     use ark_std::test_rng;
 
-    use crate::test_common::*;
-    use crate::*;
+    use crate::{test_common::*, *};
 
     type E = ark_bls12_381::Bls12_381;
 

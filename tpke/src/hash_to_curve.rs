@@ -4,16 +4,11 @@
 #![allow(dead_code)]
 
 use ark_bls12_381::g2::Config;
-use ark_ec::short_weierstrass::Affine;
-use ark_ec::AffineRepr;
-use miracl_core::bls12381::big::BIG;
-use miracl_core::bls12381::dbig::DBIG;
-use miracl_core::bls12381::ecp;
-use miracl_core::bls12381::ecp2::ECP2;
-use miracl_core::bls12381::fp::FP;
-use miracl_core::bls12381::fp2::FP2;
-use miracl_core::bls12381::rom;
-use miracl_core::hmac;
+use ark_ec::{short_weierstrass::Affine, AffineRepr};
+use miracl_core::{
+    bls12381::{big::BIG, dbig::DBIG, ecp, ecp2::ECP2, fp::FP, fp2::FP2, rom},
+    hmac,
+};
 
 fn ceil(a: usize, b: usize) -> usize {
     (a - 1) / b + 1

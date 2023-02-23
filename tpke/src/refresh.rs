@@ -1,8 +1,6 @@
-use std::ops::Mul;
-use std::usize;
+use std::{ops::Mul, usize};
 
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::Zero;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 use itertools::zip_eq;

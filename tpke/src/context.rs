@@ -1,7 +1,6 @@
 use std::ops::Mul;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::CurveGroup;
+use ark_ec::{pairing::Pairing, CurveGroup};
 
 use crate::{
     check_ciphertext_validity, prepare_combine_simple, BlindedKeyShare,
