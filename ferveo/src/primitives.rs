@@ -1,5 +1,4 @@
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
+use ark_ec::{pairing::Pairing, AffineRepr};
 
 // pub fn batch_to_projective<A: ark_ec::AffineCurve>(
 //     p: &[A],

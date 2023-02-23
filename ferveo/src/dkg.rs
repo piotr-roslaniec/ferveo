@@ -1,18 +1,7 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(non_snake_case)]
-#![allow(unused_imports)]
 
-use anyhow::anyhow;
 use ark_ec::pairing::Pairing;
-use ark_ec::CurveGroup;
-use ark_ff::Zero;
-use ark_ff::{Field, One};
-use ark_poly::{
-    polynomial::univariate::DensePolynomial, EvaluationDomain, Polynomial,
-};
-use ark_serialize::*;
-use bincode::Options;
-use ed25519_dalek as ed25519;
 use serde::{Deserialize, Serialize};
 
 pub mod common;

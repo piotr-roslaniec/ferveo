@@ -1,7 +1,6 @@
 use std::ops::Mul;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::One;
 use ark_std::UniformRand;
 use rand_core::RngCore;

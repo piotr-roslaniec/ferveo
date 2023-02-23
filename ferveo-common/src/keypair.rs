@@ -1,7 +1,6 @@
 use std::ops::Mul;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_std::rand::RngCore;
 use serde::*;
 use serde_with::serde_as;

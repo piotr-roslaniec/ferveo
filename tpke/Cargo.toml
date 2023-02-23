@@ -19,8 +19,7 @@ subproductdomain = { path = "../subproductdomain" }
 ferveo-common = { path = "../ferveo-common" }
 rand_core = "0.6"
 rand = "0.8"
-thiserror = "=1.0.30"
-anyhow = "=1.0"
+thiserror = "1.0"
 miracl_core = "=2.3.0"
 ark-ff = "0.4"
 ark-ec = "0.4"

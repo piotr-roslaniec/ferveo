@@ -1,44 +1,60 @@
-#![allow(unused_imports)]
-
 pub mod api;
 pub mod dkg;
 pub mod primitives;
 mod vss;
 
 // TODO: Replace with concrete error type
-pub use anyhow::Error;
 pub use dkg::*;
+use group_threshold_cryptography as tpke;
 pub use primitives::*;
 pub use vss::*;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Threshold encryption error
+    #[error("Threshold encryption error")]
+    ThresholdEncryptionError(#[from] tpke::Error),
+
+    // /// Not all validator session keys have been announced
+    // #[error("Not enough validators (expected {0}, got {1})")]
+    // InvalidValidatorCount(usize, usize),
+    //
+    // /// Aggregation does not match received PVSS instances
+    // #[error("Aggregation does not match received PVSS instances")]
+    // InvalidAggregation,
+    //
+    // /// Number of shares parameter must be a power of two
+    // #[error("Number of shares parameter must be a power of two. Got {0}")]
+    // InvalidShareNumberParameter(usize),
+    //
+    // /// DKG is not in a valid state to deal PVSS shares
+    // #[error("Invalid DKG state")]
+    // InvalidDkgState(),
+    //
+    // /// Not enough PVSS transcripts received to aggregate
+    // #[error("Not enough PVSS transcripts received to aggregate (expected {0}, got {1})")]
+    // NotEnoughPVSSTranscripts(usize, usize),
+    #[error("Something went wrong")]
+    Other(#[from] anyhow::Error),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test_dkg_full {
     use std::collections::HashMap;
 
-    use anyhow::{anyhow, Result};
-    use ark_bls12_381::{
-        Bls12_381 as E, Bls12_381, Fr, G1Affine, G2Projective,
-    };
-    use ark_ec::bls12::G2Affine;
-    use ark_ec::pairing::Pairing;
-    use ark_ec::{AffineRepr, CurveGroup};
-    use ark_ff::{Field, One, PrimeField, Zero};
-    use ark_ff::{Fp12, UniformRand};
-    use ark_poly::{polynomial::univariate::DensePolynomial, EvaluationDomain};
+    use ark_bls12_381::{Bls12_381 as E, Fr, G1Affine};
+    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+    use ark_ff::{UniformRand, Zero};
+    use ark_poly::EvaluationDomain;
     use ark_std::test_rng;
-    use ark_std::{end_timer, start_timer};
-    use ferveo_common::Rng;
-    use ferveo_common::{ExternalValidator, Keypair};
+    use ferveo_common::Keypair;
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
         Ciphertext, DecryptionShareSimple, DecryptionShareSimplePrecomputed,
     };
-    use itertools::Itertools;
-    use itertools::{izip, zip_eq};
-    use measure_time::print_time;
-    use rand::prelude::StdRng;
-    use rand::SeedableRng;
-    use serde::{Deserialize, Serialize};
+    use itertools::{izip, Itertools};
 
     use super::*;
     use crate::dkg::pv::test_common::*;
