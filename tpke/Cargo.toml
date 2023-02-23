@@ -39,6 +39,9 @@ serde_bytes = "0.11.9"
 criterion = { version = "0.4", features = ["html_reports"] }
 hex = "=0.4.3"
 
+[package.metadata.cargo-machete]
+ignored = ["serde_bytes"]
+
 [[bench]]
 name = "tpke"
 path = "benches/tpke.rs"

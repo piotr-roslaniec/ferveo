@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  defaults:
+    run:
+      working-directory: ./ferveo-python
   linux:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./ferveo-python
     strategy:
       matrix:
         target: [

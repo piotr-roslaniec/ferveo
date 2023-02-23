@@ -747,28 +747,22 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-poly",
- "ark-serialize",
  "ark-std",
  "bincode",
  "criterion 0.3.6",
  "digest",
- "either",
  "ferveo-common",
  "group-threshold-cryptography",
  "itertools",
  "measure_time",
- "miracl_core",
  "pprof",
  "rand 0.7.3",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
- "serde_bytes",
  "serde_with",
  "subproductdomain",
- "subtle",
  "thiserror",
- "zeroize",
 ]
 
 [[package]]
@@ -790,9 +784,8 @@ dependencies = [
  "derive_more",
  "ferveo",
  "ferveo-common",
- "group-threshold-cryptography",
  "pyo3",
- "pyo3-build-config 0.17.3",
+ "pyo3-build-config 0.18.1",
  "rand 0.8.5",
 ]
 
@@ -1777,7 +1770,6 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-poly",
- "ark-serialize",
  "ark-std",
 ]
 
@@ -1948,12 +1940,7 @@ dependencies = [
 name = "tpke-wasm"
 version = "0.1.0-alpha.1"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff",
  "ark-serialize",
- "ark-std",
- "bincode",
  "console_error_panic_hook",
  "ferveo-common",
  "getrandom 0.2.8",
