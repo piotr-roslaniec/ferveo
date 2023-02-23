@@ -1,4 +1,4 @@
-from ferveo import (
+from ferveo_py import (
     encrypt,
     combine_decryption_shares,
     decrypt_with_shared_secret,
@@ -82,5 +82,5 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
 
 shared_secret = combine_decryption_shares(decryption_shares)
 
-plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret)
+plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.g1_inv)
 assert bytes(plaintext) == msg

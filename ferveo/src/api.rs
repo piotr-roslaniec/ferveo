@@ -64,6 +64,10 @@ impl Dkg {
         }
         Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0)))
     }
+
+    pub fn g1_inv(&self) -> G1Prepared {
+        self.0.pvss_params.g_inv()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

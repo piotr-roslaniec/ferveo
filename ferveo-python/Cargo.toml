@@ -1,16 +1,17 @@
 [package]
 name = "ferveo-python"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
-version = "0.1.1"
+version = "0.1.5"
 edition = "2018"
 
 [lib]
 crate-type = ["cdylib"]
+name = "ferveo_py"
 
 [dependencies]
 ferveo = { path = "../ferveo" }
 ferveo-common = { path = "../ferveo-common" }
-pyo3 = { version = "0.17.3", features = ["macros"] }
+pyo3 = { version = "0.17.3", features = ["macros", "extension-module"] }
 group-threshold-cryptography = { path = "../tpke" }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
 rand = "0.8"

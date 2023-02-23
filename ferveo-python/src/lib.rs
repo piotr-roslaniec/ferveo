@@ -185,6 +185,26 @@ impl Dkg {
             .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
         Ok(Transcript(transcript))
     }
+
+    pub fn aggregate_transcripts(
+        &mut self,
+        transcripts: Vec<(ExternalValidator, Transcript)>,
+    ) -> PyResult<AggregatedTranscript> {
+        let transcripts: Vec<_> = transcripts
+            .into_iter()
+            .map(|(validator, transcript)| (validator.0, transcript.0))
+            .collect();
+        let aggregated_transcript = self
+            .0
+            .aggregate_transcripts(&transcripts)
+            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        Ok(AggregatedTranscript(aggregated_transcript))
+    }
+
+    #[getter]
+    pub fn g1_inv(&self) -> G1Prepared {
+        G1Prepared(self.0.g1_inv())
+    }
 }
 
 #[pyclass(module = "ferveo")]
@@ -240,7 +260,7 @@ impl AggregatedTranscript {
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn _ferveo(_py: Python, m: &PyModule) -> PyResult<()> {
+fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encrypt, m)?)?;
     m.add_function(wrap_pyfunction!(combine_decryption_shares, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_with_shared_secret, m)?)?;
