@@ -24,7 +24,6 @@ rand = "0.8"
 rand_old = { package = "rand", version = "0.7" } # used by benchmarks/pairing.rs
 either = "1.6.1"
 miracl_core = "2.3.0"
-ed25519-dalek = { version = "1", features = ["serde", "batch"] }
 serde = { version = "1.0", features = ["derive"] }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 serde_bytes = { version = "0.11" }
@@ -44,6 +43,7 @@ digest = { version = "0.10.0", features = ["alloc"] }
 
 [package.metadata.cargo-udeps.ignore]
 development = ["pprof"]
+build = ["rand_old"]
 
 [[example]]
 name = "pvdkg"
