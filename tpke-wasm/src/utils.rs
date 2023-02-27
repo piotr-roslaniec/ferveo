@@ -1,5 +1,6 @@
 use core::fmt;
 
+use ferveo_common::{FromBytes, ToBytes};
 use js_sys::Error;
 
 pub fn set_panic_hook() {
@@ -15,4 +16,12 @@ pub fn set_panic_hook() {
 
 pub fn map_js_err<T: fmt::Display>(err: T) -> Error {
     Error::new(&format!("{}", err))
+}
+
+pub fn to_js_bytes<T: ToBytes>(t: &T) -> Result<Vec<u8>, Error> {
+    t.to_bytes().map_err(map_js_err)
+}
+
+pub fn from_js_bytes<T: FromBytes>(bytes: &[u8]) -> Result<T, Error> {
+    T::from_bytes(bytes).map_err(map_js_err)
 }

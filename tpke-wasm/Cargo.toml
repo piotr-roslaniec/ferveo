@@ -1,11 +1,13 @@
 [package]
 name = "tpke-wasm"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0-only"
 readme = "README.md"
 categories = ["cryptography", "no-std"]
+repository = "https://github.com/nucypher/ferveo"
+description = "WASM bindings for group-threshold-cryptography crate"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

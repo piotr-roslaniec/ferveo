@@ -10,7 +10,7 @@ setup(
     description="Ferveo DKG scheme",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="0.1.0",
+    version="0.1.1",
     author="Piotr Roslaniec",
     author_email="p.roslaniec@gmail.com",
     url="https://github.com/nucypher/ferveo/tree/master/ferveo-python",

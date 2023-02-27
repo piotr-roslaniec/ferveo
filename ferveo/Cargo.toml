@@ -45,6 +45,12 @@ digest = { version = "0.10.0", features = ["alloc"] }
 development = ["pprof"]
 build = ["rand_old"]
 
+[lib]
+bench = false
+
+[features]
+test-common = []
+
 [[example]]
 name = "pvdkg"
 path = "examples/pvdkg.rs"

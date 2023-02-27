@@ -11,7 +11,7 @@ use wasm_bindgen_test::*;
 fn tdec_simple() {
     let shares_num = 16;
     let threshold = shares_num * 2 / 3;
-    let msg = "abc".as_bytes().to_vec();
+    let msg = "my-msg".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
     let dkg = Dkg::new(threshold, shares_num);
@@ -43,7 +43,7 @@ fn tdec_simple() {
         .collect::<Vec<DecryptionShareSimple>>();
 
     let domain_points = (0..threshold)
-        .map(|i| dkg.domain_point(i))
+        .map(|i| dkg.get_domain_point(i))
         .collect::<Vec<DomainPoint>>();
 
     // Serialize and send back to client
