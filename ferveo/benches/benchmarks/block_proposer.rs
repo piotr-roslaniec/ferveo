@@ -3,7 +3,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use ark_bls12_381::*;
-use ark_ec::msm::FixedBaseMSM;
+use ark_ec::msm::FixedBase;
 use ark_ec::*;
 use ark_ff::PrimeField;
 use ark_std::One;
@@ -11,9 +11,9 @@ use ark_std::UniformRand;
 use ferveo::*;
 use itertools::Itertools;
 
-type G1Prepared = <Bls12_381 as PairingEngine>::G1Prepared;
-type G2Prepared = <Bls12_381 as PairingEngine>::G2Prepared;
-type Fqk = <Bls12_381 as PairingEngine>::Fqk;
+type G1Prepared = <Bls12_381 as Pairing>::G1Prepared;
+type G2Prepared = <Bls12_381 as Pairing>::G2Prepared;
+type TargetField = <Bls12_381 as Pairing>::TargetField;
 
 pub fn block_proposer(c: &mut Criterion) {
     let rng = &mut ark_std::test_rng();
@@ -22,17 +22,17 @@ pub fn block_proposer(c: &mut Criterion) {
     group.measurement_time(core::time::Duration::new(30, 0))
 
     use ark_ff::PrimeField;
-    let scalar_bits = Fr::size_in_bits();
-    let window_size = FixedBaseMSM::get_mul_window_size(1000);
+    let scalar_bits = ScalarField::size_in_bits();
+    let window_size = FixedBase::get_mul_window_size(1000);
 
     let B = (0..8192)
-        .map(|_| G2Affine::prime_subgroup_generator().mul(Fr::rand(rng)))
+        .map(|_| G2Affine::generator().mul(ScalarField::rand(rng)))
         .collect::<Vec<_>>();
 
     let base_tables = B
         .iter()
         .map(|B_j| {
-            FixedBaseMSM::get_window_table(scalar_bits, window_size, *B_j)
+            FixedBase::get_window_table(scalar_bits, window_size, *B_j)
         })
         .collect::<Vec<_>>();
     group.measurement_time(core::time::Duration::new(30, 0))
@@ -47,7 +47,7 @@ pub fn work(
     B: &[Vec<Vec<G2Affine>>],
     window_size: usize,
 ) {
-    let scalar_bits = Fr::size_in_bits();
+    let scalar_bits = ScalarField::size_in_bits();
 
     let rng = &mut rand::thread_rng();
     // e(U, H_{\mathbb{G}_2} (U)) = e(G, W)
@@ -57,19 +57,19 @@ pub fn work(
             (G1Prepared::from(*U), G2Prepared::from(*H_G)),
             (G.clone(), G2Prepared::from(*W)),
         ];
-        black_box(Bls12_381::product_of_pairings(prep.iter()) == Fqk::one());
+        black_box(Bls12_381::multi_pairing(prep.iter()) == TargetField::one());
     }
 
     let V = D.len();
     let T = ciphertexts.len();
-    let alpha = (0..V * T).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
+    let alpha = (0..V * T).map(|_| ScalarField::rand(rng)).collect::<Vec<_>>();
 
     let prepared_alpha_U_j = G1Prepared::from(
         ciphertexts
             .iter()
             .zip(alpha.chunks(V))
-            .map(|((U_j, _, _), alpha_j)| U_j.mul(alpha_j.iter().sum::<Fr>()))
-            .sum::<G1Projective>()
+            .map(|((U_j, _, _), alpha_j)| U_j.mul(alpha_j.iter().sum::<ScalarField>()))
+            .sum::<G1>()
             .into_affine(),
     );
 
@@ -82,9 +82,9 @@ pub fn work(
                     D_ij.iter()
                         .zip(alpha.windows(T))
                         .map(|(D_i, alpha_i)| {
-                            D_i.mul(alpha_i.iter().sum::<Fr>())
+                            D_i.mul(alpha_i.iter().sum::<ScalarField>())
                         })
-                        .sum::<G1Projective>()
+                        .sum::<G1>()
                         .into_affine(),
                 ),
                 P_i.clone(),
@@ -94,15 +94,15 @@ pub fn work(
         .collect::<Vec<_>>();
 
     //  \prod_i e(\sum_{j} [\alpha_{i,j}] D_{i,j}, P_i) = e(\sum_{j} [\sum_i \alpha_{i,j} U_j], H)
-    black_box(Bls12_381::product_of_pairings(prepared_alpha_D_i.iter()));
+    black_box(Bls12_381::multi_pairing(prepared_alpha_D_i.iter()));
 
     let n = B.len() * 2 / 3;
     let mut u = Vec::with_capacity(n);
     for _ in 0..n {
-        u.push(Fr::rand(rng));
+        u.push(ScalarField::rand(rng));
     }
     let lagrange = ferveo::batch_inverse(
-        &ferveo::SubproductDomain::<Fr>::new(u.clone())
+        &ferveo::SubproductDomain::<ScalarField>::new(u.clone())
             .inverse_lagrange_coefficients(),
     )
         .unwrap();
@@ -111,7 +111,7 @@ pub fn work(
         .iter()
         .zip(lagrange.iter())
         .map(|(B_ij, lambda)| {
-            FixedBaseMSM::multi_scalar_mul::<G2Projective>(
+            FixedBase::msm::<G2Projective>(
                 scalar_bits,
                 window_size,
                 &B_ij,

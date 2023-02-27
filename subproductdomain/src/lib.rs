@@ -1,41 +1,43 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use ark_ec::{msm::FixedBaseMSM, PairingEngine, ProjectiveCurve};
-use ark_ff::{FftField, Field, PrimeField, Zero};
-use ark_poly::polynomial::univariate::DensePolynomial as Poly;
-use ark_poly::{Polynomial, UVPolynomial};
+use std::mem;
+
+use ark_ec::{
+    pairing::Pairing, scalar_mul::fixed_base::FixedBase, AffineRepr, CurveGroup,
+};
+use ark_ff::{FftField, Field, Zero};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
+    Polynomial, Radix2EvaluationDomain,
+};
 
 /// Compute a fast multiexp of many scalars times the same base
 /// Only convenient for when called once with given base; if called
 /// more than once, it's faster to save the generated window table
-pub fn fast_multiexp<Projective: ProjectiveCurve>(
-    scalars: &[Projective::ScalarField],
-    base: Projective,
-) -> Vec<Projective::Affine> {
-    let window_size = FixedBaseMSM::get_mul_window_size(scalars.len());
+pub fn fast_multiexp<Group: CurveGroup>(
+    scalars: &[Group::ScalarField],
+    base: Group,
+) -> Vec<Group::Affine> {
+    let window_size = FixedBase::get_mul_window_size(scalars.len());
 
-    let scalar_bits = Projective::ScalarField::size_in_bits();
+    let scalar_bits: usize = mem::size_of::<Group::ScalarField>() * 8 - 1;
     let base_table =
-        FixedBaseMSM::get_window_table(scalar_bits, window_size, base);
+        FixedBase::get_window_table(scalar_bits, window_size, base);
 
-    let exp = FixedBaseMSM::multi_scalar_mul::<Projective>(
-        scalar_bits,
-        window_size,
-        &base_table,
-        scalars,
-    );
-    Projective::batch_normalization_into_affine(&exp)
+    let exp =
+        FixedBase::msm::<Group>(scalar_bits, window_size, &base_table, scalars);
+    Group::normalize_batch(&exp)
 }
 
 #[allow(dead_code)]
-pub fn poly_from_scalar<F: FftField>(s: &F) -> Poly<F> {
-    Poly::<F> { coeffs: vec![*s] }
+pub fn poly_from_scalar<F: FftField>(s: &F) -> DensePolynomial<F> {
+    DensePolynomial::<F> { coeffs: vec![*s] }
 }
 
 #[allow(dead_code)]
-pub fn moduli_from_scalar<F: FftField>(s: &F) -> Poly<F> {
-    Poly::<F> {
+pub fn moduli_from_scalar<F: FftField>(s: &F) -> DensePolynomial<F> {
+    DensePolynomial::<F> {
         coeffs: vec![-*s, F::one()],
     }
 }
@@ -48,13 +50,13 @@ pub fn moduli_from_scalar<F: FftField>(s: &F) -> Poly<F> {
 /// Computes the inverse of f mod x^l
 /// Takes O(M(l)) field arithmetic operations
 pub fn inverse_mod_xl<F: FftField>(
-    func: &Poly<F>,
+    func: &DensePolynomial<F>,
     length: usize,
-) -> Option<Poly<F>> {
+) -> Option<DensePolynomial<F>> {
     let log = ark_std::log2(length); // Compute ceil(log_2(l))
     if let Some(f_0_inv) = func.coeffs[0].inverse() {
         // Invert f(0)^-1 if possible
-        let mut func_inv = Poly::<F> {
+        let mut func_inv = DensePolynomial::<F> {
             coeffs: vec![f_0_inv], // Constant polynomial f(0)^-1
         };
 
@@ -79,7 +81,7 @@ pub fn inverse_mod_xl<F: FftField>(
 /// GG chapter 9.1
 /// Computes the rev_m(f) function in place
 /// rev_m(f) = x^m f(1/x)
-pub fn rev<F: FftField>(f: &mut Poly<F>, m: usize) {
+pub fn rev<F: FftField>(f: &mut DensePolynomial<F>, m: usize) {
     assert!(f.coeffs.len() - 1 <= m);
     for _ in 0..(m - (f.coeffs.len() - 1)) {
         f.coeffs.push(F::zero());
@@ -90,14 +92,14 @@ pub fn rev<F: FftField>(f: &mut Poly<F>, m: usize) {
 /// GG Algorithm 9.5
 /// Divide f by g in nearly linear time
 pub fn fast_divide_monic<F: FftField>(
-    func: &Poly<F>,
-    divisor: &Poly<F>,
-) -> (Poly<F>, Poly<F>) {
+    func: &DensePolynomial<F>,
+    divisor: &DensePolynomial<F>,
+) -> (DensePolynomial<F>, DensePolynomial<F>) {
     //TODO: check monic condition
 
     if func.coeffs().len() < divisor.coeffs().len() {
         return (
-            Poly::<F> {
+            DensePolynomial::<F> {
                 coeffs: vec![F::zero()],
             },
             func.clone(),
@@ -133,7 +135,7 @@ pub struct SubproductDomain<F: FftField> {
     /// Subproduct tree over domain u
     pub t: SubproductTree<F>,
     /// Derivative of the subproduct polynomial
-    pub prime: Poly<F>, // Derivative of the polynomial m
+    pub prime: DensePolynomial<F>, // Derivative of the polynomial m
 }
 
 impl<F: FftField> SubproductDomain<F> {
@@ -146,7 +148,7 @@ impl<F: FftField> SubproductDomain<F> {
 
     #[allow(dead_code)]
     /// Evaluate a polynomial f over the subproduct domain u
-    pub fn evaluate(&self, f: &Poly<F>) -> Vec<F> {
+    pub fn evaluate(&self, f: &DensePolynomial<F>) -> Vec<F> {
         let mut evals = vec![F::zero(); self.u.len()];
         self.t.evaluate(f, &self.u, &mut evals);
         evals
@@ -154,7 +156,7 @@ impl<F: FftField> SubproductDomain<F> {
 
     #[allow(dead_code)]
     /// Interpolate a polynomial f over the domain, such that f(u_i) = v_i
-    pub fn interpolate(&self, v: &[F]) -> Poly<F> {
+    pub fn interpolate(&self, v: &[F]) -> DensePolynomial<F> {
         self.t.interpolate(&self.u, v)
     }
 
@@ -165,7 +167,7 @@ impl<F: FftField> SubproductDomain<F> {
 
     #[allow(dead_code)]
     /// Compute a linear combination of lagrange factors times c_i
-    pub fn linear_combine(&self, c: &[F]) -> Poly<F> {
+    pub fn linear_combine(&self, c: &[F]) -> DensePolynomial<F> {
         self.t.linear_combine(&self.u, c)
     }
 }
@@ -182,7 +184,7 @@ pub struct SubproductTree<F: FftField> {
     /// The right child SubproductTree
     pub right: Option<Box<SubproductTree<F>>>,
     /// The polynomial m = (x - u_i)*...*(x-u_j) for this subdomain
-    pub m: Poly<F>,
+    pub m: DensePolynomial<F>,
 }
 
 impl<F: FftField> SubproductTree<F> {
@@ -197,7 +199,7 @@ impl<F: FftField> SubproductTree<F> {
             SubproductTree {
                 left: None,
                 right: None,
-                m: Poly::<F> {
+                m: DensePolynomial::<F> {
                     coeffs: vec![-u[0], F::one()], // m_0 = x - u_0
                 },
             }
@@ -222,7 +224,7 @@ impl<F: FftField> SubproductTree<F> {
     /// The output is stored in the slice t:
     /// t_i = f(u_i)
     /// Takes O(M(n) log n) field operations
-    pub fn evaluate(&self, f: &Poly<F>, u: &[F], t: &mut [F]) {
+    pub fn evaluate(&self, f: &DensePolynomial<F>, u: &[F], t: &mut [F]) {
         assert!(f.degree() < u.len());
 
         if u.len() == 1 {
@@ -250,7 +252,7 @@ impl<F: FftField> SubproductTree<F> {
 
     #[allow(dead_code)]
     /// Fast interpolate over this subproduct tree
-    pub fn interpolate(&self, u: &[F], v: &[F]) -> Poly<F> {
+    pub fn interpolate(&self, u: &[F], v: &[F]) -> DensePolynomial<F> {
         let mut lagrange_coeff = self.inverse_lagrange_coefficients(u);
 
         for (s_i, v_i) in lagrange_coeff.iter_mut().zip(v.iter()) {
@@ -278,10 +280,10 @@ impl<F: FftField> SubproductTree<F> {
     /// On input c = { c_0, ..., c_{n-1} }
     /// output sum_i (c_i * m) / (x- u_i)
     /// Takes O(M(n) log n) field operations
-    pub fn linear_combine(&self, u: &[F], c: &[F]) -> Poly<F> {
+    pub fn linear_combine(&self, u: &[F], c: &[F]) -> DensePolynomial<F> {
         if u.len() == 1 {
             // Output c_0 * (x-u_0) / (x-u_0) = c_0
-            return Poly::<F> { coeffs: vec![c[0]] };
+            return DensePolynomial::<F> { coeffs: vec![c[0]] };
         }
         let n = u.len() / 2;
         let (u_0, u_1) = u.split_at(n);
@@ -300,19 +302,19 @@ impl<F: FftField> SubproductTree<F> {
 }
 
 /// Compute the derivative of polynomial f
-pub fn derivative<F: FftField>(f: &Poly<F>) -> Poly<F> {
+pub fn derivative<F: FftField>(f: &DensePolynomial<F>) -> DensePolynomial<F> {
     let mut coeffs = Vec::with_capacity(f.coeffs().len() - 1);
     for (i, c) in f.coeffs.iter().enumerate().skip(1) {
         coeffs.push(F::from(i as u128) * c);
     }
-    Poly::<F> { coeffs }
+    DensePolynomial::<F> { coeffs }
 }
 
 /// Build a vector representation of the (n x n) circulant matrix of polynomial f
 /// Based on the blog post:
 /// https://alinush.github.io/2020/03/19/multiplying-a-vector-by-a-toeplitz-matrix.html
 pub fn build_circulant<F: FftField>(
-    f: &Poly<F>,
+    f: &DensePolynomial<F>,
     n: usize, // Build a 2n x 2n circulant matrix
 ) -> Vec<F> {
     assert!(n >= f.degree());
@@ -332,36 +334,35 @@ pub fn build_circulant<F: FftField>(
 
 #[allow(dead_code)]
 /// Computes the Toeplitz matrix of polynomial times the vector v
-pub fn toeplitz_mul<E: PairingEngine, const NORMALIZE: bool>(
-    polynomial: &Poly<E::Fr>,
+pub fn toeplitz_mul<E: Pairing, const NORMALIZE: bool>(
+    polynomial: &DensePolynomial<E::ScalarField>,
     v: &[E::G1Affine],
     size: usize,
-) -> Result<(Vec<E::G1Projective>, E::Fr), anyhow::Error> {
-    use ark_ec::AffineCurve;
-    use ark_poly::EvaluationDomain;
-    let m = polynomial.coeffs().len() - 1;
+) -> Result<(Vec<E::G1>, E::ScalarField), anyhow::Error> {
+    let m = polynomial.coeffs.len() - 1;
     let size = ark_std::cmp::max(size, m);
 
-    let domain = ark_poly::Radix2EvaluationDomain::<E::Fr>::new(2 * size)
+    let domain = Radix2EvaluationDomain::<E::ScalarField>::new(2 * size)
         .ok_or_else(|| {
             anyhow::anyhow!("toeplitz multiplication on too large a domain")
         })?;
 
     let circulant_size = domain.size();
     let toeplitz_size = circulant_size / 2;
-    let mut circulant = build_circulant::<E::Fr>(polynomial, toeplitz_size);
+    let mut circulant =
+        build_circulant::<E::ScalarField>(polynomial, toeplitz_size);
 
-    let mut tmp: Vec<E::G1Projective> = Vec::with_capacity(circulant_size);
+    let mut tmp: Vec<E::G1> = Vec::with_capacity(circulant_size);
 
     for _ in 0..(toeplitz_size - v.len()) {
-        tmp.push(E::G1Projective::zero());
+        tmp.push(E::G1::zero());
     }
 
     for i in v.iter().rev() {
-        tmp.push(i.into_projective());
+        tmp.push(i.into_group());
     }
 
-    tmp.resize(circulant_size, E::G1Projective::zero());
+    tmp.resize(circulant_size, E::G1::zero());
     domain.fft_in_place(&mut tmp);
     domain.fft_in_place(&mut circulant);
 
@@ -374,22 +375,22 @@ pub fn toeplitz_mul<E: PairingEngine, const NORMALIZE: bool>(
 
     Ok((
         tmp[..toeplitz_size].to_vec(),
-        E::Fr::from(domain.size() as u128).inverse().unwrap(),
+        E::ScalarField::from(domain.size() as u128)
+            .inverse()
+            .unwrap(),
     ))
 }
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::PairingEngine;
+    use ark_ec::pairing::Pairing;
     use ark_ff::{One, Zero};
-    use ark_poly::polynomial::univariate::DensePolynomial;
-    use ark_poly::Polynomial;
-    use ark_poly::UVPolynomial;
+    use ark_poly::{polynomial::univariate::DensePolynomial, Polynomial};
     use ark_std::UniformRand;
 
     use super::*;
 
-    type Fr = <ark_bls12_381::Bls12_381 as PairingEngine>::Fr;
+    type ScalarField = <ark_bls12_381::Bls12_381 as Pairing>::ScalarField;
     #[test]
     fn test_inverse() {
         let rng = &mut ark_std::test_rng();
@@ -397,13 +398,13 @@ mod tests {
         for l in [1, 2, 3, 5, 19, 25, 101].iter() {
             for degree in 0..(l + 4) {
                 for _ in 0..10 {
-                    let p = DensePolynomial::<Fr>::rand(degree, rng);
-                    let p_inv = inverse_mod_xl::<Fr>(&p, *l).unwrap();
+                    let p = DensePolynomial::<ScalarField>::rand(degree, rng);
+                    let p_inv = inverse_mod_xl::<ScalarField>(&p, *l).unwrap();
                     let mut t = &p * &p_inv; // p * p^-1
-                    t.coeffs.resize(*l, Fr::zero()); // mod x^l
-                    assert_eq!(t.coeffs[0], Fr::one()); // constant term == 1
+                    t.coeffs.resize(*l, ScalarField::zero()); // mod x^l
+                    assert_eq!(t.coeffs[0], ScalarField::one()); // constant term == 1
                     for i in t.iter().skip(1) {
-                        assert_eq!(*i, Fr::zero()); // all other terms == 0
+                        assert_eq!(*i, ScalarField::zero()); // all other terms == 0
                     }
                 }
             }
@@ -416,11 +417,11 @@ mod tests {
 
         let degree = 100;
         for g_deg in 1..100 {
-            let f = DensePolynomial::<Fr>::rand(degree, rng);
-            let mut g = DensePolynomial::<Fr>::rand(g_deg, rng);
-            *g.last_mut().unwrap() = Fr::one(); //monic
+            let f = DensePolynomial::<ScalarField>::rand(degree, rng);
+            let mut g = DensePolynomial::<ScalarField>::rand(g_deg, rng);
+            *g.last_mut().unwrap() = ScalarField::one(); //monic
 
-            let (q, r) = fast_divide_monic::<Fr>(&f, &g);
+            let (q, r) = fast_divide_monic::<ScalarField>(&f, &g);
 
             let t = &(&q * &g) + &r;
 
@@ -437,11 +438,11 @@ mod tests {
             let mut points = vec![];
             let mut evals = vec![];
             for _ in 0..d {
-                points.push(Fr::rand(rng));
-                evals.push(Fr::rand(rng));
+                points.push(ScalarField::rand(rng));
+                evals.push(ScalarField::rand(rng));
             }
 
-            let s = SubproductDomain::<Fr>::new(points);
+            let s = SubproductDomain::<ScalarField>::new(points);
             let p = s.interpolate(&evals);
 
             for (x, y) in s.u.iter().zip(evals.iter()) {
@@ -457,15 +458,15 @@ mod tests {
             let mut u = vec![];
             let mut c = vec![];
             for _ in 0..d {
-                u.push(Fr::rand(rng));
-                c.push(Fr::rand(rng));
+                u.push(ScalarField::rand(rng));
+                c.push(ScalarField::rand(rng));
             }
-            let s = SubproductDomain::<Fr>::new(u);
+            let s = SubproductDomain::<ScalarField>::new(u);
             let f = s.linear_combine(&c);
 
-            let r = Fr::rand(rng);
+            let r = ScalarField::rand(rng);
             let m = s.t.m.evaluate(&r);
-            let mut total = Fr::zero();
+            let mut total = ScalarField::zero();
             for (u_i, c_i) in s.u.iter().zip(c.iter()) {
                 total += m * *c_i / (r - u_i);
             }
@@ -479,9 +480,9 @@ mod tests {
         for d in 1..100 {
             let mut u = vec![];
             for _ in 0..d {
-                u.push(Fr::rand(rng));
+                u.push(ScalarField::rand(rng));
             }
-            let s = SubproductDomain::<Fr>::new(u);
+            let s = SubproductDomain::<ScalarField>::new(u);
             let f = s.inverse_lagrange_coefficients();
 
             for (i, j) in s.u.iter().zip(f.iter()) {

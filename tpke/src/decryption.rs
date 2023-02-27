@@ -1,66 +1,63 @@
-use anyhow::Result;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{Field, One, PrimeField, Zero};
-use ark_serialize::{
-    CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write,
-};
+use std::ops::Mul;
+
+use ark_ec::{pairing::Pairing, CurveGroup};
+use ark_ff::{Field, One, Zero};
+use ferveo_common::serialization;
 use itertools::{izip, zip_eq};
 use rand_core::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    check_ciphertext_validity, generate_random, serialization, Ciphertext,
-    PrivateKeyShare, PublicDecryptionContextFast,
-    PublicDecryptionContextSimple,
+    check_ciphertext_validity, generate_random, Ciphertext, PrivateKeyShare,
+    PublicDecryptionContextFast, PublicDecryptionContextSimple, Result,
 };
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DecryptionShareFast<E: PairingEngine> {
+pub struct DecryptionShareFast<E: Pairing> {
     pub decrypter_index: usize,
     #[serde_as(as = "serialization::SerdeAs")]
     pub decryption_share: E::G1Affine,
 }
 
-impl<E: PairingEngine> DecryptionShareFast<E> {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
-    }
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone, PartialEq)]
-pub struct ValidatorShareChecksum<E: PairingEngine> {
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ValidatorShareChecksum<E: Pairing> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub checksum: E::G1Affine,
 }
 
-impl<E: PairingEngine> ValidatorShareChecksum<E> {
+impl<E: Pairing> ValidatorShareChecksum<E> {
     pub fn new(
-        validator_decryption_key: &E::Fr,
+        validator_decryption_key: &E::ScalarField,
         ciphertext: &Ciphertext<E>,
-    ) -> Self {
+    ) -> Result<Self> {
         // C_i = dk_i^{-1} * U
         let checksum = ciphertext
             .commitment
-            .mul(validator_decryption_key.inverse().unwrap())
+            // TODO: Should we panic here? I think we should since that would mean that the decryption key is invalid.
+            //   And so, the validator should not be able to create a decryption share.
+            //   And so, the validator should remake their keypair.
+            .mul(
+                validator_decryption_key
+                    .inverse()
+                    .expect("Inverse of this key doesn't exist"),
+            )
             .into_affine();
-        Self { checksum }
+        Ok(Self { checksum })
     }
 
     pub fn verify(
         &self,
-        decryption_share: &E::Fqk,
+        decryption_share: &E::TargetField,
         share_aggregate: &E::G2Affine,
         validator_public_key: &E::G2Affine,
-        h: &E::G2Projective,
+        h: &E::G2,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
         // D_i == e(C_i, Y_i)
-        if *decryption_share != E::pairing(self.checksum, *share_aggregate) {
+        if *decryption_share != E::pairing(self.checksum, *share_aggregate).0 {
             return false;
         }
 
@@ -73,79 +70,72 @@ impl<E: PairingEngine> ValidatorShareChecksum<E> {
 
         true
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        CanonicalDeserialize::deserialize(bytes).unwrap()
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        CanonicalSerialize::serialize(self, &mut bytes).unwrap();
-        bytes
-    }
 }
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DecryptionShareSimple<E: PairingEngine> {
+#[serde(bound(
+    serialize = "ValidatorShareChecksum<E>: Serialize",
+    deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"
+))]
+pub struct DecryptionShareSimple<E: Pairing> {
     // TODO: Add decryptor public key? Replace decryptor_index with public key?
     pub decrypter_index: usize,
     #[serde_as(as = "serialization::SerdeAs")]
-    pub decryption_share: E::Fqk,
-    #[serde(with = "ferveo_common::ark_serde")]
+    pub decryption_share: E::TargetField,
     pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
-impl<E: PairingEngine> DecryptionShareSimple<E> {
+impl<E: Pairing> DecryptionShareSimple<E> {
     /// Create a decryption share from the given parameters.
     /// This function checks that the ciphertext is valid.
     pub fn create(
         validator_index: usize,
-        validator_decryption_key: &E::Fr,
+        validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
-        Ok(Self::create_unchecked(
+        Self::create_unchecked(
             validator_index,
             validator_decryption_key,
             private_key_share,
             ciphertext,
-        ))
+        )
     }
 
     /// Create a decryption share from the given parameters.
     /// This function does not check that the ciphertext is valid.
     pub fn create_unchecked(
         validator_index: usize,
-        validator_decryption_key: &E::Fr,
+        validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
-    ) -> Self {
+    ) -> Result<Self> {
         // D_i = e(U, Z_i)
         let decryption_share = E::pairing(
             ciphertext.commitment,
             private_key_share.private_key_share,
-        );
+        )
+        .0;
 
         let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
 
-        Self {
+        Ok(Self {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-        }
+        })
     }
-
     /// Verify that the decryption share is valid.
     pub fn verify(
         &self,
         share_aggregate: &E::G2Affine,
         validator_public_key: &E::G2Affine,
-        h: &E::G2Projective,
+        h: &E::G2,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
         self.validator_checksum.verify(
@@ -155,72 +145,67 @@ impl<E: PairingEngine> DecryptionShareSimple<E> {
             h,
             ciphertext,
         )
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
     }
 }
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DecryptionShareSimplePrecomputed<E: PairingEngine> {
+#[serde(bound(
+    serialize = "ValidatorShareChecksum<E>: Serialize",
+    deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"
+))]
+pub struct DecryptionShareSimplePrecomputed<E: Pairing> {
     pub decrypter_index: usize,
     #[serde_as(as = "serialization::SerdeAs")]
-    pub decryption_share: E::Fqk,
-    #[serde(with = "ferveo_common::ark_serde")]
+    pub decryption_share: E::TargetField,
     pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
-impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
+impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
     pub fn new(
         validator_index: usize,
-        validator_decryption_key: &E::Fr,
+        validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-        lagrange_coeff: &E::Fr,
+        lagrange_coeff: &E::ScalarField,
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
 
-        Ok(Self::create_unchecked(
+        Self::create_unchecked(
             validator_index,
             validator_decryption_key,
             private_key_share,
             ciphertext,
             lagrange_coeff,
-        ))
+        )
     }
 
     pub fn create_unchecked(
         validator_index: usize,
-        validator_decryption_key: &E::Fr,
+        validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
-        lagrange_coeff: &E::Fr,
-    ) -> Self {
+        lagrange_coeff: &E::ScalarField,
+    ) -> Result<Self> {
         // U_{λ_i} = [λ_{i}(0)] U
-        let u_to_lagrange_coeff =
-            ciphertext.commitment.mul(lagrange_coeff.into_repr());
+        let u_to_lagrange_coeff = ciphertext.commitment.mul(lagrange_coeff);
         // C_{λ_i} = e(U_{λ_i}, Z_i)
         let decryption_share = E::pairing(
             u_to_lagrange_coeff,
             private_key_share.private_key_share,
-        );
+        )
+        .0;
 
         let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext);
+            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
 
-        Self {
+        Ok(Self {
             decrypter_index: validator_index,
             decryption_share,
             validator_checksum,
-        }
+        })
     }
 
     /// Verify that the decryption share is valid.
@@ -228,7 +213,7 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
         &self,
         share_aggregate: &E::G2Affine,
         validator_public_key: &E::G2Affine,
-        h: &E::G2Projective,
+        h: &E::G2,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
         self.validator_checksum.verify(
@@ -239,18 +224,10 @@ impl<E: PairingEngine> DecryptionShareSimplePrecomputed<E> {
             ciphertext,
         )
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(bincode::deserialize(bytes).unwrap())
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
-    }
 }
 
 // TODO: Remove this code? Currently only used in benchmarks. Move to benchmark suite?
-pub fn batch_verify_decryption_shares<R: RngCore, E: PairingEngine>(
+pub fn batch_verify_decryption_shares<R: RngCore, E: Pairing>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
     ciphertexts: &[Ciphertext<E>],
     decryption_shares: &[Vec<DecryptionShareFast<E>>],
@@ -275,26 +252,28 @@ pub fn batch_verify_decryption_shares<R: RngCore, E: PairingEngine>(
         .map(|_| generate_random::<_, E>(num_shares, rng))
         .collect::<Vec<_>>();
 
-    let mut pairings = Vec::with_capacity(num_shares + 1);
+    let mut pairings_a = Vec::with_capacity(num_shares + 1);
+    let mut pairings_b = Vec::with_capacity(num_shares + 1);
 
     // Compute \sum_j \alpha_{i,j} for each ciphertext i
     let sum_alpha_i = alpha_ij
         .iter()
-        .map(|alpha_j| alpha_j.iter().sum::<E::Fr>())
+        .map(|alpha_j| alpha_j.iter().sum::<E::ScalarField>())
         .collect::<Vec<_>>();
 
     // Compute \sum_i [ \sum_j \alpha_{i,j} ] U_i
     let sum_u_i = E::G1Prepared::from(
         izip!(ciphertexts.iter(), sum_alpha_i.iter())
             .map(|(c, alpha_j)| c.commitment.mul(*alpha_j))
-            .sum::<E::G1Projective>()
+            .sum::<E::G1>()
             .into_affine(),
     );
 
     // e(\sum_i [ \sum_j \alpha_{i,j} ] U_i, -H)
-    pairings.push((sum_u_i, pub_contexts[0].h_inv.clone()));
+    pairings_a.push(sum_u_i);
+    pairings_b.push(pub_contexts[0].h_inv.clone());
 
-    let mut sum_d_i = vec![E::G1Projective::zero(); num_shares];
+    let mut sum_d_i = vec![E::G1::zero(); num_shares];
 
     // sum_D_i = { [\sum_i \alpha_{i,j} ] D_i }
     for (d, alpha_j) in izip!(decryption_shares.iter(), alpha_ij.iter()) {
@@ -307,13 +286,14 @@ pub fn batch_verify_decryption_shares<R: RngCore, E: PairingEngine>(
 
     // e([\sum_i \alpha_{i,j} ] D_i, B_i)
     for (d_i, b_i) in izip!(sum_d_i.iter(), blinding_keys.iter()) {
-        pairings.push((E::G1Prepared::from(d_i.into_affine()), b_i.clone()));
+        pairings_a.push(E::G1Prepared::from(d_i.into_affine()));
+        pairings_b.push(b_i.clone());
     }
 
-    E::product_of_pairings(&pairings) == E::Fqk::one()
+    E::multi_pairing(pairings_a, pairings_b).0 == E::TargetField::one()
 }
 
-pub fn verify_decryption_shares_fast<E: PairingEngine>(
+pub fn verify_decryption_shares_fast<E: Pairing>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
     ciphertext: &Ciphertext<E>,
     decryption_shares: &[DecryptionShareFast<E>],
@@ -329,17 +309,20 @@ pub fn verify_decryption_shares_fast<E: PairingEngine>(
         })
         .collect::<Vec<_>>();
 
+    let mut pairing_a: Vec<E::G1Prepared> = vec![];
+    let mut pairing_b = vec![];
+
     // e(U, -H)
-    let pairing_a = (
-        E::G1Prepared::from(ciphertext.commitment),
-        pub_contexts[0].h_inv.clone(),
-    );
+    pairing_a.push(ciphertext.commitment.into());
+    pairing_b.push(pub_contexts[0].h_inv.clone());
 
     for (d_i, p_i) in zip_eq(decryption_shares, blinding_keys) {
+        let mut pairing_a_i = pairing_a.clone();
+        let mut pairing_b_i = pairing_b.clone();
         // e(D_i, B_i)
-        let pairing_b = (E::G1Prepared::from(d_i.decryption_share), p_i);
-        if E::product_of_pairings(&[pairing_a.clone(), pairing_b.clone()])
-            != E::Fqk::one()
+        pairing_a_i.push(d_i.decryption_share.into());
+        pairing_b_i.push(p_i.clone());
+        if E::multi_pairing(pairing_a_i, pairing_b_i).0 != E::TargetField::one()
         {
             return false;
         }
@@ -348,7 +331,7 @@ pub fn verify_decryption_shares_fast<E: PairingEngine>(
     true
 }
 
-pub fn verify_decryption_shares_simple<E: PairingEngine>(
+pub fn verify_decryption_shares_simple<E: Pairing>(
     pub_contexts: &Vec<PublicDecryptionContextSimple<E>>,
     ciphertext: &Ciphertext<E>,
     decryption_shares: &Vec<DecryptionShareSimple<E>>,
@@ -363,7 +346,7 @@ pub fn verify_decryption_shares_simple<E: PairingEngine>(
         let is_valid = decryption_share.verify(
             y_i,
             &pub_context.validator_public_key.into_affine(),
-            &pub_context.h.into_projective(),
+            &pub_context.h.into(),
             ciphertext,
         );
         if !is_valid {
@@ -375,7 +358,8 @@ pub fn verify_decryption_shares_simple<E: PairingEngine>(
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::AffineCurve;
+    use ark_ec::AffineRepr;
+    use ferveo_common::{FromBytes, ToBytes};
 
     use crate::*;
 
@@ -385,13 +369,12 @@ mod tests {
     fn decryption_share_serialization() {
         let decryption_share = DecryptionShareFast::<E> {
             decrypter_index: 1,
-            decryption_share: ark_bls12_381::G1Affine::prime_subgroup_generator(
-            ),
+            decryption_share: ark_bls12_381::G1Affine::generator(),
         };
 
-        let serialized = decryption_share.to_bytes();
+        let serialized = decryption_share.to_bytes().unwrap();
         let deserialized: DecryptionShareFast<E> =
-            DecryptionShareFast::from_bytes(&serialized);
-        assert_eq!(serialized, deserialized.to_bytes())
+            DecryptionShareFast::from_bytes(&serialized).unwrap();
+        assert_eq!(serialized, deserialized.to_bytes().unwrap())
     }
 }

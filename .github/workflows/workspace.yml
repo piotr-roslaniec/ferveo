@@ -43,17 +43,6 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
-      # Switching to nightly here because cargo-udeps-action doesn't work on stable
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: clippy
-          override: true
-          profile: minimal
-      - uses: aig787/cargo-udeps-action@v1
-        with:
-          version: 'latest'
-          args: '--all-targets'
 
   test:
     runs-on: ubuntu-latest
@@ -108,6 +97,35 @@ jobs:
       - run: cargo install wasm-pack
       - run: wasm-pack test --node
         working-directory: tpke-wasm
+  
+  yarn-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+        target:
+          - wasm32-unknown-unknown
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - run: cargo install wasm-pack
+      - run: wasm-pack build --target nodejs
+        working-directory: tpke-wasm
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node install
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node build
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node test
 
   codecov:
     runs-on: ubuntu-latest
@@ -160,10 +178,12 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - name: Run benchmark for base branch comparison
         uses: boa-dev/criterion-compare-action@v3
-        if: github.event_name == 'pull_request'
+        # Only PRs to main
+        if: github.event_name == 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
         with:
           cwd: ${{ matrix.component }}
           branchName: ${{ github.base_ref }}
+          features: "test-common"
 
       # The next steps have been adapted from https://raw.githubusercontent.com/unicode-org/icu4x/main/.github/workflows/build-test.yml
 

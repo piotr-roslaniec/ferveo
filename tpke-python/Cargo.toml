@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = "0.17.3"
 group-threshold-cryptography = { path = "../tpke" }
+ferveo-common = { path = "../ferveo-common" }
 
 [build-dependencies]
 pyo3-build-config = "*"

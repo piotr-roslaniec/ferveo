@@ -3,8 +3,7 @@
 extern crate group_threshold_cryptography as tpke;
 extern crate wasm_bindgen_test;
 
-use tpke_wasm::test_common::*;
-use tpke_wasm::*;
+use tpke_wasm::{test_common::*, *};
 use wasm_bindgen_test::*;
 
 #[test]
@@ -12,7 +11,7 @@ use wasm_bindgen_test::*;
 fn tdec_simple() {
     let shares_num = 16;
     let threshold = shares_num * 2 / 3;
-    let msg = "abc".as_bytes().to_vec();
+    let msg = "my-msg".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
 
     let dkg = Dkg::new(threshold, shares_num);
@@ -22,32 +21,35 @@ fn tdec_simple() {
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg.public_key);
+    let ciphertext = encrypt(&msg, &aad, &dkg.public_key).unwrap();
 
     // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes();
+    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
 
     //
     // On the server side
     //
 
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes);
+    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
     assert_eq!(ciphertext, ciphertext2);
 
     // Create decryption shares
 
     let decryption_shares = (0..threshold)
-        .map(|i| dkg.make_decryption_share_simple(&ciphertext, &aad, i))
+        .map(|i| {
+            dkg.make_decryption_share_simple(&ciphertext, &aad, i)
+                .unwrap()
+        })
         .collect::<Vec<DecryptionShareSimple>>();
 
     let domain_points = (0..threshold)
-        .map(|i| dkg.domain_point(i))
+        .map(|i| dkg.get_domain_point(i))
         .collect::<Vec<DomainPoint>>();
 
     // Serialize and send back to client
     let decryption_shares_bytes = decryption_shares
         .iter()
-        .map(|s| s.to_bytes())
+        .map(|s| s.to_bytes().unwrap())
         .collect::<Vec<Vec<u8>>>();
 
     //
@@ -57,7 +59,7 @@ fn tdec_simple() {
     let decryption_shares_2: Vec<DecryptionShareSimple> =
         decryption_shares_bytes
             .iter()
-            .map(|s| DecryptionShareSimple::from_bytes(s))
+            .map(|s| DecryptionShareSimple::from_bytes(s).unwrap())
             .collect();
     assert_eq!(decryption_shares, decryption_shares_2);
 
@@ -77,7 +79,8 @@ fn tdec_simple() {
         &aad,
         &shared_secret,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     assert_eq!(msg, plaintext)
 }
@@ -98,16 +101,16 @@ fn tdec_simple_precomputed() {
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg_pk);
+    let ciphertext = encrypt(&msg, &aad, &dkg_pk).unwrap();
 
     // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes();
+    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
 
     //
     // On the server side
     //
 
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes);
+    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
     assert_eq!(ciphertext, ciphertext2);
 
     // Create decryption shares
@@ -116,13 +119,16 @@ fn tdec_simple_precomputed() {
     // decryption error.
 
     let decryption_shares = (0..shares_num)
-        .map(|i| dkg.make_decryption_share_precomputed(&ciphertext, &aad, i))
+        .map(|i| {
+            dkg.make_decryption_share_precomputed(&ciphertext, &aad, i)
+                .unwrap()
+        })
         .collect::<Vec<DecryptionShareSimplePrecomputed>>();
 
     // Serialize and send back to client
     let decryption_shares_bytes = decryption_shares
         .iter()
-        .map(|s| s.to_bytes())
+        .map(|s| s.to_bytes().unwrap())
         .collect::<Vec<Vec<u8>>>();
 
     //
@@ -132,7 +138,7 @@ fn tdec_simple_precomputed() {
     let decryption_shares_2: Vec<DecryptionShareSimplePrecomputed> =
         decryption_shares_bytes
             .iter()
-            .map(|s| DecryptionShareSimplePrecomputed::from_bytes(s))
+            .map(|s| DecryptionShareSimplePrecomputed::from_bytes(s).unwrap())
             .collect();
     assert_eq!(decryption_shares, decryption_shares_2);
 
@@ -149,7 +155,8 @@ fn tdec_simple_precomputed() {
         &aad,
         &shared_secret,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     assert_eq!(msg, plaintext)
 }
@@ -164,13 +171,14 @@ fn encrypts_and_decrypts() {
 
     let dkg = Dkg::new(threshold, shares_num);
 
-    let ciphertext = encrypt(&message, &aad, &dkg.public_key);
+    let ciphertext = encrypt(&message, &aad, &dkg.public_key).unwrap();
     let plaintext = decrypt_with_private_key(
         &ciphertext,
         &aad,
         &dkg.private_key,
         &dkg.g_inv(),
-    );
+    )
+    .unwrap();
 
     // TODO: Plaintext is padded to 32 bytes. Fix this.
     assert_eq!(message, plaintext[..message.len()])

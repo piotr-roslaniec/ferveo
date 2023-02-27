@@ -11,33 +11,45 @@ categories = ["cryptography"]
 authors = ["Heliax AG <hello@heliax.dev>"]
 
 [dependencies]
-ark-std = "0.3"
-ark-bls12-381 = "0.3"
-ark-ec = "0.3"
-ark-ff = "0.3"
-ark-serialize = "0.3"
-ark-poly = "0.3"
+group-threshold-cryptography = { path = "../tpke" }
+ferveo-common = { path = "../ferveo-common" }
+subproductdomain = { path = "../subproductdomain" }
+ark-std = "0.4"
+ark-bls12-381 = "0.4"
+ark-ec = "0.4"
+ark-ff = "0.4"
+ark-serialize = "0.4"
+ark-poly = "0.4"
 rand = "0.8"
 rand_old = { package = "rand", version = "0.7" } # used by benchmarks/pairing.rs
 either = "1.6.1"
 miracl_core = "2.3.0"
-ed25519-dalek = { version = "1", features = ["serde", "batch"] }
 serde = { version = "1.0", features = ["derive"] }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 serde_bytes = { version = "0.11" }
 bincode = "1.3"
-anyhow = "1.0"
 subtle = "2.4"
 itertools = "0.10.1"
 measure_time = "0.8"
-group-threshold-cryptography = { path = "../tpke" }
-ferveo-common = { path = "../ferveo-common" }
-subproductdomain = { path = "../subproductdomain" }
 rand_core = "0.6.4"
+serde_with = "2.0.1"
+thiserror = "1.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4
+pprof = { version = "0.6", features = ["flamegraph", "criterion"] }
 digest = { version = "0.10.0", features = ["alloc"] }
+
+[package.metadata.cargo-udeps.ignore]
+development = ["pprof"]
+build = ["rand_old"]
+
+[lib]
+bench = false
+
+[features]
+test-common = []
 
 [[example]]
 name = "pvdkg"
@@ -52,8 +64,3 @@ path = "examples/pvdkg.rs"
 name = "benchmarks"
 path = "benches/bench_main.rs"
 harness = false
-
-
-[profile.release]
-opt-level = 3
-lto = true
