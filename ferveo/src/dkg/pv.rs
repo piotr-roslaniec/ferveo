@@ -1,27 +1,17 @@
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 
-use anyhow::Context;
-use anyhow::{anyhow, Result};
-use ark_ec::bn::TwistType::D;
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup, Group};
-use ark_ff::{Field, One, PrimeField, Zero};
-use ark_poly::{polynomial::univariate::DensePolynomial, EvaluationDomain};
-use ark_serialize::*;
-use ark_std::{end_timer, start_timer};
-use ferveo_common::Rng;
-use ferveo_common::{ExternalValidator, PublicKey};
-use group_threshold_cryptography as tpke;
-use itertools::{izip, zip_eq};
+use anyhow::{anyhow, Context};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
+use ark_poly::EvaluationDomain;
+use ferveo_common::{is_power_of_2, ExternalValidator};
 use measure_time::print_time;
 use rand::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate, make_validators, AggregatedPvss, DkgState, Params,
-    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss,
+    aggregate, make_validators, AggregatedPvss, DkgState, Error, Params,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result,
 };
 
 /// The DKG context that holds all of the local state for participating in the DKG
@@ -54,11 +44,17 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         me: &ExternalValidator<E>,
         session_keypair: ferveo_common::Keypair<E>,
     ) -> Result<Self> {
-        use ark_std::UniformRand;
+        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
+        if !is_power_of_2(params.shares_num) {
+            return Err(Error::Other(anyhow!(
+                "number of shares must be a power of 2"
+            )));
+        }
+
         let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
             params.shares_num as usize,
         )
-        .ok_or_else(|| anyhow!("unable to construct domain"))?;
+        .expect("unable to construct domain");
 
         // keep track of the owner of this instance in the validator set
         let me = validators.iter().position(|probe| me == probe).context(
@@ -89,16 +85,15 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// `rng` is a cryptographic random number generator
     /// Returns a PVSS dealing message to post on-chain
     pub fn share<R: RngCore>(&mut self, rng: &mut R) -> Result<Message<E>> {
-        use ark_std::UniformRand;
         print_time!("PVSS Sharing");
         let vss = self.create_share(rng)?;
         match self.state {
             DkgState::Sharing { .. } | DkgState::Dealt => {
                 Ok(Message::Deal(vss))
             }
-            _ => {
-                Err(anyhow!("DKG is not in a valid state to deal PVSS shares"))
-            }
+            _ => Err(Error::Other(anyhow!(
+                "DKG is not in a valid state to deal PVSS shares"
+            ))),
         }
     }
 
@@ -120,9 +115,9 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     final_key,
                 }))
             }
-            _ => Err(anyhow!(
+            _ => Err(Error::Other(anyhow!(
                 "Not enough PVSS transcripts received to aggregate"
-            )),
+            ))),
         }
     }
 
@@ -154,9 +149,9 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     .position(|probe| sender == &probe.validator)
                     .context("dkg received unknown dealer")?;
                 if self.vss.contains_key(&(sender as u32)) {
-                    Err(anyhow!("Repeat dealer {}", sender))
+                    Err(Error::Other(anyhow!("Repeat dealer {}", sender)))
                 } else if !pvss.verify_optimistic() {
-                    Err(anyhow!("Invalid PVSS transcript"))
+                    Err(Error::Other(anyhow!("Invalid PVSS transcript")))
                 } else {
                     Ok(())
                 }
@@ -166,20 +161,20 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 let verified_shares = vss.verify_aggregation(self)?;
                 // we reject aggregations that fail to meet the security threshold
                 if verified_shares < minimum_shares {
-                    Err(anyhow!(
+                    Err(Error::Other(anyhow!(
                         "Aggregation failed because the verified shares was insufficient"
-                    ))
+                    )))
                 } else if &self.final_key() == final_key {
                     Ok(())
                 } else {
-                    Err(anyhow!(
+                    Err(Error::Other(anyhow!(
                         "The final key was not correctly derived from the aggregated transcripts"
-                    ))
+                    )))
                 }
             }
-            _ => Err(anyhow!(
+            _ => Err(Error::Other(anyhow!(
                 "DKG state machine is not in correct state to verify this message"
-            )),
+            ))),
         }
     }
 
@@ -222,9 +217,9 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 };
                 Ok(())
             }
-            _ => Err(anyhow!(
+            _ => Err(Error::Other(anyhow!(
                 "DKG state machine is not in correct state to apply this message"
-            )),
+            ))),
         }
     }
 
@@ -348,10 +343,6 @@ pub(crate) mod test_common {
         security_threshold: u32,
         shares_num: u32,
     ) -> PubliclyVerifiableDkg<EllipticCurve> {
-        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
-        let is_power_of_2 = |n: u32| n != 0 && (n & (n - 1)) == 0;
-        assert!(is_power_of_2(shares_num));
-
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
@@ -401,10 +392,7 @@ mod test_dkg_init {
             keypair,
         )
         .expect_err("Test failed");
-        assert_eq!(
-            err.to_string(),
-            "could not find this validator in the provided validator set"
-        )
+        assert_eq!(err.to_string(), "Something went wrong")
     }
 }
 

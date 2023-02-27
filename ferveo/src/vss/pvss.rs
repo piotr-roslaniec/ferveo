@@ -1,36 +1,29 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::ops::{Add, Mul};
+use std::{marker::PhantomData, ops::Mul};
 
-use anyhow::{anyhow, Result};
-use ark_ec::bn::G2Affine;
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::UniformRand;
-use ark_ff::{Field, One, PrimeField, Zero};
-use ark_poly::DenseUVPolynomial;
-use ark_poly::{polynomial::univariate::DensePolynomial, EvaluationDomain};
-use ark_serialize::*;
-use ark_std::{end_timer, start_timer};
-use ferveo_common::Rng;
-use ferveo_common::{Keypair, PublicKey};
+use anyhow::anyhow;
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ff::{Field, Zero};
+use ark_poly::{
+    polynomial::univariate::DensePolynomial, DenseUVPolynomial,
+    EvaluationDomain,
+};
 use group_threshold_cryptography as tpke;
-use itertools::izip;
-use itertools::{zip_eq, Itertools};
+use itertools::Itertools;
 use measure_time::print_time;
 use rand::RngCore;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use tpke::{
     prepare_combine_simple, refresh_private_key_share,
-    update_share_for_recovery, Ciphertext, DecryptionShareFast,
-    DecryptionShareSimple, DecryptionShareSimplePrecomputed, PrivateKeyShare,
+    update_share_for_recovery, Ciphertext, DecryptionShareSimple,
+    DecryptionShareSimplePrecomputed, PrivateKeyShare,
 };
 
-use crate::PubliclyVerifiableDkg;
-use crate::{batch_to_projective_g1, batch_to_projective_g2};
+use crate::{
+    batch_to_projective_g1, batch_to_projective_g2, Error,
+    PubliclyVerifiableDkg, Result,
+};
 
 /// These are the blinded evaluations of shares of a single random polynomial
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
@@ -126,9 +119,9 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
             })
             .collect::<Vec<ShareEncryptions<E>>>();
         if shares.len() != dkg.validators.len() {
-            return Err(anyhow!(
+            return Err(Error::Other(anyhow!(
                 "Not all validator session keys have been announced"
-            ));
+            )));
         }
         // phi.zeroize(); // TODO zeroize?
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
@@ -215,9 +208,9 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         if y.into_affine() == self.coeffs[0] {
             Ok(shares_total)
         } else {
-            Err(anyhow!(
+            Err(Error::Other(anyhow!(
                 "aggregation does not match received PVSS instances"
-            ))
+            )))
         }
     }
 
@@ -231,7 +224,11 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             .shares
             .get(validator_index)
             .unwrap()
-            .mul(validator_decryption_key.inverse().unwrap())
+            .mul(
+                validator_decryption_key
+                    .inverse()
+                    .expect("Validator decryption key must have an inverse"),
+            )
             .into_affine();
         PrivateKeyShare { private_key_share }
     }
@@ -243,7 +240,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::ScalarField,
         validator_index: usize,
         g_inv: &E::G1Prepared,
-    ) -> DecryptionShareSimple<E> {
+    ) -> Result<DecryptionShareSimple<E>> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
@@ -256,9 +253,8 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             aad,
             g_inv,
         )
-        .unwrap() // TODO: Add proper error handling
+        .map_err(|e| e.into())
     }
-
     pub fn make_decryption_share_simple_precomputed(
         &self,
         ciphertext: &Ciphertext<E>,
@@ -267,7 +263,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_index: usize,
         domain_points: &[E::ScalarField],
         g_inv: &E::G1Prepared,
-    ) -> DecryptionShareSimplePrecomputed<E> {
+    ) -> Result<DecryptionShareSimplePrecomputed<E>> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
@@ -284,7 +280,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &lagrange_coeffs[validator_index],
             g_inv,
         )
-        .unwrap() // TODO: Add proper error handling
+        .map_err(|e| e.into())
     }
 
     pub fn refresh_decryption_share(
@@ -295,13 +291,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_index: usize,
         polynomial: &DensePolynomial<E::ScalarField>,
         dkg: &PubliclyVerifiableDkg<E>,
-    ) -> DecryptionShareSimple<E> {
+    ) -> Result<DecryptionShareSimple<E>> {
         let validator_private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
         );
         let h = dkg.pvss_params.h;
-        let _g_inv = dkg.pvss_params.g_inv();
         let domain_point = dkg.domain.element(validator_index);
         let refreshed_private_key_share = refresh_private_key_share(
             &h,
@@ -317,7 +312,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             aad,
             &dkg.pvss_params.g_inv(),
         )
-        .unwrap() // TODO: Add proper error handling
+        .map_err(|e| e.into())
     }
 
     pub fn update_private_key_share_for_recovery(
@@ -345,7 +340,9 @@ pub fn aggregate<E: Pairing>(
 ) -> PubliclyVerifiableSS<E, Aggregated> {
     let pvss = &dkg.vss;
     let mut pvss_iter = pvss.iter();
-    let (_, first_pvss) = pvss_iter.next().unwrap();
+    let (_, first_pvss) = pvss_iter
+        .next()
+        .expect("May not aggregate empty PVSS instances");
     let mut coeffs = batch_to_projective_g1::<E>(&first_pvss.coeffs);
     let mut sigma = first_pvss.sigma;
 
@@ -385,7 +382,10 @@ pub fn aggregate_for_decryption<E: Pairing>(
         .values()
         .map(|pvss| pvss.shares.clone())
         .collect::<Vec<_>>();
-    let first_share = shares.first().unwrap().to_vec();
+    let first_share = shares
+        .first()
+        .expect("Need one or more decryption shares to aggregate")
+        .to_vec();
     shares
         .into_iter()
         .skip(1)
@@ -398,46 +398,11 @@ pub fn aggregate_for_decryption<E: Pairing>(
         })
 }
 
-pub fn make_decryption_shares<E: Pairing>(
-    ciphertext: &Ciphertext<E>,
-    validator_keypairs: &[Keypair<E>],
-    aggregate: &[E::G2Affine],
-    aad: &[u8],
-    g_inv: &E::G1Prepared,
-) -> Vec<DecryptionShareSimple<E>> {
-    // TODO: Calculate separately for each validator
-    aggregate
-        .iter()
-        .zip_eq(validator_keypairs.iter())
-        .enumerate()
-        .map(|(decrypter_index, (encrypted_share, keypair))| {
-            // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-            let z_i =
-                encrypted_share.mul(keypair.decryption_key.inverse().unwrap());
-            // TODO: Consider using "container" structs from `tpke` for other primitives
-            let private_key_share = PrivateKeyShare {
-                private_key_share: z_i.into_affine(),
-            };
-
-            DecryptionShareSimple::create(
-                decrypter_index,
-                &keypair.decryption_key,
-                &private_key_share,
-                ciphertext,
-                aad,
-                g_inv,
-            )
-            .unwrap() // Unwrapping here only because this is a test method!
-        })
-        .collect::<Vec<_>>()
-}
-
 #[cfg(test)]
 mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
-    use ferveo_common::ExternalValidator;
 
     use super::*;
     use crate::dkg::pv::test_common::*;
@@ -538,7 +503,6 @@ mod test_pvss {
     /// incorrect constant term, the verification fails
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
-        use std::ops::Neg;
         let dkg = setup_dealt_dkg();
         let mut aggregated = aggregate(&dkg);
         while aggregated.coeffs[0] == G1::zero() {
@@ -551,7 +515,7 @@ mod test_pvss {
                 .verify_aggregation(&dkg)
                 .expect_err("Test failed")
                 .to_string(),
-            "aggregation does not match received PVSS instances"
+            "Something went wrong"
         )
     }
 }

@@ -1,7 +1,9 @@
-use std::collections::BTreeSet;
-use std::fs::{create_dir_all, OpenOptions};
-use std::io::prelude::*;
-use std::path::PathBuf;
+use std::{
+    collections::BTreeSet,
+    fs::{create_dir_all, OpenOptions},
+    io::prelude::*,
+    path::PathBuf,
+};
 
 use ark_bls12_381::Bls12_381 as EllipticCurve;
 use ferveo::*;

@@ -1,16 +1,37 @@
 extern crate alloc;
 
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use std::fmt;
+
+use ferveo::api::E;
+use ferveo_common::serialization::{FromBytes, ToBytes};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 use rand::thread_rng;
+
+fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
+    T::from_bytes(bytes).map_err(map_py_error)
+}
+
+fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
+    let bytes = t.to_bytes().map_err(map_py_error)?;
+    Ok(Python::with_gil(|py| -> PyObject {
+        PyBytes::new(py, &bytes).into()
+    }))
+}
+
+fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
+    PyValueError::new_err(format!("{}", err))
+}
 
 #[pyfunction]
 pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     public_key: &DkgPublicKey,
-) -> Ciphertext {
-    Ciphertext(ferveo::api::encrypt(message, aad, &public_key.0))
+) -> PyResult<Ciphertext> {
+    let rng = &mut thread_rng();
+    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0, rng)
+        .map_err(map_py_error)?;
+    Ok(Ciphertext(ciphertext))
 }
 
 #[pyfunction]
@@ -19,7 +40,7 @@ pub fn combine_decryption_shares(shares: Vec<DecryptionShare>) -> SharedSecret {
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    SharedSecret(ferveo::api::combine_decryption_shares(&shares))
+    SharedSecret(ferveo::api::share_combine_simple_precomputed(&shares))
 }
 
 #[pyfunction]
@@ -28,70 +49,69 @@ pub fn decrypt_with_shared_secret(
     aad: &[u8],
     shared_secret: &SharedSecret,
     g1_inv: &G1Prepared,
-) -> Vec<u8> {
+) -> PyResult<Vec<u8>> {
     ferveo::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
         &shared_secret.0,
         &g1_inv.0,
     )
+    .map_err(|err| PyValueError::new_err(format!("{}", err)))
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(derive_more::From, derive_more::AsRef)]
+#[derive(derive_more::AsRef)]
 pub struct G1Prepared(ferveo::api::G1Prepared);
 
 #[pyclass(module = "ferveo")]
-#[derive(derive_more::From, derive_more::AsRef)]
+#[derive(derive_more::AsRef)]
 pub struct SharedSecret(ferveo::api::SharedSecret);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
-pub struct Keypair(ferveo::api::Keypair);
+pub struct Keypair(ferveo::api::Keypair<E>);
 
 #[pymethods]
 impl Keypair {
     #[staticmethod]
     pub fn random() -> Self {
-        Self(ferveo::api::Keypair::random(&mut thread_rng()))
+        Self(ferveo::api::Keypair::new(&mut thread_rng()))
     }
 
     #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo::api::Keypair::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
     }
 
-    fn __bytes__(&self) -> PyObject {
-        let serialized = self.0.to_bytes();
-        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0)
     }
 
     #[getter]
     pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key())
+        PublicKey(self.0.public())
     }
 }
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct PublicKey(ferveo::api::PublicKey);
+pub struct PublicKey(ferveo::api::PublicKey<E>);
 
 #[pymethods]
 impl PublicKey {
     #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo::api::PublicKey::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
     }
 
-    fn __bytes__(&self) -> PyObject {
-        let serialized = self.0.to_bytes();
-        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0)
     }
 }
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct ExternalValidator(ferveo::api::ExternalValidator);
+pub struct ExternalValidator(ferveo::api::ExternalValidator<E>);
 
 #[pymethods]
 impl ExternalValidator {
@@ -103,18 +123,17 @@ impl ExternalValidator {
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct Transcript(ferveo::api::Transcript);
+pub struct Transcript(ferveo::api::Transcript<E>);
 
 #[pymethods]
 impl Transcript {
     #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo::api::Transcript::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
     }
 
-    fn __bytes__(&self) -> PyObject {
-        let serialized = self.0.to_bytes();
-        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(&self.0)
     }
 }
 
@@ -138,15 +157,17 @@ impl Dkg {
         security_threshold: u32,
         validators: Vec<ExternalValidator>,
         me: ExternalValidator,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let validators: Vec<_> = validators.into_iter().map(|v| v.0).collect();
-        Self(ferveo::api::Dkg::new(
+        let dkg = ferveo::api::Dkg::new(
             tau,
             shares_num,
             security_threshold,
             &validators,
             &me.0,
-        ))
+        )
+        .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        Ok(Self(dkg))
     }
 
     #[getter]
@@ -154,21 +175,13 @@ impl Dkg {
         DkgPublicKey(self.0.final_key())
     }
 
-    pub fn generate_transcript(&self) -> Transcript {
+    pub fn generate_transcript(&self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
-        Transcript(self.0.generate_transcript(rng))
-    }
-
-    pub fn aggregate_transcripts(
-        // TODO: Avoid mutating current state
-        &mut self,
-        messages: Vec<ExternalValidatorMessage>,
-    ) -> AggregatedTranscript {
-        let messages = &messages
-            .into_iter()
-            .map(|message| (message.0 .0, message.1 .0))
-            .collect();
-        AggregatedTranscript(self.0.aggregate_transcripts(messages))
+        let transcript = self
+            .0
+            .generate_transcript(rng)
+            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        Ok(Transcript(transcript))
     }
 }
 
@@ -200,23 +213,26 @@ impl AggregatedTranscript {
         ciphertext: &Ciphertext,
         aad: &[u8],
         validator_keypair: &Keypair,
-    ) -> DecryptionShare {
-        DecryptionShare(self.0.create_decryption_share(
-            &dkg.0,
-            &ciphertext.0,
-            aad,
-            &validator_keypair.0,
-        ))
+    ) -> PyResult<DecryptionShare> {
+        let decryption_share = self
+            .0
+            .create_decryption_share(
+                &dkg.0,
+                &ciphertext.0,
+                aad,
+                &validator_keypair.0,
+            )
+            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        Ok(DecryptionShare(decryption_share))
     }
 
     #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(ferveo::api::AggregatedTranscript::from_bytes(bytes))
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
     }
 
-    fn __bytes__(&self) -> PyObject {
-        let serialized = self.0.to_bytes();
-        Python::with_gil(|py| PyBytes::new(py, &serialized).into())
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(&self.0)
     }
 }
 

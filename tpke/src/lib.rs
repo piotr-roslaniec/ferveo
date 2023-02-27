@@ -27,7 +27,7 @@ pub use refresh::*;
 pub mod api;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ThresholdEncryptionError {
+pub enum Error {
     /// Ciphertext verification failed
     /// Refers to the check 4.4.2 in the paper: https://eprint.iacr.org/2022/898.pdf
     #[error("Ciphertext verification failed")]
@@ -49,23 +49,35 @@ pub enum ThresholdEncryptionError {
     /// Plaintext verification failed
     #[error("Plaintext verification failed")]
     PlaintextVerificationFailed,
+
+    /// Serialization failed
+    #[error("Bytes serialization failed")]
+    BytesSerializationError(#[from] bincode::Error),
+
+    /// Symmetric encryption failed"
+    #[error("Symmetric encryption failed")]
+    SymmetricEncryptionError(chacha20poly1305::aead::Error),
+
+    /// Serialization failed
+    #[error("Arkworks serialization failed")]
+    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
 }
 
-pub type Result<T> = anyhow::Result<T>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Factory functions for testing
 #[cfg(any(test, feature = "test-common"))]
 pub mod test_common {
-    use std::ops::Mul;
-    use std::usize;
+    use std::{ops::Mul, usize};
 
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::{pairing::Pairing, AffineRepr};
     pub use ark_ff::UniformRand;
     use ark_ff::{Field, One, Zero};
-    use ark_poly::univariate::DensePolynomial;
-    use ark_poly::DenseUVPolynomial;
-    use ark_poly::{EvaluationDomain, Polynomial};
+    use ark_poly::{
+        univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
+        Polynomial,
+    };
     use itertools::izip;
     use rand_core::RngCore;
     use subproductdomain::fast_multiexp;
@@ -262,23 +274,23 @@ pub mod test_common {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::ops::Mul;
+    use std::{collections::HashMap, ops::Mul};
 
     use ark_bls12_381::Fr;
-    use ark_ec::pairing::Pairing;
-    use ark_ec::{AffineRepr, CurveGroup};
+    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
+    use ferveo_common::{FromBytes, ToBytes};
     use rand_core::RngCore;
 
-    use crate::refresh::{
-        make_random_polynomial_at, prepare_share_updates_for_recovery,
-        recover_share_from_updated_private_shares, refresh_private_key_share,
-        update_share_for_recovery,
+    use crate::{
+        refresh::{
+            make_random_polynomial_at, prepare_share_updates_for_recovery,
+            recover_share_from_updated_private_shares,
+            refresh_private_key_share, update_share_for_recovery,
+        },
+        test_common::{setup_simple, *},
     };
-    use crate::test_common::setup_simple;
-    use crate::test_common::*;
 
     type E = ark_bls12_381::Bls12_381;
     type TargetField = <E as Pairing>::TargetField;
@@ -309,12 +321,13 @@ mod tests {
 
         let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
-        let serialized = ciphertext.to_bytes();
-        let deserialized: Ciphertext<E> = Ciphertext::from_bytes(&serialized);
+        let serialized = ciphertext.to_bytes().unwrap();
+        let deserialized: Ciphertext<E> =
+            Ciphertext::from_bytes(&serialized).unwrap();
 
-        assert_eq!(serialized, deserialized.to_bytes())
+        assert_eq!(serialized, deserialized.to_bytes().unwrap())
     }
 
     fn test_ciphertext_validation_fails<E: Pairing>(
@@ -418,7 +431,7 @@ mod tests {
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -434,7 +447,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -450,7 +463,7 @@ mod tests {
 
         let (pubkey, _, contexts) =
             setup_fast::<E>(threshold, shares_num, &mut rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
         let g_inv = &contexts[0].setup_params.g_inv;
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
@@ -500,7 +513,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -532,7 +545,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -578,7 +591,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -693,7 +706,7 @@ mod tests {
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =
@@ -775,7 +788,7 @@ mod tests {
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
         let pub_contexts = contexts[0].public_decryption_contexts.clone();
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =

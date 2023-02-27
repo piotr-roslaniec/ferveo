@@ -31,6 +31,7 @@ ark-serialize = { version = "0.4", features = ["derive"] }
 ark-ec = "0.4"
 ark-std = "0.4"
 rand_core = "0.6"
+js-sys = "0.3.61"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"

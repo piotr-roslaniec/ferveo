@@ -1,7 +1,6 @@
 use std::ops::Mul;
 
-use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_std::rand::RngCore;
 use serde::*;
 use serde_with::serde_as;
@@ -26,14 +25,6 @@ impl<E: Pairing> From<PublicKey<E>> for PreparedPublicKey<E> {
 pub struct PublicKey<E: Pairing> {
     #[serde_as(as = "serialization::SerdeAs")]
     pub encryption_key: E::G2Affine,
-}
-
-impl<E: Pairing> Default for PublicKey<E> {
-    fn default() -> Self {
-        Self {
-            encryption_key: E::G2Affine::generator(),
-        }
-    }
 }
 
 #[serde_as]

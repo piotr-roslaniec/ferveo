@@ -3,14 +3,15 @@
 use std::collections::HashMap;
 
 use ark_bls12_381::{Bls12_381, Fr, G1Affine as G1, G2Affine as G2};
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
+use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::Zero;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::test_common::{setup_fast, setup_simple};
-use group_threshold_cryptography::*;
+use group_threshold_cryptography::{
+    test_common::{setup_fast, setup_simple},
+    *,
+};
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -50,7 +51,7 @@ impl SetupFast {
 
         let (pubkey, privkey, contexts) =
             setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
         for context in contexts.iter() {
@@ -106,7 +107,7 @@ impl SetupSimple {
             setup_simple::<E>(threshold, shares_num, rng);
 
         // Ciphertext.commitment is already computed to match U
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         // Creating decryption shares
         let decryption_shares: Vec<_> = contexts
@@ -336,12 +337,15 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
             let mut rng = rng.clone();
             let setup = SetupFast::new(shares_num, msg_size, &mut rng);
             move || {
-                black_box(encrypt::<E>(
-                    &setup.shared.msg,
-                    &setup.shared.aad,
-                    &setup.shared.pubkey,
-                    &mut rng,
-                ));
+                black_box(
+                    encrypt::<E>(
+                        &setup.shared.msg,
+                        &setup.shared.aad,
+                        &setup.shared.pubkey,
+                        &mut rng,
+                    )
+                    .unwrap(),
+                );
             }
         };
         let decrypt = {

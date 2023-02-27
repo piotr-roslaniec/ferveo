@@ -3,6 +3,7 @@
 //! Adapted from [o1-labs/proof-systems](https://raw.githubusercontent.com/o1-labs/proof-systems/31c76ceae3122f0ce09cded8260960ed5cbbe3d8/utils/src/serialization.rs).
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use serde::{self, Deserialize, Serialize};
 use serde_with::Bytes;
 
 //
@@ -84,5 +85,47 @@ where
         let bytes: Vec<u8> = Bytes::deserialize_as(deserializer)?;
         T::deserialize_uncompressed(&mut &bytes[..])
             .map_err(serde::de::Error::custom)
+    }
+}
+
+// TODO: Trait aliases are experimental
+// trait ByteSerializable = ToBytes + FromBytes;
+
+pub trait ToBytes {
+    fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error>;
+}
+
+pub trait FromBytes: Sized {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error>;
+}
+
+impl<T: Serialize> ToBytes for T {
+    fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
+        bincode::serialize(self)
+    }
+}
+
+impl<T: for<'de> Deserialize<'de>> FromBytes for T {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
+        bincode::deserialize(bytes)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Test {
+        a: u32,
+        b: u32,
+    }
+
+    #[test]
+    fn test_serde() {
+        let test = Test { a: 1, b: 2 };
+        let bytes = test.to_bytes().unwrap();
+        let test2 = Test::from_bytes(&bytes).unwrap();
+        assert_eq!(test, test2);
     }
 }
