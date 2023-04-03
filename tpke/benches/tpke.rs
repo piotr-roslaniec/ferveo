@@ -1,24 +1,26 @@
 #![allow(clippy::redundant_closure)]
 
-use ark_bls12_381::{Fr, G1Affine, G2Affine};
-use ark_ec::AffineCurve;
-use ark_ff::Zero;
 use std::collections::HashMap;
 
+use ark_bls12_381::{Bls12_381, Fr, G1Affine as G1, G2Affine as G2};
+use ark_ec::{pairing::Pairing, AffineRepr};
+use ark_ff::Zero;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::*;
-
+use group_threshold_cryptography::{
+    test_common::{setup_fast, setup_simple},
+    *,
+};
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
 
 const NUM_SHARES_CASES: [usize; 5] = [4, 8, 16, 32, 64];
 const MSG_SIZE_CASES: [usize; 7] = [256, 512, 1024, 2048, 4096, 8192, 16384];
 
-type E = ark_bls12_381::Bls12_381;
-type G2Prepared = ark_ec::bls12::G2Prepared<ark_bls12_381::Parameters>;
-type Fqk = <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fqk;
+type E = Bls12_381;
+type G2Prepared = <E as Pairing>::G2Prepared;
+type TargetField = <E as Pairing>::TargetField;
 
 #[allow(dead_code)]
 struct SetupShared {
@@ -26,10 +28,10 @@ struct SetupShared {
     shares_num: usize,
     msg: Vec<u8>,
     aad: Vec<u8>,
-    pubkey: G1Affine,
-    privkey: G2Affine,
+    pubkey: G1,
+    privkey: G2,
     ciphertext: Ciphertext<E>,
-    shared_secret: Fqk,
+    shared_secret: TargetField,
 }
 
 struct SetupFast {
@@ -49,7 +51,7 @@ impl SetupFast {
 
         let (pubkey, privkey, contexts) =
             setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<_, E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
         for context in contexts.iter() {
@@ -105,7 +107,7 @@ impl SetupSimple {
             setup_simple::<E>(threshold, shares_num, rng);
 
         // Ciphertext.commitment is already computed to match U
-        let ciphertext = encrypt::<_, E>(&msg, aad, &pubkey, rng);
+        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
 
         // Creating decryption shares
         let decryption_shares: Vec<_> = contexts
@@ -335,12 +337,15 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
             let mut rng = rng.clone();
             let setup = SetupFast::new(shares_num, msg_size, &mut rng);
             move || {
-                black_box(encrypt::<_, E>(
-                    &setup.shared.msg,
-                    &setup.shared.aad,
-                    &setup.shared.pubkey,
-                    &mut rng,
-                ));
+                black_box(
+                    encrypt::<E>(
+                        &setup.shared.msg,
+                        &setup.shared.aad,
+                        &setup.shared.pubkey,
+                        &mut rng,
+                    )
+                    .unwrap(),
+                );
             }
         };
         let decrypt = {
@@ -350,8 +355,8 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
                     decrypt_with_shared_secret::<E>(
                         &setup.shared.ciphertext,
                         &setup.shared.aad,
-                        &setup.contexts[0].setup_params.g_inv,
                         &setup.shared.shared_secret,
+                        &setup.contexts[0].setup_params.g_inv,
                     )
                     .unwrap(),
                 );
@@ -547,7 +552,7 @@ pub fn bench_refresh_shares(c: &mut Criterion) {
             |b| {
                 b.iter(|| {
                     black_box(refresh_private_key_share::<E>(
-                        &p.setup_params.h.into_projective(),
+                        &p.setup_params.h.into_group(),
                         &p.public_decryption_contexts[0].domain,
                         &polynomial,
                         &p.private_key_share,
