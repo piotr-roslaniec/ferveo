@@ -3,13 +3,9 @@ from ferveo_py import (
     combine_decryption_shares,
     decrypt_with_shared_secret,
     Keypair,
-    PublicKey,
     ExternalValidator,
     Transcript,
     Dkg,
-    Ciphertext,
-    UnblindingKey,
-    DecryptionShare,
     AggregatedTranscript,
 )
 
@@ -70,9 +66,9 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
         validators=validators,
         me=validator,
     )
-    aggregate = dkg.aggregate_transcripts(messages)
-    assert pvss_aggregated.validate(dkg)
-    decryption_share = aggregate.create_decryption_share(
+    # assume aggregated transcript obtained through deserialization from side-channel
+    agg_transcript_deser.validate(dkg)
+    decryption_share = agg_transcript_deser.create_decryption_share(
         dkg, ciphertext, aad, validator_keypair
     )
     decryption_shares.append(decryption_share)
