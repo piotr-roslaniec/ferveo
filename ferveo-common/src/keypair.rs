@@ -1,16 +1,18 @@
-use ark_ec::PairingEngine;
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_serialize::{
-    CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write,
-};
+use std::ops::Mul;
+
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_std::rand::RngCore;
 use serde::*;
+use serde_with::serde_as;
+
+use crate::serialization;
 
 #[derive(Copy, Clone, Debug)]
-pub struct PreparedPublicKey<E: PairingEngine> {
+pub struct PreparedPublicKey<E: Pairing> {
     pub encryption_key: E::G2Prepared,
 }
 
-impl<E: PairingEngine> From<PublicKey<E>> for PreparedPublicKey<E> {
+impl<E: Pairing> From<PublicKey<E>> for PreparedPublicKey<E> {
     fn from(value: PublicKey<E>) -> Self {
         PreparedPublicKey::<E> {
             encryption_key: E::G2Prepared::from(value.encryption_key),
@@ -18,61 +20,35 @@ impl<E: PairingEngine> From<PublicKey<E>> for PreparedPublicKey<E> {
     }
 }
 
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    CanonicalSerialize,
-    CanonicalDeserialize,
-)]
-pub struct PublicKey<E: PairingEngine> {
-    #[serde(with = "crate::ark_serde")]
+#[serde_as]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PublicKey<E: Pairing> {
+    #[serde_as(as = "serialization::SerdeAs")]
     pub encryption_key: E::G2Affine,
 }
 
-impl<E: PairingEngine> Default for PublicKey<E> {
-    fn default() -> Self {
-        Self {
-            encryption_key: E::G2Affine::prime_subgroup_generator(),
-        }
-    }
+#[serde_as]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Keypair<E: Pairing> {
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub decryption_key: E::ScalarField,
 }
 
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    CanonicalSerialize,
-    CanonicalDeserialize,
-)]
-pub struct Keypair<E: PairingEngine> {
-    #[serde(with = "crate::ark_serde")]
-    pub decryption_key: E::Fr,
-}
-
-impl<E: PairingEngine> Keypair<E> {
+impl<E: Pairing> Keypair<E> {
     /// Returns the public session key for the publicly verifiable DKG participant
     pub fn public(&self) -> PublicKey<E> {
         PublicKey::<E> {
-            encryption_key: E::G2Affine::prime_subgroup_generator()
+            encryption_key: E::G2Affine::generator()
                 .mul(self.decryption_key)
                 .into_affine(),
         }
     }
 
     /// Creates a new ephemeral session key for participating in the DKG
-    pub fn new<R: crate::Rng>(rng: &mut R) -> Self {
+    pub fn new<R: RngCore>(rng: &mut R) -> Self {
         use ark_std::UniformRand;
         Self {
-            decryption_key: E::Fr::rand(rng),
+            decryption_key: E::ScalarField::rand(rng),
         }
     }
 }

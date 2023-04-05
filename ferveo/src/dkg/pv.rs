@@ -1,27 +1,37 @@
-use crate::*;
-use anyhow::Context;
-use ark_ec::bn::TwistType::D;
-use ark_ec::PairingEngine;
-use ark_ff::Field;
-use ark_serialize::*;
-use ark_std::{end_timer, start_timer};
-use ferveo_common::{ExternalValidator, PublicKey};
 use std::collections::BTreeMap;
 
+use anyhow::{anyhow, Context};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
+use ark_poly::EvaluationDomain;
+use ferveo_common::{is_power_of_2, ExternalValidator};
+use measure_time::print_time;
+use rand::RngCore;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::{
+    aggregate, make_validators, AggregatedPvss, DkgState, Error, Params,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result,
+};
+
 /// The DKG context that holds all of the local state for participating in the DKG
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct PubliclyVerifiableDkg<E: PairingEngine> {
+// TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
+//  Currently, we're assuming that the DKG is only mutated by the owner of the instance.
+//  Consider removing Clone after finalizing ferveo::api
+#[derive(Clone, Debug)]
+pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub params: Params,
     pub pvss_params: PubliclyVerifiableParams<E>,
+    // TODO: What is session_keypair?
     pub session_keypair: ferveo_common::Keypair<E>,
     pub validators: Vec<ferveo_common::Validator<E>>,
     pub vss: BTreeMap<u32, PubliclyVerifiableSS<E>>,
-    pub domain: ark_poly::Radix2EvaluationDomain<E::Fr>,
+    pub domain: ark_poly::Radix2EvaluationDomain<E::ScalarField>,
     pub state: DkgState<E>,
     pub me: usize,
 }
 
-impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
+impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// Create a new DKG context to participate in the DKG
     /// Every identity in the DKG is linked to an ed25519 public key;
     /// `validators`: List of validators
@@ -29,16 +39,22 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     /// `me` the validator creating this instance
     /// `session_keypair` the keypair for `me`
     pub fn new(
-        validators: Vec<ExternalValidator<E>>,
+        validators: &[ExternalValidator<E>],
         params: Params,
         me: &ExternalValidator<E>,
         session_keypair: ferveo_common::Keypair<E>,
     ) -> Result<Self> {
-        use ark_std::UniformRand;
-        let domain = ark_poly::Radix2EvaluationDomain::<E::Fr>::new(
+        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
+        if !is_power_of_2(params.shares_num) {
+            return Err(Error::Other(anyhow!(
+                "number of shares must be a power of 2"
+            )));
+        }
+
+        let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
             params.shares_num as usize,
         )
-        .ok_or_else(|| anyhow!("unable to construct domain"))?;
+        .expect("unable to construct domain");
 
         // keep track of the owner of this instance in the validator set
         let me = validators.iter().position(|probe| me == probe).context(
@@ -51,8 +67,8 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             session_keypair,
             params,
             pvss_params: PubliclyVerifiableParams::<E> {
-                g: E::G1Projective::prime_subgroup_generator(),
-                h: E::G2Projective::prime_subgroup_generator(),
+                g: E::G1::generator(),
+                h: E::G2::generator(),
             },
             vss: BTreeMap::new(),
             domain,
@@ -65,37 +81,28 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         })
     }
 
-    /// Increment the number of blocks processed since the DKG protocol
-    /// began if we are still sharing PVSS transcripts.
-    ///
-    /// Returns a value indicating if we should issue a PVSS transcript
-    pub fn increase_block(&mut self) -> PvssScheduler {
-        match self.state {
-            DkgState::Sharing { ref mut block, .. }
-                if !self.vss.contains_key(&(self.me as u32)) =>
-            {
-                *block += 1;
-                PvssScheduler::Wait
-            }
-            _ => PvssScheduler::Wait,
-        }
-    }
-
     /// Create a new PVSS instance within this DKG session, contributing to the final key
     /// `rng` is a cryptographic random number generator
     /// Returns a PVSS dealing message to post on-chain
-    pub fn share<R: Rng>(&mut self, rng: &mut R) -> Result<Message<E>> {
-        use ark_std::UniformRand;
+    pub fn share<R: RngCore>(&mut self, rng: &mut R) -> Result<Message<E>> {
         print_time!("PVSS Sharing");
-        let vss = Pvss::<E>::new(&E::Fr::rand(rng), self, rng)?;
+        let vss = self.create_share(rng)?;
         match self.state {
             DkgState::Sharing { .. } | DkgState::Dealt => {
                 Ok(Message::Deal(vss))
             }
-            _ => {
-                Err(anyhow!("DKG is not in a valid state to deal PVSS shares"))
-            }
+            _ => Err(Error::Other(anyhow!(
+                "DKG is not in a valid state to deal PVSS shares"
+            ))),
         }
+    }
+
+    pub fn create_share<R: RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> Result<PubliclyVerifiableSS<E>> {
+        use ark_std::UniformRand;
+        Pvss::<E>::new(&E::ScalarField::rand(rng), self, rng)
     }
 
     /// Aggregate all received PVSS messages into a single message, prepared to post on-chain
@@ -108,9 +115,9 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
                     final_key,
                 }))
             }
-            _ => Err(anyhow!(
+            _ => Err(Error::Other(anyhow!(
                 "Not enough PVSS transcripts received to aggregate"
-            )),
+            ))),
         }
     }
 
@@ -118,8 +125,8 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
     pub fn final_key(&self) -> E::G1Affine {
         self.vss
             .values()
-            .map(|vss| vss.coeffs[0].into_projective())
-            .sum::<E::G1Projective>()
+            .map(|vss| vss.coeffs[0].into_group())
+            .sum::<E::G1>()
             .into_affine()
     }
 
@@ -132,39 +139,42 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         payload: &Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
+            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
                 // TODO: If this is two slow, we can convert self.validators to
                 // an address keyed hashmap after partitioning the shares shares
                 // in the [`new`] method
-                let sender = self.validators
-                    .iter().position(|probe| sender == &probe.validator)
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender == &probe.validator)
                     .context("dkg received unknown dealer")?;
                 if self.vss.contains_key(&(sender as u32)) {
-                    Err(anyhow!("Repeat dealer {}", sender))
+                    Err(Error::Other(anyhow!("Repeat dealer {}", sender)))
                 } else if !pvss.verify_optimistic() {
-                    Err(anyhow!("Invalid PVSS transcript"))
+                    Err(Error::Other(anyhow!("Invalid PVSS transcript")))
                 } else {
                     Ok(())
                 }
             }
             Message::Aggregate(Aggregation { vss, final_key }) if matches!(self.state, DkgState::Dealt) => {
-                let minimum_shares = self.params.shares_num
-                    - self.params.security_threshold;
+                let minimum_shares = self.params.shares_num - self.params.security_threshold;
                 let verified_shares = vss.verify_aggregation(self)?;
                 // we reject aggregations that fail to meet the security threshold
                 if verified_shares < minimum_shares {
-                    Err(
-                        anyhow!("Aggregation failed because the verified shares was insufficient")
-                    )
+                    Err(Error::Other(anyhow!(
+                        "Aggregation failed because the verified shares was insufficient"
+                    )))
                 } else if &self.final_key() == final_key {
                     Ok(())
                 } else {
-                    Err(
-                        anyhow!("The final key was not correctly derived from the aggregated transcripts")
-                    )
+                    Err(Error::Other(anyhow!(
+                        "The final key was not correctly derived from the aggregated transcripts"
+                    )))
                 }
             }
-            _ => Err(anyhow!("DKG state machine is not in correct state to verify this message"))
+            _ => Err(Error::Other(anyhow!(
+                "DKG state machine is not in correct state to verify this message"
+            ))),
         }
     }
 
@@ -177,18 +187,24 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
         payload: Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing{..} | DkgState::Dealt) => {
+            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
                 // Add the ephemeral public key and pvss transcript
-                let sender = self.validators
-                    .iter().position(|probe| sender.address == probe.validator.address)
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender.address == probe.validator.address)
                     .context("dkg received unknown dealer")?;
                 self.vss.insert(sender as u32, pvss);
 
                 // we keep track of the amount of shares seen until the security
                 // threshold is met. Then we may change the state of the DKG
-                if let DkgState::Sharing { ref mut accumulated_shares, .. } = &mut self.state {
+                if let DkgState::Sharing {
+                    ref mut accumulated_shares,
+                    ..
+                } = &mut self.state
+                {
                     *accumulated_shares += 1;
-                    if *accumulated_shares >= self.params.shares_num - self.params.security_threshold {
+                    if *accumulated_shares >= self.params.security_threshold {
                         self.state = DkgState::Dealt;
                     }
                 }
@@ -196,47 +212,64 @@ impl<E: PairingEngine> PubliclyVerifiableDkg<E> {
             }
             Message::Aggregate(_) if matches!(self.state, DkgState::Dealt) => {
                 // change state and cache the final key
-                self.state = DkgState::Success { final_key: self.final_key() };
+                self.state = DkgState::Success {
+                    final_key: self.final_key(),
+                };
                 Ok(())
             }
-            _ => Err(anyhow!("DKG state machine is not in correct state to apply this message"))
+            _ => Err(Error::Other(anyhow!(
+                "DKG state machine is not in correct state to apply this message"
+            ))),
         }
+    }
+
+    pub fn deal(
+        &mut self,
+        sender: ExternalValidator<E>,
+        pvss: Pvss<E>,
+    ) -> Result<()> {
+        // Add the ephemeral public key and pvss transcript
+        let sender = self
+            .validators
+            .iter()
+            .position(|probe| sender.address == probe.validator.address)
+            .context("dkg received unknown dealer")?;
+        self.vss.insert(sender as u32, pvss);
+        Ok(())
     }
 }
 
-#[derive(
-    Serialize,
-    Deserialize,
-    Clone,
-    Debug,
-    CanonicalSerialize,
-    CanonicalDeserialize,
-)]
-#[serde(bound = "")]
-pub struct Aggregation<E: PairingEngine> {
-    #[serde(with = "ferveo_common::ark_serde")]
+#[serde_as]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(bound(
+    serialize = "AggregatedPvss<E>: Serialize",
+    deserialize = "AggregatedPvss<E>: DeserializeOwned"
+))]
+pub struct Aggregation<E: Pairing> {
     vss: AggregatedPvss<E>,
-    #[serde(with = "ferveo_common::ark_serde")]
+    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
     final_key: E::G1Affine,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(bound = "")]
-pub enum Message<E: PairingEngine> {
-    #[serde(with = "ferveo_common::ark_serde")]
+#[serde(bound(
+    serialize = "AggregatedPvss<E>: Serialize, Pvss<E>: Serialize",
+    deserialize = "AggregatedPvss<E>: DeserializeOwned, Pvss<E>: DeserializeOwned"
+))]
+pub enum Message<E: Pairing> {
     Deal(Pvss<E>),
-    #[serde(with = "ferveo_common::ark_serde")]
     Aggregate(Aggregation<E>),
 }
 
 /// Factory functions for testing
 #[cfg(test)]
 pub(crate) mod test_common {
-    pub use super::*;
     pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     pub use ark_ff::UniformRand;
 
-    pub type G1 = <EllipticCurve as PairingEngine>::G1Affine;
+    pub use super::*;
+
+    pub type G1 = <EllipticCurve as Pairing>::G1Affine;
 
     pub fn gen_n_keypairs(
         n: u32,
@@ -280,7 +313,7 @@ pub(crate) mod test_common {
         let validators = gen_n_validators(&keypairs, shares_num);
         let me = validators[my_index].clone();
         PubliclyVerifiableDkg::new(
-            validators,
+            &validators,
             Params {
                 tau: 0,
                 security_threshold,
@@ -310,10 +343,6 @@ pub(crate) mod test_common {
         security_threshold: u32,
         shares_num: u32,
     ) -> PubliclyVerifiableDkg<EllipticCurve> {
-        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
-        let is_power_of_2 = |n: u32| n != 0 && (n & (n - 1)) == 0;
-        assert!(is_power_of_2(shares_num));
-
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
@@ -350,7 +379,7 @@ mod test_dkg_init {
         let keypairs = gen_keypairs();
         let keypair = ferveo_common::Keypair::<EllipticCurve>::new(rng);
         let err = PubliclyVerifiableDkg::<EllipticCurve>::new(
-            gen_validators(&keypairs),
+            &gen_validators(&keypairs),
             Params {
                 tau: 0,
                 security_threshold: 4,
@@ -363,16 +392,15 @@ mod test_dkg_init {
             keypair,
         )
         .expect_err("Test failed");
-        assert_eq!(
-            err.to_string(),
-            "could not find this validator in the provided validator set"
-        )
+        assert_eq!(err.to_string(), "Something went wrong")
     }
 }
 
 /// Test the dealing phase of the DKG
 #[cfg(test)]
 mod test_dealing {
+    use ark_ec::AffineRepr;
+
     use super::test_common::*;
     use crate::DkgState::Dealt;
 
@@ -582,41 +610,13 @@ mod test_dealing {
         assert!(dkg.apply_message(sender, pvss).is_ok());
         assert!(matches!(dkg.state, DkgState::Dealt))
     }
-
-    /// Test that the DKG advises us to not issue a PVSS transcript
-    /// if we are not in state [`DkgState::Sharing{..}`]
-    #[test]
-    fn test_pvss_wait_if_not_in_sharing_state() {
-        let mut dkg = setup_dkg(0);
-        for state in vec![
-            Dealt,
-            DkgState::Success {
-                final_key: G1::zero(),
-            },
-            DkgState::Invalid,
-        ] {
-            dkg.state = state;
-            assert_eq!(dkg.increase_block(), PvssScheduler::Wait);
-        }
-    }
-
-    /// Test that if we already have our PVSS on chain,
-    /// the DKG advises us not to issue a new one
-    #[test]
-    fn test_pvss_wait_if_already_applied() {
-        let rng = &mut ark_std::test_rng();
-        let mut dkg = setup_dkg(0);
-        let pvss = dkg.share(rng).expect("Test failed");
-        let sender = dkg.validators[0].validator.clone();
-        // check that verification fails
-        assert!(dkg.verify_message(&sender, &pvss).is_ok());
-        assert!(dkg.apply_message(sender, pvss).is_ok());
-        assert_eq!(dkg.increase_block(), PvssScheduler::Wait);
-    }
 }
+
 /// Test aggregating transcripts into final key
 #[cfg(test)]
 mod test_aggregation {
+    use ark_ec::AffineRepr;
+
     use super::test_common::*;
 
     /// Test that if the security threshold is

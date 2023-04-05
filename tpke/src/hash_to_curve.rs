@@ -3,15 +3,12 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use ark_serialize::CanonicalDeserialize;
-use miracl_core::bls12381::big::BIG;
-use miracl_core::bls12381::dbig::DBIG;
-use miracl_core::bls12381::ecp;
-use miracl_core::bls12381::ecp2::ECP2;
-use miracl_core::bls12381::fp::FP;
-use miracl_core::bls12381::fp2::FP2;
-use miracl_core::bls12381::rom;
-use miracl_core::hmac;
+use ark_bls12_381::g2::Config;
+use ark_ec::{short_weierstrass::Affine, AffineRepr};
+use miracl_core::{
+    bls12381::{big::BIG, dbig::DBIG, ecp, ecp2::ECP2, fp::FP, fp2::FP2, rom},
+    hmac,
+};
 
 fn ceil(a: usize, b: usize) -> usize {
     (a - 1) / b + 1
@@ -73,11 +70,24 @@ pub fn htp_bls12381_g2(msg: &[u8]) -> ark_bls12_381::G2Affine {
     compressed_rev[000..=047].reverse();
     compressed_rev[048..=095].reverse();
 
-    ark_bls12_381::G2Affine::deserialize(&compressed_rev[..]).unwrap()
+    to_affine(&mut compressed_rev)
+}
+
+fn to_affine(compressed_rev: &mut [u8; 96]) -> Affine<Config> {
+    // TODO: This is a hack to get around the fact that G2Affine representation produced by miracl_core
+    //     is not compatible with the one used by arkworks. The "Unexpected Flag" error is thrown.
+    // ark_bls12_381::G2Affine::deserialize_compressed(&compressed_rev[..])
+    //     .unwrap()
+    // In this workaround we use `from_random_bytes` instead of `deserialize_compressed`, because
+    //  the former performs checks that prevent the "Unexpected Flag" error.
+    // TODO: Remove expect?
+    ark_bls12_381::G2Affine::from_random_bytes(&compressed_rev[..])
+        .expect("Failed to convert to affine point")
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn test_hash_to_g2(msg: &[u8], expected_hex_string: &str) {
@@ -89,13 +99,9 @@ mod tests {
         expected_compressed_rev[0] &= (1 << 5) - 1;
         expected_compressed_rev.reverse();
 
-        let expected =
-            ark_bls12_381::G2Affine::deserialize(&expected_compressed_rev[..])
-                .unwrap();
-
+        let expected = to_affine(&mut expected_compressed_rev);
         let res = htp_bls12381_g2(msg);
-
-        assert!(res == expected)
+        assert_eq!(res, expected)
     }
 
     #[test]

@@ -1,9 +1,8 @@
-use crate::*;
+use ark_ec::pairing::Pairing;
 use ferveo_common::ExternalValidator;
-use itertools::izip;
 
-pub fn make_validators<E: PairingEngine>(
-    validators: Vec<ExternalValidator<E>>,
+pub fn make_validators<E: Pairing>(
+    validators: &[ExternalValidator<E>],
 ) -> Vec<ferveo_common::Validator<E>> {
     validators
         .iter()

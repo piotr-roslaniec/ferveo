@@ -1,5 +1,9 @@
-use ark_serialize::CanonicalSerialize;
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    fs::{create_dir_all, OpenOptions},
+    io::prelude::*,
+    path::PathBuf,
+};
 
 use ark_bls12_381::Bls12_381 as EllipticCurve;
 use ferveo::*;
@@ -7,9 +11,6 @@ use ferveo_common::ExternalValidator;
 use itertools::iproduct;
 use rand::prelude::StdRng;
 use rand_core::SeedableRng;
-use std::fs::{create_dir_all, OpenOptions};
-use std::io::prelude::*;
-use std::path::PathBuf;
 
 const OUTPUT_DIR_PATH: &str = "/tmp/benchmark_setup";
 const OUTPUT_FILE_NAME: &str = "results.md";
@@ -78,7 +79,7 @@ fn setup_dkg(
     let validators = gen_validators(&keypairs);
     let me = validators[validator].clone();
     PubliclyVerifiableDkg::new(
-        validators,
+        &validators,
         Params {
             tau: 0,
             security_threshold,
@@ -131,8 +132,7 @@ fn main() {
     for (shares_num, threshold) in configs {
         println!("shares_num: {}, threshold: {}", shares_num, threshold);
         let dkg = setup(*shares_num as u32, threshold, rng);
-        let mut transcript_bytes = vec![];
-        dkg.vss[&0].serialize(&mut transcript_bytes).unwrap();
+        let transcript_bytes = bincode::serialize(&dkg.vss[&0]).unwrap();
 
         save_data(
             *shares_num as usize,

@@ -51,7 +51,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            rust: 1.63 # MSRV, `cargo msrv`
+            rust: 1.64 # MSRV, `cargo msrv`
           - target: x86_64-unknown-linux-gnu
             rust: stable
     steps:
@@ -76,6 +76,56 @@ jobs:
       - run: ${{ matrix.deps }}
       - run: cargo check --all-features
       - run: cargo test --release --all-features
+
+  wasm-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - 1.64 # MSRV
+          - stable
+        target:
+          - wasm32-unknown-unknown
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - run: cargo install wasm-pack
+      - run: wasm-pack test --node
+        working-directory: tpke-wasm
+  
+  yarn-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+        target:
+          - wasm32-unknown-unknown
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - run: cargo install wasm-pack
+      - run: wasm-pack build --target nodejs
+        working-directory: tpke-wasm
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node install
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node build
+      - uses: borales/actions-yarn@v3.0.0
+        with:
+          cmd: --cwd tpke-wasm/examples/node test
 
   codecov:
     runs-on: ubuntu-latest
@@ -128,10 +178,12 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - name: Run benchmark for base branch comparison
         uses: boa-dev/criterion-compare-action@v3
-        if: github.event_name == 'pull_request'
+        # Only PRs to main
+        if: github.event_name == 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'nucypher/ferveo'
         with:
           cwd: ${{ matrix.component }}
           branchName: ${{ github.base_ref }}
+          features: "test-common"
 
       # The next steps have been adapted from https://raw.githubusercontent.com/unicode-org/icu4x/main/.github/workflows/build-test.yml
 

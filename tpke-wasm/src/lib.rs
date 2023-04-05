@@ -1,111 +1,55 @@
-mod utils;
-
 extern crate group_threshold_cryptography as tpke;
 
-use ark_bls12_381::G1Affine;
-use ark_ec::AffineCurve;
+mod utils;
+
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use js_sys::Error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use utils::set_panic_hook;
+use utils::*;
 use wasm_bindgen::prelude::*;
 
 extern crate wee_alloc;
 
-pub type E = ark_bls12_381::Bls12_381;
-pub type TpkePublicKey = ark_bls12_381::G1Affine;
-pub type TpkePrivateKey = ark_bls12_381::G2Affine;
-pub type TpkeCiphertext = tpke::Ciphertext<E>;
-pub type TpkeDecryptionShare = tpke::DecryptionShareFast<E>;
-pub type TpkePublicDecryptionContext = tpke::PublicDecryptionContextFast<E>;
-pub type TpkeSharedSecret =
-    <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::Fqk;
-pub type TpkeG1Prepared =
-    <ark_bls12_381::Bls12_381 as ark_ec::PairingEngine>::G1Prepared;
+#[wasm_bindgen]
+#[derive(Clone, Debug, PartialEq)]
+pub struct G1Prepared(tpke::api::G1Prepared);
 
 #[wasm_bindgen]
-#[derive(Clone, Debug)]
-pub struct PrivateDecryptionContext(tpke::api::PrivateDecryptionContext);
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
-impl PrivateDecryptionContext {
-    pub(crate) fn serialized_size() -> usize {
-        tpke::api::PrivateDecryptionContext::serialized_size()
+impl DecryptionShareSimple {
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        to_js_bytes(&self.0)
     }
 
-    #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
-    }
-
-    #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(tpke::api::PrivateDecryptionContext::from_bytes(bytes))
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple, Error> {
+        from_js_bytes(bytes).map(Self)
     }
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug)]
-pub struct DecryptionShare(tpke::api::DecryptionShare);
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecryptionShareSimplePrecomputed(
+    tpke::api::DecryptionShareSimplePrecomputed,
+);
 
 #[wasm_bindgen]
-impl DecryptionShare {
-    #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes()
+impl DecryptionShareSimplePrecomputed {
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        to_js_bytes(&self.0)
     }
 
-    #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        let share = tpke::api::DecryptionShare::from_bytes(bytes);
-        Self(share)
-    }
-}
-
-#[wasm_bindgen]
-#[derive(Clone, Debug)]
-pub struct ParticipantPayload(tpke::api::ParticipantPayload);
-
-#[wasm_bindgen]
-impl ParticipantPayload {
-    #[wasm_bindgen(constructor)]
-    pub fn new(
-        decryption_context: &PrivateDecryptionContext,
-        ciphertext: &Ciphertext,
-    ) -> Self {
-        Self(tpke::api::ParticipantPayload::new(
-            &decryption_context.0,
-            &ciphertext.ciphertext,
-        ))
-    }
-
-    #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.0.decryption_context.to_bytes();
-        bytes.extend(&self.0.ciphertext.to_bytes());
-        bytes
-    }
-
-    #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        let decryption_context_bytes =
-            &bytes[0..PrivateDecryptionContext::serialized_size()];
-        let decryption_context =
-            PrivateDecryptionContext::from_bytes(decryption_context_bytes);
-
-        let ciphertext_bytes =
-            bytes[PrivateDecryptionContext::serialized_size()..].to_vec();
-        let ciphertext = tpke::Ciphertext::from_bytes(&ciphertext_bytes);
-
-        Self(tpke::api::ParticipantPayload {
-            decryption_context: decryption_context.0,
-            ciphertext,
-        })
-    }
-
-    #[wasm_bindgen]
-    pub fn to_decryption_share(&self) -> DecryptionShare {
-        DecryptionShare(self.0.to_decryption_share())
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(
+        bytes: &[u8],
+    ) -> Result<DecryptionShareSimplePrecomputed, Error> {
+        from_js_bytes(bytes).map(Self)
     }
 }
 
@@ -113,23 +57,27 @@ impl ParticipantPayload {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct PublicKey(
-    #[serde_as(as = "tpke::serialization::SerdeAs")] pub(crate) TpkePublicKey,
+    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
+    pub(crate)  tpke::api::DkgPublicKey,
 );
 
 #[wasm_bindgen]
 impl PublicKey {
-    #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, Error> {
         let mut reader = bytes;
-        let pk = TpkePublicKey::deserialize_uncompressed(&mut reader).unwrap();
-        PublicKey(pk)
+        let pk = tpke::api::DkgPublicKey::deserialize_uncompressed(&mut reader)
+            .map_err(map_js_err)?;
+        Ok(PublicKey(pk))
     }
 
-    #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        self.0.serialize_uncompressed(&mut bytes).unwrap();
-        bytes
+        self.0
+            .serialize_uncompressed(&mut bytes)
+            .map_err(map_js_err)?;
+        Ok(bytes)
     }
 }
 
@@ -137,96 +85,45 @@ impl PublicKey {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct PrivateKey(
-    #[serde_as(as = "tpke::serialization::SerdeAs")] pub(crate) TpkePrivateKey,
+    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
+    pub(crate)  tpke::api::PrivateKey,
 );
 
 #[wasm_bindgen]
 impl PrivateKey {
-    #[wasm_bindgen]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey, Error> {
         let mut reader = bytes;
-        let pk = TpkePrivateKey::deserialize_uncompressed(&mut reader).unwrap();
-        PrivateKey(pk)
+        let pk = tpke::api::PrivateKey::deserialize_uncompressed(&mut reader)
+            .map_err(map_js_err)?;
+        Ok(PrivateKey(pk))
     }
 
-    #[wasm_bindgen]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        self.0.serialize_uncompressed(&mut bytes).unwrap();
-        bytes
+        self.0
+            .serialize_uncompressed(&mut bytes)
+            .map_err(map_js_err)?;
+        Ok(bytes)
     }
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug)]
-pub struct Setup {
-    pub public_key: PublicKey,
-    pub private_key: PrivateKey,
-    private_contexts: Vec<PrivateDecryptionContext>,
-    public_contexts: Vec<TpkePublicDecryptionContext>,
-}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Ciphertext(tpke::api::Ciphertext);
 
 #[wasm_bindgen]
-impl Setup {
-    #[wasm_bindgen(constructor)]
-    pub fn new(threshold: usize, shares_num: usize) -> Self {
-        set_panic_hook();
-
-        let mut rng = rand::thread_rng();
-        let (public_key, private_key, contexts) =
-            tpke::setup_fast::<E>(threshold, shares_num, &mut rng);
-        let private_contexts = contexts
-            .clone()
-            .into_iter()
-            .map(|x| {
-                PrivateDecryptionContext(
-                    tpke::api::PrivateDecryptionContext::new(
-                        &x.setup_params.b_inv,
-                        x.index,
-                    ),
-                )
-            })
-            .collect();
-        let public_contexts = contexts[0].public_decryption_contexts.to_vec();
-
-        Self {
-            public_key: PublicKey(public_key),
-            private_key: PrivateKey(private_key),
-            private_contexts,
-            public_contexts,
-        }
+impl Ciphertext {
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext, Error> {
+        from_js_bytes(bytes).map(Self)
     }
 
-    // Using `private_context_at` and `decrypter_indexes` instead of making `private_context` public
-    // as a workaround for wasm-bindgen not supporting `Vec` with a custom defined types without serde
-    // serialization.
-
-    #[wasm_bindgen]
-    pub fn private_context_at(&self, index: usize) -> PrivateDecryptionContext {
-        set_panic_hook();
-        let context = self.private_contexts[index].clone();
-        assert_eq!(context.0.decrypter_index, index);
-        context
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        to_js_bytes(&self.0)
     }
-
-    #[wasm_bindgen]
-    pub fn decrypter_indexes(&self) -> Vec<usize> {
-        set_panic_hook();
-        self.private_contexts
-            .iter()
-            .map(|x| x.0.decrypter_index)
-            .collect()
-    }
-
-    // TODO: Add `decryptorShares` helper method
-}
-
-#[wasm_bindgen]
-#[derive(Clone, Debug)]
-pub struct Ciphertext {
-    pub(crate) ciphertext: TpkeCiphertext,
-    pub(crate) aad: Vec<u8>,
-    pub(crate) g_inv: TpkeG1Prepared,
 }
 
 #[wasm_bindgen]
@@ -234,95 +131,203 @@ pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     public_key: &PublicKey,
-) -> Ciphertext {
+) -> Result<Ciphertext, Error> {
     set_panic_hook();
-
-    let mut rng = rand::thread_rng();
-    // TODO: Expose `TpkeG1Prepared` to WASM and use it here
-    let g_inv = TpkeG1Prepared::from(-G1Affine::prime_subgroup_generator());
-    let ciphertext =
-        tpke::encrypt::<_, E>(message, aad, &public_key.0, &mut rng);
-
-    Ciphertext {
-        ciphertext,
-        aad: aad.to_vec(),
-        g_inv,
-    }
+    let rng = &mut rand::thread_rng();
+    let ciphertext = tpke::api::encrypt(message, aad, &public_key.0, rng)
+        .map_err(map_js_err)?;
+    Ok(Ciphertext(ciphertext))
 }
 
-#[wasm_bindgen]
-pub fn decrypt(ciphertext: &Ciphertext, private_key: &PrivateKey) -> Vec<u8> {
+#[wasm_bindgen(js_name = "decryptWithPrivateKey")]
+pub fn decrypt_with_private_key(
+    ciphertext: &Ciphertext,
+    aad: &[u8],
+    private_key: &PrivateKey,
+    g_inv: &G1Prepared,
+) -> Result<Vec<u8>, Error> {
     set_panic_hook();
-
-    tpke::checked_decrypt(
-        &ciphertext.ciphertext,
-        &ciphertext.aad,
-        &ciphertext.g_inv,
-        &private_key.0,
-    )
-    .unwrap()
+    tpke::api::decrypt_symmetric(&ciphertext.0, aad, &private_key.0, &g_inv.0)
+        .map_err(map_js_err)
 }
 
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
-pub struct SharedSecret(TpkeSharedSecret);
+pub struct DomainPoint(tpke::api::DomainPoint);
 
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
-pub struct SharedSecretBuilder {
-    shares: Vec<TpkeDecryptionShare>,
-    contexts: Vec<TpkePublicDecryptionContext>,
+pub struct SharedSecret(tpke::api::SharedSecret);
+
+#[wasm_bindgen]
+#[derive(Clone, Debug)]
+pub struct SharedSecretPrecomputedBuilder {
+    shares: Vec<tpke::api::DecryptionShareSimplePrecomputed>,
+    threshold: usize,
 }
 
 #[wasm_bindgen]
-impl SharedSecretBuilder {
+impl SharedSecretPrecomputedBuilder {
     #[wasm_bindgen(constructor)]
-    pub fn new(setup: &Setup) -> Self {
-        SharedSecretBuilder {
+    pub fn new(threshold: usize) -> Self {
+        Self {
             shares: vec![],
-            contexts: setup.public_contexts.clone(),
+            threshold,
         }
     }
 
-    #[wasm_bindgen]
-    pub fn add_decryption_share(&mut self, share: &DecryptionShare) {
-        self.shares.push(share.0 .0.clone());
+    #[wasm_bindgen(js_name = "addDecryptionShare")]
+    pub fn add_decryption_share(
+        &mut self,
+        share: &DecryptionShareSimplePrecomputed,
+    ) {
+        self.shares.push(share.0.clone());
     }
 
     #[wasm_bindgen]
-    pub fn build(&self, ciphertext: &Ciphertext) -> SharedSecret {
+    pub fn build(&self) -> SharedSecret {
         set_panic_hook();
-
-        if self.shares.len() != self.contexts.len() {
-            panic!("Number of shares and contexts must be equal");
+        if self.shares.len() < self.threshold {
+            panic!("Number of shares below threshold");
         }
-
-        let prepared_blinded_key_shares =
-            tpke::prepare_combine_fast(&self.contexts, &self.shares);
-
-        let shared_secret = tpke::checked_share_combine_fast(
-            &self.contexts,
-            &ciphertext.ciphertext,
-            &self.shares,
-            &prepared_blinded_key_shares,
-        )
-        .unwrap();
-        SharedSecret(shared_secret)
+        SharedSecret(tpke::share_combine_simple_precomputed(&self.shares))
     }
 }
 
 #[wasm_bindgen]
+#[derive(Clone, Debug)]
+pub struct SharedSecretSimpleBuilder {
+    shares: Vec<tpke::api::DecryptionShareSimple>,
+    domain_points: Vec<tpke::api::DomainPoint>,
+    threshold: usize,
+}
+
+#[wasm_bindgen]
+impl SharedSecretSimpleBuilder {
+    #[wasm_bindgen(constructor)]
+    pub fn new(threshold: usize) -> Self {
+        Self {
+            shares: vec![],
+            domain_points: vec![],
+            threshold,
+        }
+    }
+
+    #[wasm_bindgen(js_name = "addDecryptionShare")]
+    pub fn add_decryption_share(&mut self, share: &DecryptionShareSimple) {
+        self.shares.push(share.0.clone());
+    }
+
+    #[wasm_bindgen(js_name = "addDomainPoint")]
+    pub fn add_domain_point(&mut self, domain_point: &DomainPoint) {
+        self.domain_points.push(domain_point.0.clone());
+    }
+
+    #[wasm_bindgen]
+    pub fn build(&self) -> SharedSecret {
+        set_panic_hook();
+        if self.shares.len() < self.threshold {
+            panic!("Number of shares below threshold");
+        }
+        let domain_points: Vec<_> =
+            self.domain_points.iter().map(|x| x.0).collect();
+        let lagrange_coeffs =
+            tpke::prepare_combine_simple::<tpke::api::E>(&domain_points);
+        SharedSecret(tpke::share_combine_simple(&self.shares, &lagrange_coeffs))
+    }
+}
+
+#[wasm_bindgen(js_name = "decryptWithSharedSecret")]
 pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
+    aad: &[u8],
     shared_secret: &SharedSecret,
-) -> Vec<u8> {
+    g_inv: &G1Prepared,
+) -> Result<Vec<u8>, Error> {
     set_panic_hook();
-
-    tpke::checked_decrypt_with_shared_secret(
-        &ciphertext.ciphertext,
-        &ciphertext.aad,
-        &ciphertext.g_inv,
+    tpke::api::decrypt_with_shared_secret(
+        &ciphertext.0,
+        aad,
         &shared_secret.0,
+        &g_inv.0,
     )
-    .unwrap()
+    .map_err(map_js_err)
+}
+
+/// Factory functions for testing
+pub mod test_common {
+    use super::*;
+
+    #[wasm_bindgen]
+    #[derive(Clone, Debug)]
+    pub struct Dkg {
+        pub public_key: PublicKey,
+        pub private_key: PrivateKey,
+        private_contexts: Vec<tpke::api::PrivateDecryptionContextSimple>,
+    }
+
+    #[wasm_bindgen]
+    impl Dkg {
+        // TODO: Consider removing threshold from precomputed variant parameters
+        #[wasm_bindgen(constructor)]
+        pub fn new(threshold: usize, shares_num: usize) -> Self {
+            set_panic_hook();
+            let mut rng = rand::thread_rng();
+            let (public_key, private_key, private_contexts) =
+                tpke::test_common::setup_simple::<tpke::api::E>(
+                    threshold, shares_num, &mut rng,
+                );
+            Self {
+                public_key: PublicKey(public_key),
+                private_key: PrivateKey(private_key),
+                private_contexts,
+            }
+        }
+
+        #[wasm_bindgen(js_name = "makeDecryptionShareSimple")]
+        pub fn make_decryption_share_simple(
+            &self,
+            ciphertext: &Ciphertext,
+            aad: &[u8],
+            validator_index: usize,
+        ) -> Result<DecryptionShareSimple, Error> {
+            set_panic_hook();
+            Ok(DecryptionShareSimple(
+                self.private_contexts[validator_index]
+                    .create_share(&ciphertext.0, aad)
+                    .map_err(map_js_err)?,
+            ))
+        }
+
+        #[wasm_bindgen(js_name = "makeDecryptionSharePrecomputed")]
+        pub fn make_decryption_share_precomputed(
+            &self,
+            ciphertext: &Ciphertext,
+            aad: &[u8],
+            validator_index: usize,
+        ) -> Result<DecryptionShareSimplePrecomputed, Error> {
+            set_panic_hook();
+            Ok(DecryptionShareSimplePrecomputed(
+                self.private_contexts[validator_index]
+                    .create_share_precomputed(&ciphertext.0, aad)
+                    .map_err(map_js_err)?,
+            ))
+        }
+
+        #[wasm_bindgen(js_name = "getDomainPoint")]
+        pub fn get_domain_point(&self, validator_index: usize) -> DomainPoint {
+            set_panic_hook();
+            DomainPoint(tpke::api::DomainPoint(
+                self.private_contexts[0].public_decryption_contexts
+                    [validator_index]
+                    .domain,
+            ))
+        }
+
+        #[wasm_bindgen(getter, js_name = "gInv")]
+        pub fn g_inv(&self) -> G1Prepared {
+            set_panic_hook();
+            G1Prepared(self.private_contexts[0].setup_params.g_inv.clone())
+        }
+    }
 }
