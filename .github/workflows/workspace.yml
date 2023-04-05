@@ -56,7 +56,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            rust: 1.63 # MSRV, `cargo msrv`
+            rust: 1.64 # MSRV, `cargo msrv`
           - target: x86_64-unknown-linux-gnu
             rust: stable
     steps:
@@ -87,7 +87,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.63 # MSRV
+          - 1.64 # MSRV
           - stable
         target:
           - wasm32-unknown-unknown
