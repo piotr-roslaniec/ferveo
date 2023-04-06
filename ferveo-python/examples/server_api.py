@@ -7,6 +7,7 @@ from ferveo_py import (
     Transcript,
     Dkg,
     AggregatedTranscript,
+    Ciphertext,
 )
 
 tau = 1
@@ -48,13 +49,14 @@ assert pvss_aggregated.validate(dkg)
 transcripts_ser = [bytes(transcript) for _, transcript in messages]
 transcripts_deser = [Transcript.from_bytes(t) for t in transcripts_ser]
 
-agg_transcript_ser = bytes(pvss_aggregated)
-agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
-
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
 aad = "my-aad".encode()
 ciphertext = encrypt(msg, aad, dkg.final_key)
+
+# The client can serialize/deserialize ciphertext for transport
+ciphertext_ser = bytes(ciphertext)
+ciphertext_deser = Ciphertext.from_bytes(ciphertext_ser)
 
 # Having aggregated the transcripts, the validators can now create decryption shares
 decryption_shares = []
