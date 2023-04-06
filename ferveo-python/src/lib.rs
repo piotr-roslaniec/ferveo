@@ -119,6 +119,16 @@ impl ExternalValidator {
     pub fn new(address: String, public_key: PublicKey) -> Self {
         Self(ferveo::api::ExternalValidator::new(address, public_key.0))
     }
+
+    #[getter]
+    pub fn address(&self) -> String {
+        self.0.address.to_string()
+    }
+
+    #[getter]
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.public_key)
+    }
 }
 
 #[pyclass(module = "ferveo")]
