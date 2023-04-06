@@ -151,7 +151,6 @@ impl Transcript {
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
 pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
 
-
 #[derive(FromPyObject)]
 pub struct ExternalValidatorMessage(ExternalValidator, Transcript);
 
