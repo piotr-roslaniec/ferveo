@@ -8,6 +8,7 @@ from ferveo_py import (
     Dkg,
     AggregatedTranscript,
     Ciphertext,
+    DkgPublicKey,
 )
 
 tau = 1
@@ -88,3 +89,15 @@ shared_secret = combine_decryption_shares(decryption_shares)
 
 plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.g1_inv)
 assert bytes(plaintext) == msg
+
+# Other serializable objects
+
+# Keypair
+keypair = Keypair.random()
+keypair_ser = bytes(keypair)
+keypair_deser = Keypair.from_bytes(keypair_ser)
+
+# DKG public key
+dkg_pk = dkg.final_key
+dkg_pk_ser = bytes(dkg_pk)
+dkg_pk_deser = DkgPublicKey.from_bytes(dkg_pk_ser)

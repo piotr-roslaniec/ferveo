@@ -25,22 +25,32 @@ class PublicKey:
         ...
 
 
-class Validator:
-    ...
-
-
 class ExternalValidator:
 
     def __init__(self, address: str, public_key: PublicKey):
         ...
 
+    address: str
+
+    public_key: PublicKey
+
 
 class Transcript:
-    ...
+    @staticmethod
+    def from_bytes(data: bytes) -> Transcript:
+        ...
+
+    def __bytes__(self) -> bytes:
+        ...
 
 
 class DkgPublicKey:
-    ...
+    @staticmethod
+    def from_bytes(data: bytes) -> DkgPublicKey:
+        ...
+
+    def __bytes__(self) -> bytes:
+        ...
 
 
 class ExternalValidatorMessage:
@@ -69,7 +79,12 @@ class Dkg:
 
 
 class Ciphertext:
-    ...
+    @staticmethod
+    def from_bytes(data: bytes) -> Ciphertext:
+        ...
+
+    def __bytes__(self) -> bytes:
+        ...
 
 
 class UnblindingKey:
@@ -77,7 +92,12 @@ class UnblindingKey:
 
 
 class DecryptionShare:
-    ...
+    @staticmethod
+    def from_bytes(data: bytes) -> DecryptionShare:
+        ...
+
+    def __bytes__(self) -> bytes:
+        ...
 
 
 class AggregatedTranscript:
@@ -89,4 +109,14 @@ class AggregatedTranscript:
             aad: bytes,
             unblinding_key: UnblindingKey
     ) -> DecryptionShare:
+        ...
+
+    def validate(self, dkg: Dkg) -> bool:
+        ...
+
+    @staticmethod
+    def from_bytes(data: bytes) -> AggregatedTranscript:
+        ...
+
+    def __bytes__(self) -> bytes:
         ...

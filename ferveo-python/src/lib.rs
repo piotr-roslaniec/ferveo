@@ -29,7 +29,7 @@ pub fn encrypt(
     public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
-    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0, rng)
+    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0 .0, rng)
         .map_err(map_py_error)?;
     Ok(Ciphertext(ciphertext))
 }
@@ -150,6 +150,18 @@ impl Transcript {
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
 pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
+
+#[pymethods]
+impl DkgPublicKey {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0)
+    }
+}
 
 #[derive(FromPyObject)]
 pub struct ExternalValidatorMessage(ExternalValidator, Transcript);
@@ -305,5 +317,6 @@ fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<UnblindingKey>()?;
     m.add_class::<DecryptionShare>()?;
     m.add_class::<AggregatedTranscript>()?;
+    m.add_class::<DkgPublicKey>()?;
     Ok(())
 }

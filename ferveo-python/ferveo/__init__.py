@@ -11,4 +11,5 @@ from .ferveo_py import (
     UnblindingKey,
     DecryptionShare,
     AggregatedTranscript,
+    DkgPublicKey,
 )
