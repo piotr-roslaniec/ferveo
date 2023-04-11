@@ -3,7 +3,6 @@ pub mod dkg;
 pub mod primitives;
 mod vss;
 
-// TODO: Replace with concrete error type
 pub use dkg::*;
 use group_threshold_cryptography as tpke;
 pub use primitives::*;
@@ -15,27 +14,59 @@ pub enum Error {
     #[error("Threshold encryption error")]
     ThresholdEncryptionError(#[from] tpke::Error),
 
-    // /// Not all validator session keys have been announced
-    // #[error("Not enough validators (expected {0}, got {1})")]
-    // InvalidValidatorCount(usize, usize),
-    //
-    // /// Aggregation does not match received PVSS instances
-    // #[error("Aggregation does not match received PVSS instances")]
-    // InvalidAggregation,
-    //
-    // /// Number of shares parameter must be a power of two
-    // #[error("Number of shares parameter must be a power of two. Got {0}")]
-    // InvalidShareNumberParameter(usize),
-    //
-    // /// DKG is not in a valid state to deal PVSS shares
-    // #[error("Invalid DKG state")]
-    // InvalidDkgState(),
-    //
-    // /// Not enough PVSS transcripts received to aggregate
-    // #[error("Not enough PVSS transcripts received to aggregate (expected {0}, got {1})")]
-    // NotEnoughPVSSTranscripts(usize, usize),
-    #[error("Something went wrong")]
-    Other(#[from] anyhow::Error),
+    /// Number of shares parameter must be a power of two
+    #[error("Number of shares parameter must be a power of two. Got {0}")]
+    InvalidShareNumberParameter(u32),
+
+    /// DKG is not in a valid state to deal PVSS shares
+    #[error("Invalid DKG state to deal PVSS shares")]
+    InvalidDkgStateToDeal,
+
+    /// DKG is not in a valid state to aggregate PVSS transcripts
+    #[error("Invalid DKG state to aggregate PVSS transcripts")]
+    InvalidDkgStateToAggregate,
+
+    /// DKG is not in a valid state to verify PVSS transcripts
+    #[error("Invalid DKG state to verify PVSS transcripts")]
+    InvalidDkgStateToVerify,
+
+    /// DKG is not in a valid state to ingest PVSS transcripts
+    #[error("Invalid DKG state to ingest PVSS transcripts")]
+    InvalidDkgStateToIngest,
+
+    /// DKG validator set must contain the validator with the given address
+    #[error("Expected validator to be a part of the DKG validator set: {0}")]
+    ValidatorNotInSet(String),
+
+    /// DKG received an unknown dealer. Dealer must be the part of the DKG validator set.
+    #[error("DKG received an unknown dealer: {0}")]
+    UnknownDealer(String),
+
+    /// DKG received a PVSS transcript from a dealer that has already been dealt.
+    #[error("DKG received a PVSS transcript from a dealer that has already been dealt: {0}")]
+    DuplicateDealer(String),
+
+    /// DKG received an invalid transcript for which optimistic verification failed
+    #[error("DKG received an invalid transcript")]
+    InvalidPvssTranscript,
+
+    /// Aggregation failed because the DKG did not receive enough PVSS transcripts
+    #[error(
+        "Insufficient transcripts for aggregation (expected {0}, got {1})"
+    )]
+    InsufficientTranscriptsForAggregate(u32, u32),
+
+    /// Failed to derive a valid final key for the DKG
+    #[error("Failed to derive a valid final key for the DKG")]
+    InvalidFinalKey,
+
+    /// Not enough validators to perform the DKG for a given number of shares
+    #[error("Not enough validators (expected {0}, got {1})")]
+    InsufficientValidators(u32, u32),
+
+    /// Transcript aggregate doesn't match the received PVSS instances
+    #[error("Transcript aggregate doesn't match the received PVSS instances")]
+    InvalidTranscriptAggregate,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

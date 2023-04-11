@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use std::fmt;
+use std::fmt::{self};
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};

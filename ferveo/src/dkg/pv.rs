@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Context};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_poly::EvaluationDomain;
 use ferveo_common::{is_power_of_2, ExternalValidator};
@@ -46,9 +45,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     ) -> Result<Self> {
         // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
         if !is_power_of_2(params.shares_num) {
-            return Err(Error::Other(anyhow!(
-                "number of shares must be a power of 2"
-            )));
+            return Err(Error::InvalidShareNumberParameter(params.shares_num));
         }
 
         let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
@@ -57,9 +54,10 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         .expect("unable to construct domain");
 
         // keep track of the owner of this instance in the validator set
-        let me = validators.iter().position(|probe| me == probe).context(
-            "could not find this validator in the provided validator set",
-        )?;
+        let me = validators
+            .iter()
+            .position(|probe| me == probe)
+            .ok_or_else(|| Error::ValidatorNotInSet(me.clone().address))?;
 
         let validators = make_validators(validators);
 
@@ -91,9 +89,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             DkgState::Sharing { .. } | DkgState::Dealt => {
                 Ok(Message::Deal(vss))
             }
-            _ => Err(Error::Other(anyhow!(
-                "DKG is not in a valid state to deal PVSS shares"
-            ))),
+            _ => Err(Error::InvalidDkgStateToDeal),
         }
     }
 
@@ -115,9 +111,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     final_key,
                 }))
             }
-            _ => Err(Error::Other(anyhow!(
-                "Not enough PVSS transcripts received to aggregate"
-            ))),
+            _ => Err(Error::InvalidDkgStateToAggregate),
         }
     }
 
@@ -139,7 +133,12 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         payload: &Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
+            Message::Deal(pvss)
+                if matches!(
+                    self.state,
+                    DkgState::Sharing { .. } | DkgState::Dealt
+                ) =>
+            {
                 // TODO: If this is two slow, we can convert self.validators to
                 // an address keyed hashmap after partitioning the shares shares
                 // in the [`new`] method
@@ -147,34 +146,37 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     .validators
                     .iter()
                     .position(|probe| sender == &probe.validator)
-                    .context("dkg received unknown dealer")?;
+                    .ok_or_else(|| {
+                        Error::UnknownDealer(sender.clone().address)
+                    })?;
                 if self.vss.contains_key(&(sender as u32)) {
-                    Err(Error::Other(anyhow!("Repeat dealer {}", sender)))
+                    let sender = self.validators[sender].validator.clone();
+                    Err(Error::DuplicateDealer(sender.address))
                 } else if !pvss.verify_optimistic() {
-                    Err(Error::Other(anyhow!("Invalid PVSS transcript")))
+                    Err(Error::InvalidPvssTranscript)
                 } else {
                     Ok(())
                 }
             }
-            Message::Aggregate(Aggregation { vss, final_key }) if matches!(self.state, DkgState::Dealt) => {
-                let minimum_shares = self.params.shares_num - self.params.security_threshold;
+            Message::Aggregate(Aggregation { vss, final_key })
+                if matches!(self.state, DkgState::Dealt) =>
+            {
+                let minimum_shares =
+                    self.params.shares_num - self.params.security_threshold;
                 let verified_shares = vss.verify_aggregation(self)?;
                 // we reject aggregations that fail to meet the security threshold
                 if verified_shares < minimum_shares {
-                    Err(Error::Other(anyhow!(
-                        "Aggregation failed because the verified shares was insufficient"
-                    )))
+                    Err(Error::InsufficientTranscriptsForAggregate(
+                        minimum_shares,
+                        verified_shares,
+                    ))
                 } else if &self.final_key() == final_key {
                     Ok(())
                 } else {
-                    Err(Error::Other(anyhow!(
-                        "The final key was not correctly derived from the aggregated transcripts"
-                    )))
+                    Err(Error::InvalidFinalKey)
                 }
             }
-            _ => Err(Error::Other(anyhow!(
-                "DKG state machine is not in correct state to verify this message"
-            ))),
+            _ => Err(Error::InvalidDkgStateToVerify),
         }
     }
 
@@ -187,13 +189,18 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         payload: Message<E>,
     ) -> Result<()> {
         match payload {
-            Message::Deal(pvss) if matches!(self.state, DkgState::Sharing { .. } | DkgState::Dealt) => {
+            Message::Deal(pvss)
+                if matches!(
+                    self.state,
+                    DkgState::Sharing { .. } | DkgState::Dealt
+                ) =>
+            {
                 // Add the ephemeral public key and pvss transcript
                 let sender = self
                     .validators
                     .iter()
                     .position(|probe| sender.address == probe.validator.address)
-                    .context("dkg received unknown dealer")?;
+                    .ok_or_else(|| Error::UnknownDealer(sender.address))?;
                 self.vss.insert(sender as u32, pvss);
 
                 // we keep track of the amount of shares seen until the security
@@ -217,9 +224,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 };
                 Ok(())
             }
-            _ => Err(Error::Other(anyhow!(
-                "DKG state machine is not in correct state to apply this message"
-            ))),
+            _ => Err(Error::InvalidDkgStateToIngest),
         }
     }
 
@@ -233,7 +238,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .validators
             .iter()
             .position(|probe| sender.address == probe.validator.address)
-            .context("dkg received unknown dealer")?;
+            .ok_or_else(|| Error::UnknownDealer(sender.address))?;
         self.vss.insert(sender as u32, pvss);
         Ok(())
     }
@@ -386,13 +391,13 @@ mod test_dkg_init {
                 shares_num: 8,
             },
             &ExternalValidator::<EllipticCurve> {
-                address: "non-existant-validator".into(),
+                address: "non-existent-validator".into(),
                 public_key: keypair.public(),
             },
             keypair,
         )
         .expect_err("Test failed");
-        assert_eq!(err.to_string(), "Something went wrong")
+        assert_eq!(err.to_string(), "Expected validator to be a part of the DKG validator set: non-existent-validator")
     }
 }
 

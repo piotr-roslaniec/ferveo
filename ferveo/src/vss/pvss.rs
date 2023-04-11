@@ -1,6 +1,5 @@
 use std::{marker::PhantomData, ops::Mul};
 
-use anyhow::anyhow;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::{Field, Zero};
 use ark_poly::{
@@ -119,9 +118,10 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
             })
             .collect::<Vec<ShareEncryptions<E>>>();
         if shares.len() != dkg.validators.len() {
-            return Err(Error::Other(anyhow!(
-                "Not all validator session keys have been announced"
-            )));
+            return Err(Error::InsufficientValidators(
+                shares.len() as u32,
+                dkg.validators.len() as u32,
+            ));
         }
         // phi.zeroize(); // TODO zeroize?
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
@@ -208,9 +208,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         if y.into_affine() == self.coeffs[0] {
             Ok(shares_total)
         } else {
-            Err(Error::Other(anyhow!(
-                "aggregation does not match received PVSS instances"
-            )))
+            Err(Error::InvalidTranscriptAggregate)
         }
     }
 
@@ -515,7 +513,7 @@ mod test_pvss {
                 .verify_aggregation(&dkg)
                 .expect_err("Test failed")
                 .to_string(),
-            "Something went wrong"
+            "Transcript aggregate doesn't match the received PVSS instances"
         )
     }
 }
