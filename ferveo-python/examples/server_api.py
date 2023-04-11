@@ -7,6 +7,7 @@ from ferveo_py import (
     Transcript,
     Dkg,
     AggregatedTranscript,
+    Ciphertext,
 )
 
 tau = 1
@@ -44,17 +45,18 @@ dkg = Dkg(
 pvss_aggregated = dkg.aggregate_transcripts(messages)
 assert pvss_aggregated.validate(dkg)
 
-# Server can persist transcript and the aggregated transcript
+# Server can persist transcripts and the aggregated transcript
 transcripts_ser = [bytes(transcript) for _, transcript in messages]
-transcripts_deser = [Transcript.from_bytes(t) for t in transcripts_ser]
-
+_transcripts_deser = [Transcript.from_bytes(t) for t in transcripts_ser]
 agg_transcript_ser = bytes(pvss_aggregated)
-agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
 
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
 aad = "my-aad".encode()
 ciphertext = encrypt(msg, aad, dkg.final_key)
+
+# The client can serialize/deserialize ciphertext for transport
+ciphertext_ser = bytes(ciphertext)
 
 # Having aggregated the transcripts, the validators can now create decryption shares
 decryption_shares = []
@@ -66,15 +68,21 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
         validators=validators,
         me=validator,
     )
-    # assume aggregated transcript obtained through deserialization from side-channel
+    # Assume the aggregated transcript is obtained through deserialization from a side-channel
+    agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
     agg_transcript_deser.validate(dkg)
+
+    # The ciphertext is obtained from the client
+    ciphertext_deser = Ciphertext.from_bytes(ciphertext_ser)
+
+    # Create a decryption share for the ciphertext
     decryption_share = agg_transcript_deser.create_decryption_share(
         dkg, ciphertext, aad, validator_keypair
     )
     decryption_shares.append(decryption_share)
 
 # Now, the decryption share can be used to decrypt the ciphertext
-# This part is part of the client API
+# This part is in the client API
 
 shared_secret = combine_decryption_shares(decryption_shares)
 

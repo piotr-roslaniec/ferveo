@@ -119,6 +119,16 @@ impl ExternalValidator {
     pub fn new(address: String, public_key: PublicKey) -> Self {
         Self(ferveo::api::ExternalValidator::new(address, public_key.0))
     }
+
+    #[getter]
+    pub fn address(&self) -> String {
+        self.0.address.to_string()
+    }
+
+    #[getter]
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.public_key)
+    }
 }
 
 #[pyclass(module = "ferveo")]
@@ -209,6 +219,18 @@ impl Dkg {
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct Ciphertext(ferveo::api::Ciphertext);
 
+#[pymethods]
+impl Ciphertext {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(&self.0)
+    }
+}
+
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct UnblindingKey(ferveo::api::UnblindingKey);
@@ -216,6 +238,18 @@ pub struct UnblindingKey(ferveo::api::UnblindingKey);
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionShare(ferveo::api::DecryptionShare);
+
+#[pymethods]
+impl DecryptionShare {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(&self.0)
+    }
+}
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
