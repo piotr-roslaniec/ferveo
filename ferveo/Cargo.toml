@@ -11,7 +11,7 @@ categories = ["cryptography"]
 authors = ["Heliax AG <hello@heliax.dev>"]
 
 [dependencies]
-group-threshold-cryptography = { path = "../tpke"}
+group-threshold-cryptography = { path = "../tpke", features = ["api"] }
 ferveo-common = { path = "../ferveo-common" }
 subproductdomain = { path = "../subproductdomain" }
 ark-std = "0.4"
