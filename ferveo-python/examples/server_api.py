@@ -9,6 +9,7 @@ from ferveo_py import (
     AggregatedTranscript,
     Ciphertext,
     DkgPublicKey,
+    # DkgPublicParameters,
 )
 
 tau = 1
@@ -87,7 +88,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
 
 shared_secret = combine_decryption_shares(decryption_shares)
 
-plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.g1_inv)
+plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
 assert bytes(plaintext) == msg
 
 # Other serializable objects
@@ -101,3 +102,8 @@ keypair_deser = Keypair.from_bytes(keypair_ser)
 dkg_pk = dkg.final_key
 dkg_pk_ser = bytes(dkg_pk)
 dkg_pk_deser = DkgPublicKey.from_bytes(dkg_pk_ser)
+
+# DKG public params
+# dkg_pp = dkg.public_params
+# dkg_pp_ser = bytes(dkg_pp)
+# dkg_pp_deser = DkgPublicParameters.from_bytes(dkg_pp_ser)

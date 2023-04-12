@@ -71,6 +71,8 @@ class Dkg:
 
     final_key: DkgPublicKey
 
+    public_params: DkgPublicParameters
+
     def generate_transcript(self) -> Transcript:
         ...
 
@@ -94,6 +96,15 @@ class UnblindingKey:
 class DecryptionShare:
     @staticmethod
     def from_bytes(data: bytes) -> DecryptionShare:
+        ...
+
+    def __bytes__(self) -> bytes:
+        ...
+
+
+class DkgPublicParameters:
+    @staticmethod
+    def from_bytes(data: bytes) -> AggregatedTranscript:
         ...
 
     def __bytes__(self) -> bytes:

@@ -12,4 +12,5 @@ from .ferveo_py import (
     DecryptionShare,
     AggregatedTranscript,
     DkgPublicKey,
+    DkgPublicParameters
 )

@@ -48,20 +48,32 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
-    g1_inv: &G1Prepared,
+    dkg_params: &DkgPublicParameters,
 ) -> PyResult<Vec<u8>> {
     ferveo::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
         &shared_secret.0,
-        &g1_inv.0,
+        &dkg_params.0.g1_inv,
     )
     .map_err(map_py_error)
 }
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::AsRef)]
-pub struct G1Prepared(ferveo::api::G1Prepared);
+pub struct DkgPublicParameters(ferveo::api::DkgPublicParameters);
+
+#[pymethods]
+impl DkgPublicParameters {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0.clone())
+    }
+}
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::AsRef)]
@@ -220,8 +232,8 @@ impl Dkg {
     }
 
     #[getter]
-    pub fn g1_inv(&self) -> G1Prepared {
-        G1Prepared(self.0.g1_inv())
+    pub fn public_params(&self) -> DkgPublicParameters {
+        DkgPublicParameters(self.0.public_params())
     }
 }
 

@@ -1,8 +1,10 @@
 use ark_poly::EvaluationDomain;
+use ferveo_common::serialization;
 pub use ferveo_common::{ExternalValidator, Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, share_combine_simple_precomputed,
     Ciphertext, DecryptionShareSimplePrecomputed as DecryptionShare,
@@ -62,8 +64,10 @@ impl Dkg {
         Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0)))
     }
 
-    pub fn g1_inv(&self) -> G1Prepared {
-        self.0.pvss_params.g_inv()
+    pub fn public_params(&self) -> DkgPublicParameters {
+        DkgPublicParameters {
+            g1_inv: self.0.pvss_params.g_inv(),
+        }
     }
 }
 
@@ -96,9 +100,25 @@ impl AggregatedTranscript {
     }
 }
 
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DkgPublicParameters {
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub g1_inv: G1Prepared,
+}
+
+impl DkgPublicParameters {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        bincode::deserialize(bytes).unwrap()
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod test_ferveo_api {
-
     use itertools::izip;
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
