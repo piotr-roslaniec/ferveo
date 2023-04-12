@@ -768,6 +768,7 @@ dependencies = [
 name = "ferveo-common"
 version = "0.1.0"
 dependencies = [
+ "ark-bls12-381",
  "ark-ec",
  "ark-serialize",
  "ark-std",

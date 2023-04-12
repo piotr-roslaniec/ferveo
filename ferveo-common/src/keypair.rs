@@ -67,3 +67,24 @@ impl<E: Pairing> Keypair<E> {
         Ok(Self::new(&mut rng))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type E = ark_bls12_381::Bls12_381;
+
+    #[test]
+    fn test_secure_randomness_generation() {
+        let bytes = [0u8; 32];
+        let keypair = Keypair::<E>::from_secure_randomness(&bytes);
+        assert!(keypair.is_ok());
+    }
+
+    #[test]
+    fn test_secure_randomness_generation_with_invalid_length() {
+        let bytes = [0u8; 31];
+        let keypair = Keypair::<E>::from_secure_randomness(&bytes);
+        assert!(keypair.is_err());
+    }
+}
