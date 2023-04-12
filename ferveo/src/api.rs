@@ -40,7 +40,7 @@ impl Dkg {
     }
 
     pub fn final_key(&self) -> DkgPublicKey {
-        self.0.final_key()
+        DkgPublicKey(self.0.final_key())
     }
 
     pub fn generate_transcript<R: RngCore>(
@@ -154,7 +154,7 @@ mod test_ferveo_api {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &public_key, rng).unwrap();
+        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)

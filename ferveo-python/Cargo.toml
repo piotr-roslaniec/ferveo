@@ -11,7 +11,7 @@ name = "ferveo_py"
 [dependencies]
 ferveo = { path = "../ferveo" }
 ferveo-common = { path = "../ferveo-common" }
-pyo3 = { version = "0.17.3", features = ["macros", "extension-module"] }
+pyo3 = { version = "0.18.2", features = ["macros", "extension-module"] }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
 rand = "0.8"
 

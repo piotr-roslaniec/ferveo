@@ -11,7 +11,7 @@ categories = ["cryptography"]
 authors = ["Heliax AG <hello@heliax.dev>"]
 
 [dependencies]
-group-threshold-cryptography = { path = "../tpke" }
+group-threshold-cryptography = { path = "../tpke"}
 ferveo-common = { path = "../ferveo-common" }
 subproductdomain = { path = "../subproductdomain" }
 ark-std = "0.4"
@@ -28,7 +28,6 @@ measure_time = "0.8"
 rand_core = "0.6.4"
 serde_with = "2.0.1"
 thiserror = "1.0"
-anyhow = "1.0"
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4
