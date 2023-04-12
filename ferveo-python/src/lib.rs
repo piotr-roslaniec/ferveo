@@ -56,7 +56,7 @@ pub fn decrypt_with_shared_secret(
         &shared_secret.0,
         &g1_inv.0,
     )
-    .map_err(|err| PyValueError::new_err(format!("{}", err)))
+    .map_err(map_py_error)
 }
 
 #[pyclass(module = "ferveo")]
@@ -94,7 +94,7 @@ impl Keypair {
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(Clone, derive_more::From, derive_more::AsRef)]
+#[derive(Clone, PartialEq, Eq, derive_more::From, derive_more::AsRef)]
 pub struct PublicKey(ferveo::api::PublicKey<E>);
 
 #[pymethods]
@@ -188,7 +188,7 @@ impl Dkg {
             &validators,
             &me.0,
         )
-        .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        .map_err(map_py_error)?;
         Ok(Self(dkg))
     }
 
@@ -199,10 +199,8 @@ impl Dkg {
 
     pub fn generate_transcript(&self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
-        let transcript = self
-            .0
-            .generate_transcript(rng)
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+        let transcript =
+            self.0.generate_transcript(rng).map_err(map_py_error)?;
         Ok(Transcript(transcript))
     }
 
@@ -217,7 +215,7 @@ impl Dkg {
         let aggregated_transcript = self
             .0
             .aggregate_transcripts(&transcripts)
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+            .map_err(map_py_error)?;
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -288,7 +286,7 @@ impl AggregatedTranscript {
                 aad,
                 &validator_keypair.0,
             )
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
+            .map_err(map_py_error)?;
         Ok(DecryptionShare(decryption_share))
     }
 
