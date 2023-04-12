@@ -52,7 +52,3 @@ required-features = ["test-common"]
 name = "arkworks"
 path = "benches/arkworks.rs"
 harness = false
-
-[profile.release]
-opt-level = 3
-lto = true
