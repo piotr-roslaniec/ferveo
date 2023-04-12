@@ -91,6 +91,18 @@ impl Keypair {
     }
 
     #[staticmethod]
+    pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
+        let keypair = ferveo::api::Keypair::<E>::from_secure_randomness(bytes)
+            .map_err(map_py_error)?;
+        Ok(Self(keypair))
+    }
+
+    #[staticmethod]
+    pub fn secure_randomness_size() -> usize {
+        ferveo::api::Keypair::<E>::secure_randomness_size()
+    }
+
+    #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
     }

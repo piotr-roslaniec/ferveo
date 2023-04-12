@@ -1,3 +1,5 @@
+import os
+
 from ferveo_py import (
     encrypt,
     combine_decryption_shares,
@@ -9,7 +11,6 @@ from ferveo_py import (
     AggregatedTranscript,
     Ciphertext,
     DkgPublicKey,
-    # DkgPublicParameters,
 )
 
 tau = 1
@@ -103,7 +104,8 @@ dkg_pk = dkg.final_key
 dkg_pk_ser = bytes(dkg_pk)
 dkg_pk_deser = DkgPublicKey.from_bytes(dkg_pk_ser)
 
-# DKG public params
-# dkg_pp = dkg.public_params
-# dkg_pp_ser = bytes(dkg_pp)
-# dkg_pp_deser = DkgPublicParameters.from_bytes(dkg_pp_ser)
+# Other utilities
+
+bytes_len = Keypair.secure_randomness_size()
+secure_randomness = os.urandom(bytes_len)
+keypair = Keypair.from_secure_randomness(secure_randomness)

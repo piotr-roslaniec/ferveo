@@ -1,7 +1,8 @@
 use std::ops::Mul;
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_std::rand::RngCore;
+use ark_std::rand::{prelude::StdRng, RngCore, SeedableRng};
+use rand_core::Error;
 use serde::*;
 use serde_with::serde_as;
 
@@ -50,5 +51,19 @@ impl<E: Pairing> Keypair<E> {
         Self {
             decryption_key: E::ScalarField::rand(rng),
         }
+    }
+
+    pub fn secure_randomness_size() -> usize {
+        32
+    }
+
+    pub fn from_secure_randomness(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.len() != Self::secure_randomness_size() {
+            return Err(Error::new("Invalid seed length"));
+        }
+        let mut seed = [0; 32];
+        seed.copy_from_slice(bytes);
+        let mut rng = StdRng::from_seed(seed);
+        Ok(Self::new(&mut rng))
     }
 }

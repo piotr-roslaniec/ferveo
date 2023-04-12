@@ -151,8 +151,6 @@ jobs:
       - run: python examples/server_api.py
         working-directory: ferveo-python
 
-
-
   codecov:
     runs-on: ubuntu-latest
     needs: [ test ]
