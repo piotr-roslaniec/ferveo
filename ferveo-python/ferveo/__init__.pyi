@@ -7,7 +7,11 @@ class Keypair:
         ...
 
     @staticmethod
-    def from_bytes(data: bytes) -> PublicKey:
+    def from_secure_randomness(data: bytes) -> Keypair:
+        ...
+
+    @staticmethod
+    def from_bytes(data: bytes) -> Keypair:
         ...
 
     def __bytes__(self) -> bytes:
@@ -104,7 +108,7 @@ class DecryptionShare:
 
 class DkgPublicParameters:
     @staticmethod
-    def from_bytes(data: bytes) -> AggregatedTranscript:
+    def from_bytes(data: bytes) -> DkgPublicParameters:
         ...
 
     def __bytes__(self) -> bytes:
