@@ -53,31 +53,22 @@ impl DecryptionShareSimplePrecomputed {
     }
 }
 
-#[serde_as]
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct PublicKey(
-    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
-    pub(crate)  tpke::api::DkgPublicKey,
-);
+pub struct PublicKey(pub(crate) tpke::api::DkgPublicKey);
 
 #[wasm_bindgen]
 impl PublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
     pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, Error> {
-        let mut reader = bytes;
-        let pk = tpke::api::DkgPublicKey::deserialize_uncompressed(&mut reader)
-            .map_err(map_js_err)?;
-        Ok(PublicKey(pk))
+        tpke::api::DkgPublicKey::from_bytes(bytes)
+            .map_err(map_js_err)
+            .map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
     pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
-        let mut bytes = Vec::new();
-        self.0
-            .serialize_uncompressed(&mut bytes)
-            .map_err(map_js_err)?;
-        Ok(bytes)
+        self.0.to_bytes().map_err(map_js_err)
     }
 }
 
@@ -134,7 +125,7 @@ pub fn encrypt(
 ) -> Result<Ciphertext, Error> {
     set_panic_hook();
     let rng = &mut rand::thread_rng();
-    let ciphertext = tpke::api::encrypt(message, aad, &public_key.0, rng)
+    let ciphertext = tpke::api::encrypt(message, aad, &public_key.0 .0, rng)
         .map_err(map_js_err)?;
     Ok(Ciphertext(ciphertext))
 }
@@ -278,7 +269,7 @@ pub mod test_common {
                     threshold, shares_num, &mut rng,
                 );
             Self {
-                public_key: PublicKey(public_key),
+                public_key: PublicKey(tpke::api::DkgPublicKey(public_key)),
                 private_key: PrivateKey(private_key),
                 private_contexts,
             }

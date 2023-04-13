@@ -1,7 +1,8 @@
 use std::ops::Mul;
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_std::rand::RngCore;
+use ark_std::rand::{prelude::StdRng, RngCore, SeedableRng};
+use rand_core::Error;
 use serde::*;
 use serde_with::serde_as;
 
@@ -50,5 +51,40 @@ impl<E: Pairing> Keypair<E> {
         Self {
             decryption_key: E::ScalarField::rand(rng),
         }
+    }
+
+    pub fn secure_randomness_size() -> usize {
+        32
+    }
+
+    pub fn from_secure_randomness(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.len() != Self::secure_randomness_size() {
+            return Err(Error::new("Invalid seed length"));
+        }
+        let mut seed = [0; 32];
+        seed.copy_from_slice(bytes);
+        let mut rng = StdRng::from_seed(seed);
+        Ok(Self::new(&mut rng))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type E = ark_bls12_381::Bls12_381;
+
+    #[test]
+    fn test_secure_randomness_generation() {
+        let bytes = [0u8; 32];
+        let keypair = Keypair::<E>::from_secure_randomness(&bytes);
+        assert!(keypair.is_ok());
+    }
+
+    #[test]
+    fn test_secure_randomness_generation_with_invalid_length() {
+        let bytes = [0u8; 31];
+        let keypair = Keypair::<E>::from_secure_randomness(&bytes);
+        assert!(keypair.is_err());
     }
 }

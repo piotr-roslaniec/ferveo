@@ -43,6 +43,11 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+      - name: Install cargo-machete
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-machete
+      - run: cargo machete
 
   test:
     runs-on: ubuntu-latest
@@ -87,7 +92,7 @@ jobs:
         target:
           - wasm32-unknown-unknown
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -107,7 +112,7 @@ jobs:
         target:
           - wasm32-unknown-unknown
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -126,6 +131,36 @@ jobs:
       - uses: borales/actions-yarn@v3.0.0
         with:
           cmd: --cwd tpke-wasm/examples/node test
+
+  python-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+        target:
+          - wasm32-unknown-unknown
+        python:
+          - "3.10"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+
+      - run: pip install -e .
+        working-directory: ferveo-python
+
+      - run: python examples/server_api.py
+        working-directory: ferveo-python
 
   codecov:
     runs-on: ubuntu-latest

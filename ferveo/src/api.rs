@@ -1,8 +1,10 @@
 use ark_poly::EvaluationDomain;
+use ferveo_common::serialization;
 pub use ferveo_common::{ExternalValidator, Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, share_combine_simple_precomputed,
     Ciphertext, DecryptionShareSimplePrecomputed as DecryptionShare,
@@ -40,7 +42,7 @@ impl Dkg {
     }
 
     pub fn final_key(&self) -> DkgPublicKey {
-        self.0.final_key()
+        DkgPublicKey(self.0.final_key())
     }
 
     pub fn generate_transcript<R: RngCore>(
@@ -60,6 +62,12 @@ impl Dkg {
             self.0.deal(validator.clone(), transcript.clone())?;
         }
         Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0)))
+    }
+
+    pub fn public_params(&self) -> DkgPublicParameters {
+        DkgPublicParameters {
+            g1_inv: self.0.pvss_params.g_inv(),
+        }
     }
 }
 
@@ -92,9 +100,25 @@ impl AggregatedTranscript {
     }
 }
 
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DkgPublicParameters {
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub g1_inv: G1Prepared,
+}
+
+impl DkgPublicParameters {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        bincode::deserialize(bytes).unwrap()
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod test_ferveo_api {
-
     use itertools::izip;
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
@@ -150,7 +174,7 @@ mod test_ferveo_api {
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &public_key, rng).unwrap();
+        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)

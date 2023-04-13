@@ -1,4 +1,4 @@
-from ._ferveo import (
+from .ferveo_py import (
     encrypt,
     combine_decryption_shares,
     decrypt_with_shared_secret,
@@ -11,4 +11,6 @@ from ._ferveo import (
     UnblindingKey,
     DecryptionShare,
     AggregatedTranscript,
+    DkgPublicKey,
+    DkgPublicParameters
 )

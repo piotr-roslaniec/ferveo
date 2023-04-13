@@ -10,7 +10,6 @@ anyhow = "1.0.47"
 ark-std = "0.4"
 ark-ec = "0.4"
 ark-ff = "0.4"
-ark-serialize = "0.4"
 ark-poly = "0.4"
 
 [dev-dependencies]
