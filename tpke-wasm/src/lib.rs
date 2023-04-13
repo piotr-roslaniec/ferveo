@@ -9,6 +9,8 @@ use serde_with::serde_as;
 use utils::*;
 use wasm_bindgen::prelude::*;
 
+use crate::test_common::DkgPublicParameters;
+
 extern crate wee_alloc;
 
 #[wasm_bindgen]
@@ -135,11 +137,16 @@ pub fn decrypt_with_private_key(
     ciphertext: &Ciphertext,
     aad: &[u8],
     private_key: &PrivateKey,
-    g_inv: &G1Prepared,
+    dkg_public_params: &DkgPublicParameters,
 ) -> Result<Vec<u8>, Error> {
     set_panic_hook();
-    tpke::api::decrypt_symmetric(&ciphertext.0, aad, &private_key.0, &g_inv.0)
-        .map_err(map_js_err)
+    tpke::api::decrypt_symmetric(
+        &ciphertext.0,
+        aad,
+        &private_key.0,
+        &dkg_public_params.0.g1_inv,
+    )
+    .map_err(map_js_err)
 }
 
 #[wasm_bindgen]
@@ -236,14 +243,14 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
-    g_inv: &G1Prepared,
+    dkg_public_params: &DkgPublicParameters,
 ) -> Result<Vec<u8>, Error> {
     set_panic_hook();
     tpke::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
         &shared_secret.0 .0,
-        &g_inv.0,
+        &dkg_public_params.0.g1_inv,
     )
     .map_err(map_js_err)
 }
@@ -251,6 +258,10 @@ pub fn decrypt_with_shared_secret(
 /// Factory functions for testing
 pub mod test_common {
     use super::*;
+
+    #[wasm_bindgen]
+    #[derive(Clone, Debug)]
+    pub struct DkgPublicParameters(pub(crate) ferveo::api::DkgPublicParameters);
 
     #[wasm_bindgen]
     #[derive(Clone, Debug)]
@@ -318,10 +329,12 @@ pub mod test_common {
             ))
         }
 
-        #[wasm_bindgen(getter, js_name = "gInv")]
-        pub fn g_inv(&self) -> G1Prepared {
+        #[wasm_bindgen(getter, js_name = "publicParameters")]
+        pub fn public_parameters(&self) -> DkgPublicParameters {
             set_panic_hook();
-            G1Prepared(self.private_contexts[0].setup_params.g_inv.clone())
+            DkgPublicParameters(ferveo::api::DkgPublicParameters {
+                g1_inv: self.private_contexts[0].clone().setup_params.g_inv,
+            })
         }
     }
 }
