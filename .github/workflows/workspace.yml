@@ -156,10 +156,23 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
-      - run: pip install -e .
+      - name: Install Ferveo Python package
+        run: pip install -e .
         working-directory: ferveo-python
 
-      - run: python examples/server_api.py
+      - name: Run Python Ferveo examples (server_api_precomputed)
+        run: python examples/server_api_precomputed.py
+        working-directory: ferveo-python
+
+      - name: Run Python Ferveo examples (server_api_simple)
+        run: python examples/server_api_simple.py
+        working-directory: ferveo-python
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run pytest
+        run: pytest
         working-directory: ferveo-python
 
   codecov:

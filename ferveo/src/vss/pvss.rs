@@ -15,8 +15,8 @@ use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use tpke::{
     prepare_combine_simple, refresh_private_key_share,
-    update_share_for_recovery, Ciphertext, DecryptionShareSimple,
-    DecryptionShareSimplePrecomputed, PrivateKeyShare,
+    update_share_for_recovery, Ciphertext, DecryptionSharePrecomputed,
+    DecryptionShareSimple, PrivateKeyShare,
 };
 
 use crate::{
@@ -261,7 +261,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_index: usize,
         domain_points: &[E::ScalarField],
         g_inv: &E::G1Prepared,
-    ) -> Result<DecryptionShareSimplePrecomputed<E>> {
+    ) -> Result<DecryptionSharePrecomputed<E>> {
         let private_key_share = self.decrypt_private_key_share(
             validator_decryption_key,
             validator_index,
@@ -269,7 +269,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
 
-        DecryptionShareSimplePrecomputed::new(
+        DecryptionSharePrecomputed::new(
             validator_index,
             validator_decryption_key,
             &private_key_share,

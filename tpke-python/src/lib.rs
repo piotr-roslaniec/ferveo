@@ -6,7 +6,7 @@ use ferveo_common::serialization::ToBytes;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
 #[pyclass(module = "tpke")]
-pub struct DecryptionShare(tpke::api::DecryptionShareSimplePrecomputed);
+pub struct DecryptionShare(tpke::api::DecryptionSharePrecomputed);
 
 impl DecryptionShare {
     pub fn to_bytes(&self) -> PyResult<PyObject> {

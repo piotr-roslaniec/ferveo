@@ -9,7 +9,7 @@ use subproductdomain::SubproductDomain;
 
 use crate::{
     verify_decryption_shares_fast, Ciphertext, DecryptionShareFast,
-    DecryptionShareSimple, DecryptionShareSimplePrecomputed, Error,
+    DecryptionSharePrecomputed, DecryptionShareSimple, Error,
     PublicDecryptionContextFast, Result,
 };
 
@@ -127,8 +127,8 @@ pub fn share_combine_simple<E: Pairing>(
     )
 }
 
-pub fn share_combine_simple_precomputed<E: Pairing>(
-    shares: &[DecryptionShareSimplePrecomputed<E>],
+pub fn share_combine_precomputed<E: Pairing>(
+    shares: &[DecryptionSharePrecomputed<E>],
 ) -> E::TargetField {
     // s = ∏ C_{λ_i}, where λ_i is the Lagrange coefficient for i
     shares

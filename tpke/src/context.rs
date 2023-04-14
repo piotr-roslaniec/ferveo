@@ -4,8 +4,8 @@ use ark_ec::{pairing::Pairing, CurveGroup};
 
 use crate::{
     check_ciphertext_validity, prepare_combine_simple, BlindedKeyShare,
-    Ciphertext, DecryptionShareFast, DecryptionShareSimple,
-    DecryptionShareSimplePrecomputed, PrivateKeyShare, PublicKeyShare, Result,
+    Ciphertext, DecryptionShareFast, DecryptionSharePrecomputed,
+    DecryptionShareSimple, PrivateKeyShare, PublicKeyShare, Result,
 };
 
 #[derive(Clone, Debug)]
@@ -99,7 +99,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
         &self,
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-    ) -> Result<DecryptionShareSimplePrecomputed<E>> {
+    ) -> Result<DecryptionSharePrecomputed<E>> {
         let domain = self
             .public_decryption_contexts
             .iter()
@@ -107,7 +107,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
             .collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
 
-        DecryptionShareSimplePrecomputed::new(
+        DecryptionSharePrecomputed::new(
             self.index,
             &self.validator_private_key,
             &self.private_key_share,
