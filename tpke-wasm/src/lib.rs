@@ -3,15 +3,18 @@ extern crate group_threshold_cryptography as tpke;
 mod utils;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use js_sys::Error;
+use ferveo::PubliclyVerifiableSS;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tpke::api::E;
 use utils::*;
 use wasm_bindgen::prelude::*;
 
 use crate::test_common::DkgPublicParameters;
 
 extern crate wee_alloc;
+
+type Result<T> = std::result::Result<T, js_sys::Error>;
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq)]
@@ -24,12 +27,12 @@ pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 #[wasm_bindgen]
 impl DecryptionShareSimple {
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple> {
         from_js_bytes(bytes).map(Self)
     }
 }
@@ -43,14 +46,14 @@ pub struct DecryptionShareSimplePrecomputed(
 #[wasm_bindgen]
 impl DecryptionShareSimplePrecomputed {
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
     pub fn from_bytes(
         bytes: &[u8],
-    ) -> Result<DecryptionShareSimplePrecomputed, Error> {
+    ) -> Result<DecryptionShareSimplePrecomputed> {
         from_js_bytes(bytes).map(Self)
     }
 }
@@ -62,14 +65,14 @@ pub struct PublicKey(pub(crate) ferveo::api::DkgPublicKey);
 #[wasm_bindgen]
 impl PublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey> {
         ferveo::api::DkgPublicKey::from_bytes(bytes)
             .map_err(map_js_err)
             .map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.0.to_bytes().map_err(map_js_err)
     }
 }
@@ -85,7 +88,7 @@ pub struct PrivateKey(
 #[wasm_bindgen]
 impl PrivateKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey> {
         let mut reader = bytes;
         let pk = tpke::api::PrivateKey::deserialize_uncompressed(&mut reader)
             .map_err(map_js_err)?;
@@ -93,7 +96,7 @@ impl PrivateKey {
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         self.0
             .serialize_uncompressed(&mut bytes)
@@ -109,12 +112,12 @@ pub struct Ciphertext(tpke::api::Ciphertext);
 #[wasm_bindgen]
 impl Ciphertext {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
@@ -124,7 +127,7 @@ pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     public_key: &PublicKey,
-) -> Result<Ciphertext, Error> {
+) -> Result<Ciphertext> {
     set_panic_hook();
     let rng = &mut rand::thread_rng();
     let ciphertext = tpke::api::encrypt(message, aad, &public_key.0 .0, rng)
@@ -138,7 +141,7 @@ pub fn decrypt_with_private_key(
     aad: &[u8],
     private_key: &PrivateKey,
     dkg_public_params: &DkgPublicParameters,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>> {
     set_panic_hook();
     tpke::api::decrypt_symmetric(
         &ciphertext.0,
@@ -244,7 +247,7 @@ pub fn decrypt_with_shared_secret(
     aad: &[u8],
     shared_secret: &SharedSecret,
     dkg_public_params: &DkgPublicParameters,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>> {
     set_panic_hook();
     tpke::api::decrypt_with_shared_secret(
         &ciphertext.0,
@@ -253,6 +256,77 @@ pub fn decrypt_with_shared_secret(
         &dkg_public_params.0.g1_inv,
     )
     .map_err(map_js_err)
+}
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
+pub struct Transcript(pub(crate) ferveo::api::Transcript<tpke::api::E>);
+
+#[wasm_bindgen]
+impl Transcript {
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Transcript> {
+        from_js_bytes(bytes).map(Self)
+    }
+
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        to_js_bytes(&self.0)
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
+pub struct AggregatedTranscript(pub(crate) ferveo::api::AggregatedTranscript);
+
+#[wasm_bindgen]
+impl AggregatedTranscript {
+    // TODO: Add custom types section instead of exposing `JsValue` to TS: https://timryan.org/2019/01/22/exporting-serde-types-to-typescript.html
+    #[wasm_bindgen(constructor)]
+    pub fn new(transcripts_js: JsValue) -> Result<AggregatedTranscript> {
+        set_panic_hook();
+        // TODO: Consider using serde_wasm_bindgen throughout the codebase
+        let transcripts = Self::unpack_transcripts(transcripts_js)?;
+        let aggregated_transcript =
+            ferveo::api::AggregatedTranscript::from_transcripts(&transcripts);
+        Ok(Self(aggregated_transcript))
+    }
+
+    fn unpack_transcripts(
+        transcripts_js: JsValue,
+    ) -> Result<Vec<PubliclyVerifiableSS<E>>> {
+        let transcripts: Vec<Transcript> =
+            serde_wasm_bindgen::from_value(transcripts_js)
+                .map_err(map_js_err)?;
+        let inner_transcripts =
+            transcripts.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
+        Ok(inner_transcripts)
+    }
+
+    #[wasm_bindgen]
+    pub fn verify(
+        &self,
+        shares_num: u32,
+        transcripts_js: JsValue,
+    ) -> Result<bool> {
+        set_panic_hook();
+        let transcripts = Self::unpack_transcripts(transcripts_js)?;
+        let is_valid = self
+            .0
+            .verify(shares_num, &transcripts[..])
+            .map_err(map_js_err)?;
+        Ok(is_valid)
+    }
+
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<AggregatedTranscript> {
+        from_js_bytes(bytes).map(Self)
+    }
+
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        to_js_bytes(&self.0)
+    }
 }
 
 /// Factory functions for testing
@@ -295,7 +369,7 @@ pub mod test_common {
             ciphertext: &Ciphertext,
             aad: &[u8],
             validator_index: usize,
-        ) -> Result<DecryptionShareSimple, Error> {
+        ) -> Result<DecryptionShareSimple> {
             set_panic_hook();
             Ok(DecryptionShareSimple(
                 self.private_contexts[validator_index]
@@ -310,7 +384,7 @@ pub mod test_common {
             ciphertext: &Ciphertext,
             aad: &[u8],
             validator_index: usize,
-        ) -> Result<DecryptionShareSimplePrecomputed, Error> {
+        ) -> Result<DecryptionShareSimplePrecomputed> {
             set_panic_hook();
             Ok(DecryptionShareSimplePrecomputed(
                 self.private_contexts[validator_index]

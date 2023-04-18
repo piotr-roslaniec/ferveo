@@ -1,4 +1,6 @@
-use ark_poly::EvaluationDomain;
+use ark_bls12_381::Fr;
+use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use bincode;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ferveo_common::serialization;
 pub use ferveo_common::{ExternalValidator, Keypair, PublicKey};
@@ -13,7 +15,8 @@ pub use tpke::api::{
     G1Affine, G1Prepared, SharedSecret, E,
 };
 
-pub use crate::{PubliclyVerifiableSS as Transcript, Result};
+pub use crate::PubliclyVerifiableSS as Transcript;
+use crate::{do_verify_aggregation, PVSSMap, PubliclyVerifiableSS, Result};
 
 #[serde_as]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,20 +94,20 @@ impl Dkg {
     pub fn generate_transcript<R: RngCore>(
         &self,
         rng: &mut R,
-    ) -> Result<crate::PubliclyVerifiableSS<E>> {
+    ) -> Result<Transcript<E>> {
         self.0.create_share(rng)
     }
 
     pub fn aggregate_transcripts(
-        &mut self,
-        messages: &Vec<(ExternalValidator<E>, Transcript<E>)>,
+        &self,
+        messages: &[(ExternalValidator<E>, Transcript<E>)],
     ) -> Result<AggregatedTranscript> {
-        // Avoid mutating current state
-        // TODO: Rewrite `deal` to not require mutability after validating this API design
-        for (validator, transcript) in messages {
-            self.0.deal(validator.clone(), transcript.clone())?;
+        for (validator, _) in messages {
+            self.0.verify_dealer(validator)?;
         }
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0)))
+        let transcripts: Vec<_> =
+            messages.iter().map(|(_, t)| t).cloned().collect();
+        Ok(AggregatedTranscript::from_transcripts(&transcripts[..]))
     }
 
     pub fn public_params(&self) -> DkgPublicParameters {
@@ -115,14 +118,59 @@ impl Dkg {
     }
 }
 
+fn make_pvss_map(transcripts: &[PubliclyVerifiableSS<E>]) -> PVSSMap<E> {
+    let mut pvss_map: PVSSMap<E> = PVSSMap::new();
+    for (i, transcript) in transcripts.iter().enumerate() {
+        pvss_map.insert(i as u32, transcript.clone());
+    }
+    pvss_map
+}
+
+// TODO: Move into lib.rs?
+fn do_verify_aggregated_transcript(
+    aggregated_transcript: &AggregatedTranscript,
+    shares_num: u32,
+    transcripts: &[PubliclyVerifiableSS<E>],
+) -> Result<bool> {
+    // TODO: Replace with an input variable? Do we get that from DA or do we store it in the SDK?
+    let pvss_params = crate::pvss::PubliclyVerifiableParams::<E>::default();
+    let validators = vec![];
+    let domain = Radix2EvaluationDomain::<Fr>::new(shares_num as usize)
+        .expect("Unable to construct an evaluation domain");
+
+    let is_valid_optimistic = aggregated_transcript.0.verify_optimistic();
+    if !is_valid_optimistic {
+        return Err(crate::Error::InvalidTranscriptAggregate);
+    }
+
+    let pvss_map = make_pvss_map(transcripts);
+    // This check also includes `verify_full`. See impl. for details.
+    let is_valid = do_verify_aggregation(
+        &aggregated_transcript.0.coeffs,
+        &aggregated_transcript.0.shares,
+        &pvss_params,
+        &validators,
+        &domain,
+        &pvss_map,
+    )?;
+    Ok(is_valid)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AggregatedTranscript(
-    crate::PubliclyVerifiableSS<E, crate::Aggregated>,
-);
+pub struct AggregatedTranscript(Transcript<E, crate::Aggregated>);
 
 impl AggregatedTranscript {
-    pub fn validate(&self, dkg: &Dkg) -> bool {
-        self.0.verify_full(&dkg.0)
+    pub fn from_transcripts(transcripts: &[Transcript<E>]) -> Self {
+        let pvss_map = make_pvss_map(transcripts);
+        AggregatedTranscript(crate::pvss::aggregate(&pvss_map))
+    }
+
+    pub fn verify(
+        &self,
+        shares_num: u32,
+        transcripts: &[Transcript<E>],
+    ) -> Result<bool> {
+        do_verify_aggregated_transcript(self, shares_num, transcripts)
     }
 
     pub fn create_decryption_share_precomputed(
@@ -170,18 +218,18 @@ pub struct DkgPublicParameters {
 }
 
 impl DkgPublicParameters {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).unwrap()
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        bincode::deserialize(bytes).map_err(|e| e.into())
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self).map_err(|e| e.into())
     }
 }
 
 #[cfg(test)]
 mod test_ferveo_api {
-    use itertools::izip;
+    use itertools::{izip, zip_eq};
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
     use crate::{api::*, dkg::test_common::*};
@@ -292,6 +340,161 @@ mod test_ferveo_api {
         let shares_num = 4;
         let security_threshold = 3;
 
+        let (transcripts, validators, validator_keypairs) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
+
+        // Lets say that we've only receives `security_threshold` transcripts
+        let transcripts = transcripts[..security_threshold as usize].to_vec();
+
+        // At this point, any given validator should be able to provide a DKG public key
+        let dkg = Dkg::new(
+            tau,
+            shares_num,
+            security_threshold,
+            &validators,
+            &validators[0],
+        )
+        .unwrap();
+        let public_key = dkg.final_key();
+
+        // In the meantime, the client creates a ciphertext and decryption request
+        let msg: &[u8] = "abc".as_bytes();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let rng = &mut thread_rng();
+        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
+
+        // Having aggregated the transcripts, the validators can now create decryption shares
+        let decryption_shares: Vec<_> =
+            izip!(validators.clone(), &validator_keypairs)
+                .map(|(me, validator_keypair)| {
+                    // Each validator holds their own instance of DKG and creates their own aggregate
+                    let dkg = Dkg::new(
+                        tau,
+                        shares_num,
+                        security_threshold,
+                        &validators,
+                        &me,
+                    )
+                    .unwrap();
+                    let messages: Vec<_> =
+                        zip_eq(validators.clone(), transcripts.clone())
+                            .collect();
+                    let local_aggregate =
+                        dkg.aggregate_transcripts(&messages).unwrap();
+                    assert!(local_aggregate
+                        .verify(dkg.0.params.shares_num, &transcripts)
+                        .is_ok());
+
+                    local_aggregate
+                        .create_decryption_share_precomputed(
+                            &dkg,
+                            &ciphertext,
+                            aad,
+                            validator_keypair,
+                        )
+                        .unwrap()
+                })
+                .collect();
+
+        // Now, the decryption share can be used to decrypt the ciphertext
+        // This part is part of the client API
+
+        let shared_secret = share_combine_precomputed(&decryption_shares);
+
+        let plaintext = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+            &dkg.public_params().g1_inv,
+        )
+        .unwrap();
+        assert_eq!(plaintext, msg);
+    }
+
+    #[test]
+    fn server_side_local_verification() {
+        let rng = &mut StdRng::seed_from_u64(0);
+
+        let tau = 1;
+        let security_threshold = 3;
+        let shares_num = 4;
+
+        let (transcripts, validators, _validator_keypairs) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
+
+        // Now that every validator holds a dkg instance and a transcript for every other validator,
+        // every validator can aggregate the transcripts
+        let me = validators[0].clone();
+        let dkg =
+            Dkg::new(tau, shares_num, security_threshold, &validators, &me)
+                .unwrap();
+
+        let messages: Vec<_> =
+            zip_eq(validators, transcripts.clone()).collect();
+        let local_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(local_aggregate
+            .verify(dkg.0.params.shares_num, &transcripts)
+            .is_ok());
+    }
+
+    #[test]
+    fn client_side_local_verification() {
+        let rng = &mut StdRng::seed_from_u64(0);
+
+        let tau = 1;
+        let security_threshold = 3;
+        let shares_num = 4;
+
+        let (transcripts, _, _) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
+
+        // We only need `security_threshold` transcripts to aggregate
+        let transcripts = &transcripts[..security_threshold as usize];
+
+        // Create an aggregated transcript on the client side
+        let aggregated_transcript =
+            AggregatedTranscript::from_transcripts(transcripts);
+
+        // We are separating the verification from the aggregation since the client may fetch
+        // the aggregate from a side-channel or decide to persist it and verify it later
+
+        // Now, the client can verify the aggregated transcript
+        let result = aggregated_transcript.verify(shares_num, transcripts);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test negative cases
+
+        // Not enough transcripts
+        let not_enough_transcripts = &transcripts[..2];
+        assert!(not_enough_transcripts.len() < security_threshold as usize);
+        let insufficient_aggregate =
+            AggregatedTranscript::from_transcripts(not_enough_transcripts);
+        let result = insufficient_aggregate.verify(shares_num, transcripts);
+        assert!(result.is_err());
+
+        // Unexpected transcripts in the aggregate or transcripts from a different ritual
+        // Using same DKG parameters, but different DKG instances and validators
+        let (bad_transcripts, _, _) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
+        let mixed_transcripts =
+            [&transcripts[..2], &bad_transcripts[..1]].concat();
+        let bad_aggregate =
+            AggregatedTranscript::from_transcripts(&mixed_transcripts);
+        let result = bad_aggregate.verify(shares_num, transcripts);
+        assert!(result.is_err());
+    }
+
+    fn make_test_inputs(
+        rng: &mut StdRng,
+        tau: u64,
+        security_threshold: u32,
+        shares_num: u32,
+    ) -> (
+        Vec<PubliclyVerifiableSS<E>>,
+        Vec<ExternalValidator<E>>,
+        Vec<Keypair<E>>,
+    ) {
         let validator_keypairs = gen_n_keypairs(shares_num);
         let validators = validator_keypairs
             .iter()
@@ -304,7 +507,7 @@ mod test_ferveo_api {
 
         // Each validator holds their own DKG instance and generates a transcript every
         // every validator, including themselves
-        let messages: Vec<_> = validators
+        let transcripts: Vec<_> = validators
             .iter()
             .map(|sender| {
                 let dkg = Dkg::new(
@@ -315,67 +518,9 @@ mod test_ferveo_api {
                     sender,
                 )
                 .unwrap();
-                (sender.clone(), dkg.generate_transcript(rng).unwrap())
+                dkg.generate_transcript(rng).unwrap()
             })
             .collect();
-
-        // Now that every validator holds a dkg instance and a transcript for every other validator,
-        // every validator can aggregate the transcripts
-        let me = validators[0].clone();
-        let mut dkg =
-            Dkg::new(tau, shares_num, security_threshold, &validators, &me)
-                .unwrap();
-
-        // Lets say that we've only receives `security_threshold` transcripts
-        let messages = messages[..security_threshold as usize].to_vec();
-        let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-
-        // At this point, any given validator should be able to provide a DKG public key
-        let public_key = dkg.final_key();
-
-        // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
-
-        // Having aggregated the transcripts, the validators can now create decryption shares
-        let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
-            .map(|(validator, validator_keypair)| {
-                // Each validator holds their own instance of DKG and creates their own aggregate
-                let mut dkg = Dkg::new(
-                    tau,
-                    shares_num,
-                    security_threshold,
-                    &validators,
-                    validator,
-                )
-                .unwrap();
-                let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-                assert!(pvss_aggregated.validate(&dkg));
-                aggregate
-                    .create_decryption_share_precomputed(
-                        &dkg,
-                        &ciphertext,
-                        aad,
-                        validator_keypair,
-                    )
-                    .unwrap()
-            })
-            .collect();
-
-        // Now, the decryption share can be used to decrypt the ciphertext
-        // This part is part of the client API
-
-        let shared_secret = share_combine_precomputed(&decryption_shares);
-
-        let plaintext = decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-            &dkg.0.pvss_params.g_inv(),
-        )
-        .unwrap();
-        assert_eq!(plaintext, msg);
+        (transcripts, validators, validator_keypairs)
     }
 }

@@ -13,6 +13,8 @@ use crate::{
     PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result,
 };
 
+pub type PVSSMap<E> = BTreeMap<u32, PubliclyVerifiableSS<E>>;
+
 /// The DKG context that holds all of the local state for participating in the DKG
 // TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
 //  Currently, we're assuming that the DKG is only mutated by the owner of the instance.
@@ -24,7 +26,7 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     // TODO: What is session_keypair?
     pub session_keypair: ferveo_common::Keypair<E>,
     pub validators: Vec<ferveo_common::Validator<E>>,
-    pub vss: BTreeMap<u32, PubliclyVerifiableSS<E>>,
+    pub vss: PVSSMap<E>,
     pub domain: ark_poly::Radix2EvaluationDomain<E::ScalarField>,
     pub state: DkgState<E>,
     pub me: usize,
@@ -51,7 +53,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
             params.shares_num as usize,
         )
-        .expect("unable to construct domain");
+        .expect("Unable to construct an evaluation domain");
 
         // keep track of the owner of this instance in the validator set
         let me = validators
@@ -107,7 +109,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             DkgState::Dealt => {
                 let final_key = self.final_key();
                 Ok(Message::Aggregate(Aggregation {
-                    vss: aggregate(self),
+                    vss: aggregate(&self.vss),
                     final_key,
                 }))
             }
@@ -163,18 +165,25 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             {
                 let minimum_shares =
                     self.params.shares_num - self.params.security_threshold;
-                let verified_shares = vss.verify_aggregation(self)?;
+                let actual_shares = vss.shares.len() as u32;
                 // we reject aggregations that fail to meet the security threshold
-                if verified_shares < minimum_shares {
-                    Err(Error::InsufficientTranscriptsForAggregate(
+                if actual_shares < minimum_shares {
+                    return Err(Error::InsufficientTranscriptsForAggregate(
                         minimum_shares,
-                        verified_shares,
-                    ))
-                } else if &self.final_key() == final_key {
-                    Ok(())
-                } else {
-                    Err(Error::InvalidFinalKey)
+                        actual_shares,
+                    ));
                 }
+
+                let is_aggregate_valid = vss.verify_aggregation(self)?;
+                if !is_aggregate_valid {
+                    return Err(Error::InvalidTranscriptAggregate);
+                }
+
+                if &self.final_key() == final_key {
+                    return Ok(());
+                }
+
+                Err(Error::InvalidFinalKey)
             }
             _ => Err(Error::InvalidDkgStateToVerify),
         }
@@ -228,18 +237,11 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
-    pub fn deal(
-        &mut self,
-        sender: ExternalValidator<E>,
-        pvss: Pvss<E>,
-    ) -> Result<()> {
-        // Add the ephemeral public key and pvss transcript
-        let sender = self
-            .validators
+    pub fn verify_dealer(&self, sender: &ExternalValidator<E>) -> Result<()> {
+        self.validators
             .iter()
-            .position(|probe| sender.address == probe.validator.address)
-            .ok_or_else(|| Error::UnknownDealer(sender.address))?;
-        self.vss.insert(sender as u32, pvss);
+            .find(|probe| sender.address == probe.validator.address)
+            .ok_or_else(|| Error::UnknownDealer(sender.clone().address))?;
         Ok(())
     }
 }

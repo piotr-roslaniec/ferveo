@@ -788,7 +788,7 @@ dependencies = [
  "ferveo",
  "ferveo-common",
  "pyo3",
- "pyo3-build-config 0.17.3",
+ "pyo3-build-config",
  "rand 0.8.5",
 ]
 
@@ -1388,20 +1388,10 @@ dependencies = [
  "libc",
  "memoffset 0.8.0",
  "parking_lot 0.12.1",
- "pyo3-build-config 0.18.2",
+ "pyo3-build-config",
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
-]
-
-[[package]]
-name = "pyo3-build-config"
-version = "0.17.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28fcd1e73f06ec85bf3280c48c67e731d8290ad3d730f8be9dc07946923005c8"
-dependencies = [
- "once_cell",
- "target-lexicon",
 ]
 
 [[package]]
@@ -1421,7 +1411,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0707f0ab26826fe4ccd59b69106e9df5e12d097457c7b8f9c0fd1d2743eec4d"
 dependencies = [
  "libc",
- "pyo3-build-config 0.18.2",
+ "pyo3-build-config",
 ]
 
 [[package]]
@@ -1667,6 +1657,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb7d1f0d3021d347a83e556fc4683dea2ea09d87bccdf88ff5c12545d89d5efb"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3b143e2833c57ab9ad3ea280d21fd34e285a42837aeb0ee301f4f41890fa00e"
+dependencies = [
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1945,7 +1946,7 @@ dependencies = [
  "ferveo-common",
  "group-threshold-cryptography",
  "pyo3",
- "pyo3-build-config 0.17.3",
+ "pyo3-build-config",
 ]
 
 [[package]]
@@ -1962,6 +1963,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
+ "serde-wasm-bindgen",
  "serde_with",
  "wasm-bindgen",
  "wasm-bindgen-test",

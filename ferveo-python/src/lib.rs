@@ -265,16 +265,12 @@ impl Dkg {
 
     pub fn aggregate_transcripts(
         &mut self,
-        transcripts: Vec<(ExternalValidator, Transcript)>,
+        transcripts: Vec<Transcript>,
     ) -> PyResult<AggregatedTranscript> {
-        let transcripts: Vec<_> = transcripts
-            .into_iter()
-            .map(|(validator, transcript)| (validator.0, transcript.0))
-            .collect();
-        let aggregated_transcript = self
-            .0
-            .aggregate_transcripts(&transcripts)
-            .map_err(map_py_error)?;
+        let transcripts: Vec<_> =
+            transcripts.into_iter().map(|t| t.0).collect();
+        let aggregated_transcript =
+            ferveo::api::AggregatedTranscript::from_transcripts(&transcripts);
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -342,8 +338,18 @@ pub struct AggregatedTranscript(ferveo::api::AggregatedTranscript);
 
 #[pymethods]
 impl AggregatedTranscript {
-    pub fn validate(&self, dkg: &Dkg) -> bool {
-        self.0.validate(&dkg.0)
+    pub fn verify(
+        &self,
+        shares_num: u32,
+        transcripts: Vec<Transcript>,
+    ) -> PyResult<bool> {
+        let transcripts: Vec<_> =
+            transcripts.into_iter().map(|t| t.0).collect();
+        let is_valid = self
+            .0
+            .verify(shares_num, &transcripts[..])
+            .map_err(map_py_error)?;
+        Ok(is_valid)
     }
 
     pub fn create_decryption_share_precomputed(

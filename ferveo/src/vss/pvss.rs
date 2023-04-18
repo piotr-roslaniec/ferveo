@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, ops::Mul};
 
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_ff::{Field, Zero};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
@@ -20,7 +20,7 @@ use tpke::{
 };
 
 use crate::{
-    batch_to_projective_g1, batch_to_projective_g2, Error,
+    batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
     PubliclyVerifiableDkg, Result,
 };
 
@@ -55,6 +55,13 @@ pub struct PubliclyVerifiableParams<E: Pairing> {
 }
 
 impl<E: Pairing> PubliclyVerifiableParams<E> {
+    pub fn default() -> Self {
+        Self {
+            g: E::G1::generator(),
+            h: E::G2::generator(),
+        }
+    }
+
     pub fn g_inv(&self) -> E::G1Prepared {
         E::G1Prepared::from(-self.g)
     }
@@ -144,9 +151,9 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         // "Does the first coefficient of the secret polynomial match the proof of knowledge?"
         E::pairing(
             self.coeffs[0].into_group(), // F_0 = g^s
-            E::G2Affine::generator(),    // h
+            E::G2Affine::generator(),    // h // TODO: Use pvss_params.h?
         ) == E::pairing(
-            E::G1Affine::generator(), // g
+            E::G1Affine::generator(), // g // TODO: Use pvss_params.g?
             self.sigma,               // h^s
         )
     }
@@ -159,28 +166,75 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
     pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
-        // compute the commitment
-        let mut commitment = batch_to_projective_g1::<E>(&self.coeffs);
-        print_time!("commitment fft");
-        dkg.domain.fft_in_place(&mut commitment);
+        do_verify_full(
+            &self.coeffs,
+            &self.shares,
+            &dkg.pvss_params,
+            &dkg.validators,
+            &dkg.domain,
+        )
+    }
+}
 
-        // Each validator checks that their share is correct
-        dkg.validators
-            .iter()
-            .zip(self.shares.iter())
-            .all(|(validator, y_i)| {
-                // TODO: Check #3 is missing
-                // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+pub fn do_verify_full<E: Pairing>(
+    pvss_coefficients: &[E::G1Affine],
+    pvss_encrypted_shares: &[E::G2Affine],
+    pvss_params: &PubliclyVerifiableParams<E>,
+    validators: &[ferveo_common::Validator<E>],
+    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+) -> bool {
+    // compute the commitment
+    let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
+    print_time!("commitment fft");
+    domain.fft_in_place(&mut commitment);
 
-                // Validator checks checks aggregated shares against commitment
-                let ek_i =
-                    validator.validator.public_key.encryption_key.into_group();
-                let a_i = &commitment[validator.share_index];
-                // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
-                // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
-                // e(G,Y) = e(A, ek)
-                E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
-            })
+    // Each validator checks that their share is correct
+    validators.iter().zip(pvss_encrypted_shares.iter()).all(
+        |(validator, y_i)| {
+            // TODO: Check #3 is missing
+            // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+
+            // Validator checks aggregated shares against commitment
+            let ek_i =
+                validator.validator.public_key.encryption_key.into_group();
+            let a_i = &commitment[validator.share_index];
+            // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
+            // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+            // e(G,Y) = e(A, ek)
+            E::pairing(pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
+        },
+    )
+}
+
+pub fn do_verify_aggregation<E: Pairing>(
+    pvss_agg_coefficients: &[E::G1Affine],
+    pvss_agg_encrypted_shares: &[E::G2Affine],
+    pvss_params: &PubliclyVerifiableParams<E>,
+    validators: &[ferveo_common::Validator<E>],
+    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    vss: &PVSSMap<E>,
+) -> Result<bool> {
+    print_time!("PVSS verify_aggregation");
+    let is_valid = do_verify_full(
+        pvss_agg_coefficients,
+        pvss_agg_encrypted_shares,
+        pvss_params,
+        validators,
+        domain,
+    );
+    if !is_valid {
+        return Err(Error::InvalidTranscriptAggregate);
+    }
+
+    // Now, we verify that the aggregated PVSS transcript is a valid aggregation
+    let mut y = E::G1::zero();
+    for (_, pvss) in vss.iter() {
+        y += pvss.coeffs[0].into_group();
+    }
+    if y.into_affine() == pvss_agg_coefficients[0] {
+        Ok(true)
+    } else {
+        Err(Error::InvalidTranscriptAggregate)
     }
 }
 
@@ -189,27 +243,19 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     /// Verify that this PVSS instance is a valid aggregation of
     /// the PVSS instances, produced by [`aggregate`],
     /// and received by the DKG context `dkg`
-    /// Returns the total valid weight of the aggregated PVSS
+    /// Returns the total nr of shares in the aggregated PVSS
     pub fn verify_aggregation(
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
-    ) -> Result<u32> {
-        print_time!("PVSS verify_aggregation");
-        self.verify_full(dkg);
-        // Now, we verify that the aggregated PVSS transcript is a valid aggregation
-        // If it is, we return the total weights of the PVSS transcripts
-        let mut y = E::G1::zero();
-        // TODO: If we don't deal with share weights anymore, do we even need to call `verify_aggregation`?
-        let mut shares_total = 0u32;
-        for (_, pvss) in dkg.vss.iter() {
-            y += pvss.coeffs[0].into_group();
-            shares_total += 1
-        }
-        if y.into_affine() == self.coeffs[0] {
-            Ok(shares_total)
-        } else {
-            Err(Error::InvalidTranscriptAggregate)
-        }
+    ) -> Result<bool> {
+        do_verify_aggregation(
+            &self.coeffs,
+            &self.shares,
+            &dkg.pvss_params,
+            &dkg.validators,
+            &dkg.domain,
+            &dkg.vss,
+        )
     }
 
     pub fn decrypt_private_key_share(
@@ -334,10 +380,9 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 /// into a new PVSS instance
 /// See: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
 pub fn aggregate<E: Pairing>(
-    dkg: &PubliclyVerifiableDkg<E>,
+    pvss_map: &PVSSMap<E>,
 ) -> PubliclyVerifiableSS<E, Aggregated> {
-    let pvss = &dkg.vss;
-    let mut pvss_iter = pvss.iter();
+    let mut pvss_iter = pvss_map.iter();
     let (_, first_pvss) = pvss_iter
         .next()
         .expect("May not aggregate empty PVSS instances");
@@ -478,7 +523,7 @@ mod test_pvss {
     #[test]
     fn test_aggregate_pvss() {
         let dkg = setup_dealt_dkg();
-        let aggregate = aggregate(&dkg);
+        let aggregate = aggregate(&dkg.vss);
         //check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
@@ -491,10 +536,7 @@ mod test_pvss {
         // check that the full verify returns true
         assert!(aggregate.verify_full(&dkg));
         // check that the verification of aggregation passes
-        assert_eq!(
-            aggregate.verify_aggregation(&dkg).expect("Test failed"),
-            dkg.validators.len() as u32
-        );
+        assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"),);
     }
 
     /// Check that if the aggregated pvss transcript has an
@@ -502,10 +544,10 @@ mod test_pvss {
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
         let dkg = setup_dealt_dkg();
-        let mut aggregated = aggregate(&dkg);
+        let mut aggregated = aggregate(&dkg.vss);
         while aggregated.coeffs[0] == G1::zero() {
             let dkg = setup_dkg(0);
-            aggregated = aggregate(&dkg);
+            aggregated = aggregate(&dkg.vss);
         }
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(

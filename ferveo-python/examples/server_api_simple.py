@@ -51,7 +51,7 @@ dkg = Dkg(
 # Let's say that we've only received `security_threshold` transcripts
 messages = messages[:security_threshold]
 pvss_aggregated = dkg.aggregate_transcripts(messages)
-assert pvss_aggregated.validate(dkg)
+assert pvss_aggregated.verify(shares_num, messages)
 
 # Server can persist transcripts and the aggregated transcript
 transcripts_ser = [bytes(transcript) for _, transcript in messages]
@@ -78,7 +78,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
     )
     # Assume the aggregated transcript is obtained through deserialization from a side-channel
     agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
-    agg_transcript_deser.validate(dkg)
+    agg_transcript_deser.verify(dkg)
 
     # The ciphertext is obtained from the client
     ciphertext_deser = Ciphertext.from_bytes(ciphertext_ser)

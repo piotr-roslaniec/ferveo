@@ -68,7 +68,11 @@ pub enum Error {
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
 
-    /// Serialization error
+    /// Serialization failed
+    #[error("Serialization failed")]
+    SerializationError(#[from] bincode::Error),
+
+    /// Serialization failed
     #[error("Serialization error")]
     SerializationError(#[from] ark_serialize::SerializationError),
 }
@@ -114,7 +118,7 @@ mod test_dkg_full {
                 assert_eq!(v.validator.public_key, k.public());
             });
 
-        let pvss_aggregated = aggregate(dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
@@ -193,7 +197,7 @@ mod test_dkg_full {
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
         let validator_keypairs = gen_n_keypairs(4);
 
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
         let domain_points = dkg
             .domain
             .elements()
@@ -340,7 +344,7 @@ mod test_dkg_full {
             .collect::<HashMap<_, _>>();
 
         // Participants share updates and update their shares
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Now, every participant separately:
         let updated_shares: Vec<_> = validator_keypairs
@@ -422,7 +426,7 @@ mod test_dkg_full {
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
         let validator_keypairs = gen_n_keypairs(4);
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
