@@ -237,11 +237,20 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
-    pub fn verify_dealer(&self, sender: &ExternalValidator<E>) -> Result<()> {
-        self.validators
+    // TODO: Instead of using this mutable functions, remove all state-fullness from the DKG
+    // implementation and make it a pure function that takes a DkgState and returns a new one
+    pub fn deal(
+        &mut self,
+        sender: &ExternalValidator<E>,
+        pvss: &Pvss<E>,
+    ) -> Result<()> {
+        // Add the ephemeral public key and pvss transcript
+        let sender = self
+            .validators
             .iter()
-            .find(|probe| sender.address == probe.validator.address)
+            .position(|probe| sender.address == probe.validator.address)
             .ok_or_else(|| Error::UnknownDealer(sender.clone().address))?;
+        self.vss.insert(sender as u32, pvss.clone());
         Ok(())
     }
 }

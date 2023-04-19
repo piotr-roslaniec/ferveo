@@ -408,6 +408,11 @@ pub mod test_common {
             set_panic_hook();
             DkgPublicParameters(ferveo::api::DkgPublicParameters {
                 g1_inv: self.private_contexts[0].clone().setup_params.g_inv,
+                domain_points: self.private_contexts[0]
+                    .public_decryption_contexts
+                    .iter()
+                    .map(|x| x.domain)
+                    .collect(),
             })
         }
     }

@@ -391,6 +391,15 @@ impl AggregatedTranscript {
     }
 
     #[staticmethod]
+    pub fn from_transcripts(transcripts: Vec<Transcript>) -> Self {
+        let transcripts: Vec<_> =
+            transcripts.into_iter().map(|t| t.0).collect();
+        Self(ferveo::api::AggregatedTranscript::from_transcripts(
+            &transcripts,
+        ))
+    }
+
+    #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
     }

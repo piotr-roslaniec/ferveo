@@ -70,11 +70,11 @@ pub enum Error {
 
     /// Serialization failed
     #[error("Serialization failed")]
-    SerializationError(#[from] bincode::Error),
+    BincodeSerializationError(#[from] bincode::Error),
 
     /// Serialization failed
-    #[error("Serialization error")]
-    SerializationError(#[from] ark_serialize::SerializationError),
+    #[error("Serialization failed")]
+    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

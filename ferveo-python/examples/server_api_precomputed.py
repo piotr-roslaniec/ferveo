@@ -1,5 +1,3 @@
-import os
-
 from ferveo_py import (
     encrypt,
     combine_decryption_shares_precomputed,
@@ -41,25 +39,31 @@ for sender in validators:
     )
     messages.append((sender, dkg.generate_transcript()))
 
-# Now that every validator holds a dkg instance and a transcript for every other validator,
-# every validator can aggregate the transcripts
-me = validators[0]
+
+# Let's say that we've only received `security_threshold` transcripts
+messages = messages[:security_threshold]
+transcripts = [transcript for _, transcript in messages]
+
+# Every validator can aggregate the transcripts
 dkg = Dkg(
     tau=tau,
     shares_num=shares_num,
     security_threshold=security_threshold,
     validators=validators,
-    me=me,
+    me=validators[0],
 )
-# Let's say that we've only received `security_threshold` transcripts
-messages = messages[:security_threshold]
-pvss_aggregated = dkg.aggregate_transcripts(messages)
-assert pvss_aggregated.validate(dkg)
+server_aggregate = dkg.aggregate_transcripts(transcripts)
+assert server_aggregate.verify(shares_num, transcripts)
 
-# Server can persist transcripts and the aggregated transcript
+# Clients can also create aggregates and verify them
+client_aggregate = AggregatedTranscript.from_transcripts(transcripts)
+assert client_aggregate.verify(shares_num, transcripts)
+
+# We can persist transcripts and the aggregated transcript
 transcripts_ser = [bytes(transcript) for _, transcript in messages]
 _transcripts_deser = [Transcript.from_bytes(t) for t in transcripts_ser]
-agg_transcript_ser = bytes(pvss_aggregated)
+agg_transcript_ser = bytes(server_aggregate)
+_agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
 
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
@@ -81,7 +85,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
     )
     # Assume the aggregated transcript is obtained through deserialization from a side-channel
     agg_transcript_deser = AggregatedTranscript.from_bytes(agg_transcript_ser)
-    agg_transcript_deser.validate(dkg)
+    agg_transcript_deser.verify(shares_num, transcripts)
 
     # The ciphertext is obtained from the client
     ciphertext_deser = Ciphertext.from_bytes(ciphertext_ser)

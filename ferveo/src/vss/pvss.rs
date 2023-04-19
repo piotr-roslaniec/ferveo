@@ -55,15 +55,17 @@ pub struct PubliclyVerifiableParams<E: Pairing> {
 }
 
 impl<E: Pairing> PubliclyVerifiableParams<E> {
-    pub fn default() -> Self {
+    pub fn g_inv(&self) -> E::G1Prepared {
+        E::G1Prepared::from(-self.g)
+    }
+}
+
+impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
+    fn default() -> Self {
         Self {
             g: E::G1::generator(),
             h: E::G2::generator(),
         }
-    }
-
-    pub fn g_inv(&self) -> E::G1Prepared {
-        E::G1Prepared::from(-self.g)
     }
 }
 

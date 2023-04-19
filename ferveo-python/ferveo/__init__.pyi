@@ -150,6 +150,9 @@ class AggregatedTranscript:
         ...
 
     @staticmethod
+    def from_transcripts(transcripts: Sequence[Transcript]) -> AggregatedTranscript:
+        ...
+    @staticmethod
     def from_bytes(data: bytes) -> AggregatedTranscript:
         ...
 
