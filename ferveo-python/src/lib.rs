@@ -26,21 +26,44 @@ fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
 pub fn encrypt(
     message: &[u8],
     aad: &[u8],
-    public_key: &DkgPublicKey,
+    dkg_public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
-    let ciphertext = ferveo::api::encrypt(message, aad, &public_key.0 .0, rng)
-        .map_err(map_py_error)?;
+    let ciphertext =
+        ferveo::api::encrypt(message, aad, &dkg_public_key.0 .0, rng)
+            .map_err(map_py_error)?;
     Ok(Ciphertext(ciphertext))
 }
 
 #[pyfunction]
-pub fn combine_decryption_shares(shares: Vec<DecryptionShare>) -> SharedSecret {
+pub fn combine_decryption_shares_simple(
+    shares: Vec<DecryptionShareSimple>,
+    dkg_public_params: &DkgPublicParameters,
+) -> SharedSecret {
     let shares = shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    SharedSecret(ferveo::api::share_combine_simple_precomputed(&shares))
+    let domain_points = &dkg_public_params.0.domain_points;
+    let lagrange_coefficients =
+        ferveo::api::prepare_combine_simple::<E>(&domain_points[..]);
+    let shared_secret = ferveo::api::share_combine_simple(
+        &shares[..],
+        &lagrange_coefficients[..],
+    );
+    SharedSecret(ferveo::api::SharedSecret(shared_secret))
+}
+
+#[pyfunction]
+pub fn combine_decryption_shares_precomputed(
+    shares: Vec<DecryptionSharePrecomputed>,
+) -> SharedSecret {
+    let shares = shares
+        .iter()
+        .map(|share| share.0.clone())
+        .collect::<Vec<_>>();
+    let shared_secret = ferveo::api::share_combine_precomputed(&shares[..]);
+    SharedSecret(ferveo::api::SharedSecret(shared_secret))
 }
 
 #[pyfunction]
@@ -53,7 +76,7 @@ pub fn decrypt_with_shared_secret(
     ferveo::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
-        &shared_secret.0,
+        &shared_secret.0 .0,
         &dkg_params.0.g1_inv,
     )
     .map_err(map_py_error)
@@ -78,6 +101,18 @@ impl DkgPublicParameters {
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::AsRef)]
 pub struct SharedSecret(ferveo::api::SharedSecret);
+
+#[pymethods]
+impl SharedSecret {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0)
+    }
+}
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
@@ -269,12 +304,24 @@ impl Ciphertext {
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct UnblindingKey(ferveo::api::UnblindingKey);
 
+#[pymethods]
+impl UnblindingKey {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(self.0)
+    }
+}
+
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
-pub struct DecryptionShare(ferveo::api::DecryptionShare);
+pub struct DecryptionShareSimple(ferveo::api::DecryptionShareSimple);
 
 #[pymethods]
-impl DecryptionShare {
+impl DecryptionShareSimple {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
@@ -286,6 +333,10 @@ impl DecryptionShare {
 }
 
 #[pyclass(module = "ferveo")]
+#[derive(Clone, derive_more::AsRef, derive_more::From)]
+pub struct DecryptionSharePrecomputed(ferveo::api::DecryptionSharePrecomputed);
+
+#[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct AggregatedTranscript(ferveo::api::AggregatedTranscript);
 
@@ -295,23 +346,42 @@ impl AggregatedTranscript {
         self.0.validate(&dkg.0)
     }
 
-    pub fn create_decryption_share(
+    pub fn create_decryption_share_precomputed(
         &self,
         dkg: &Dkg,
         ciphertext: &Ciphertext,
         aad: &[u8],
         validator_keypair: &Keypair,
-    ) -> PyResult<DecryptionShare> {
+    ) -> PyResult<DecryptionSharePrecomputed> {
         let decryption_share = self
             .0
-            .create_decryption_share(
+            .create_decryption_share_precomputed(
                 &dkg.0,
                 &ciphertext.0,
                 aad,
                 &validator_keypair.0,
             )
             .map_err(map_py_error)?;
-        Ok(DecryptionShare(decryption_share))
+        Ok(DecryptionSharePrecomputed(decryption_share))
+    }
+
+    pub fn create_decryption_share_simple(
+        &self,
+        dkg: &Dkg,
+        ciphertext: &Ciphertext,
+        aad: &[u8],
+        validator_keypair: &Keypair,
+    ) -> PyResult<DecryptionShareSimple> {
+        let decryption_share = self
+            .0
+            .create_decryption_share_simple(
+                &dkg.0,
+                &ciphertext.0,
+                aad,
+                &validator_keypair.0,
+            )
+            .map_err(map_py_error)?;
+        Ok(DecryptionShareSimple(decryption_share))
     }
 
     #[staticmethod]
@@ -328,7 +398,11 @@ impl AggregatedTranscript {
 #[pymodule]
 fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encrypt, m)?)?;
-    m.add_function(wrap_pyfunction!(combine_decryption_shares, m)?)?;
+    m.add_function(wrap_pyfunction!(combine_decryption_shares_simple, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        combine_decryption_shares_precomputed,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(decrypt_with_shared_secret, m)?)?;
     m.add_class::<Keypair>()?;
     m.add_class::<PublicKey>()?;
@@ -337,8 +411,11 @@ fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Dkg>()?;
     m.add_class::<Ciphertext>()?;
     m.add_class::<UnblindingKey>()?;
-    m.add_class::<DecryptionShare>()?;
+    m.add_class::<DecryptionShareSimple>()?;
+    m.add_class::<DecryptionSharePrecomputed>()?;
     m.add_class::<AggregatedTranscript>()?;
     m.add_class::<DkgPublicKey>()?;
+    m.add_class::<DkgPublicParameters>()?;
+    m.add_class::<SharedSecret>()?;
     Ok(())
 }

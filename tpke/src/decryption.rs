@@ -154,14 +154,14 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     serialize = "ValidatorShareChecksum<E>: Serialize",
     deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"
 ))]
-pub struct DecryptionShareSimplePrecomputed<E: Pairing> {
+pub struct DecryptionSharePrecomputed<E: Pairing> {
     pub decrypter_index: usize,
     #[serde_as(as = "serialization::SerdeAs")]
     pub decryption_share: E::TargetField,
     pub validator_checksum: ValidatorShareChecksum<E>,
 }
 
-impl<E: Pairing> DecryptionShareSimplePrecomputed<E> {
+impl<E: Pairing> DecryptionSharePrecomputed<E> {
     pub fn new(
         validator_index: usize,
         validator_decryption_key: &E::ScalarField,

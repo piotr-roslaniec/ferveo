@@ -270,6 +270,18 @@ pub mod test_common {
 
         (pubkey.into(), privkey.into(), private_contexts)
     }
+
+    pub fn setup_precomputed<E: Pairing>(
+        shares_num: usize,
+        rng: &mut impl rand::Rng,
+    ) -> (
+        E::G1Affine,
+        E::G2Affine,
+        Vec<PrivateDecryptionContextSimple<E>>,
+    ) {
+        // In precomputed variant, the security threshold is equal to the number of shares
+        setup_simple::<E>(shares_num, shares_num, rng)
+    }
 }
 
 #[cfg(test)]
@@ -423,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn fast_decryption_share_validation() {
+    fn tdec_fast_variant_share_validation() {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -438,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_decryption_share_validation() {
+    fn tdec_simple_variant_share_validation() {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -454,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn fast_threshold_encryption() {
+    fn tdec_fast_variant_e2e() {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -502,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_threshold_decryption() {
+    fn tdec_simple_variant_e2e() {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -535,15 +547,14 @@ mod tests {
     }
 
     #[test]
-    fn simple_threshold_decryption_precomputed() {
+    fn tdec_precomputed_variant_e2e() {
         let mut rng = &mut test_rng();
         let shares_num = 16;
-        let threshold = shares_num * 2 / 3;
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
-            setup_simple::<E>(threshold, shares_num, &mut rng);
+            setup_precomputed::<E>(shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
         let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
 
@@ -554,8 +565,7 @@ mod tests {
             })
             .collect();
 
-        let shared_secret =
-            share_combine_simple_precomputed::<E>(&decryption_shares);
+        let shared_secret = share_combine_precomputed::<E>(&decryption_shares);
 
         test_ciphertext_validation_fails(
             msg,
@@ -570,7 +580,7 @@ mod tests {
 
         let not_enough_shares = &decryption_shares[0..shares_num - 1];
         let bad_shared_secret =
-            share_combine_simple_precomputed::<E>(not_enough_shares);
+            share_combine_precomputed::<E>(not_enough_shares);
         assert!(decrypt_with_shared_secret(
             &ciphertext,
             aad,
@@ -581,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_threshold_decryption_share_verification() {
+    fn tdec_simple_variant_share_verification() {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -645,7 +655,7 @@ mod tests {
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
     /// The new share is intended to restore a previously existing share, e.g., due to loss or corruption.
     #[test]
-    fn simple_threshold_decryption_with_share_recovery_at_selected_point() {
+    fn tdec_simple_variant_share_recovery_at_selected_point() {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -696,7 +706,7 @@ mod tests {
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
     /// The new share is independent from the previously existing shares. We can use this to on-board a new participant into an existing cohort.
     #[test]
-    fn simple_threshold_decryption_with_share_recovery_at_random_point() {
+    fn tdec_simple_variant_share_recovery_at_random_point() {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
@@ -777,7 +787,7 @@ mod tests {
     /// The output is M new shares (with M <= Ñ), with each of the M new shares substituting the
     /// original share (i.e., the original share is deleted).
     #[test]
-    fn simple_threshold_decryption_with_share_refreshing() {
+    fn tdec_simple_variant_share_refreshing() {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;

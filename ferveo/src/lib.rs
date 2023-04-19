@@ -67,6 +67,10 @@ pub enum Error {
     /// Transcript aggregate doesn't match the received PVSS instances
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
+
+    /// Serialization error
+    #[error("Serialization error")]
+    SerializationError(#[from] ark_serialize::SerializationError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -83,7 +87,7 @@ mod test_dkg_full {
     use ferveo_common::Keypair;
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
-        Ciphertext, DecryptionShareSimple, DecryptionShareSimplePrecomputed,
+        Ciphertext, DecryptionSharePrecomputed, DecryptionShareSimple,
     };
     use itertools::{izip, Itertools};
 
@@ -196,7 +200,7 @@ mod test_dkg_full {
             .take(validator_keypairs.len())
             .collect::<Vec<_>>();
 
-        let decryption_shares: Vec<DecryptionShareSimplePrecomputed<E>> =
+        let decryption_shares: Vec<DecryptionSharePrecomputed<E>> =
             validator_keypairs
                 .iter()
                 .enumerate()
@@ -215,7 +219,7 @@ mod test_dkg_full {
                 .collect();
 
         let shared_secret =
-            tpke::share_combine_simple_precomputed::<E>(&decryption_shares);
+            tpke::share_combine_precomputed::<E>(&decryption_shares);
 
         // Combination works, let's decrypt
         let plaintext = tpke::decrypt_with_shared_secret(

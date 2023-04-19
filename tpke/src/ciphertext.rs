@@ -17,14 +17,17 @@ use crate::{htp_bls12381_g2, Error, Result};
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ciphertext<E: Pairing> {
-    #[serde_as(as = "serialization::SerdeAs")]
-    pub commitment: E::G1Affine,
     // U
     #[serde_as(as = "serialization::SerdeAs")]
-    pub auth_tag: E::G2Affine,
+    pub commitment: E::G1Affine,
+
     // W
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub auth_tag: E::G2Affine,
+
+    // V
     #[serde(with = "serde_bytes")]
-    pub ciphertext: Vec<u8>, // V
+    pub ciphertext: Vec<u8>,
 }
 
 impl<E: Pairing> Ciphertext<E> {

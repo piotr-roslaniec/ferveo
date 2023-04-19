@@ -746,6 +746,7 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-poly",
+ "ark-serialize",
  "ark-std",
  "bincode",
  "criterion 0.3.6",
@@ -781,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-python"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "derive_more",
  "ferveo",
@@ -1953,6 +1954,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "ark-serialize",
  "console_error_panic_hook",
+ "ferveo",
  "ferveo-common",
  "getrandom 0.2.8",
  "group-threshold-cryptography",

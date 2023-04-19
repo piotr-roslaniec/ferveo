@@ -35,7 +35,7 @@ impl DecryptionShareSimple {
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecryptionShareSimplePrecomputed(
-    tpke::api::DecryptionShareSimplePrecomputed,
+    tpke::api::DecryptionSharePrecomputed,
 );
 
 #[wasm_bindgen]
@@ -55,13 +55,13 @@ impl DecryptionShareSimplePrecomputed {
 
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct PublicKey(pub(crate) tpke::api::DkgPublicKey);
+pub struct PublicKey(pub(crate) ferveo::api::DkgPublicKey);
 
 #[wasm_bindgen]
 impl PublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
     pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, Error> {
-        tpke::api::DkgPublicKey::from_bytes(bytes)
+        ferveo::api::DkgPublicKey::from_bytes(bytes)
             .map_err(map_js_err)
             .map(Self)
     }
@@ -153,7 +153,7 @@ pub struct SharedSecret(tpke::api::SharedSecret);
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
 pub struct SharedSecretPrecomputedBuilder {
-    shares: Vec<tpke::api::DecryptionShareSimplePrecomputed>,
+    shares: Vec<tpke::api::DecryptionSharePrecomputed>,
     threshold: usize,
 }
 
@@ -181,7 +181,8 @@ impl SharedSecretPrecomputedBuilder {
         if self.shares.len() < self.threshold {
             panic!("Number of shares below threshold");
         }
-        SharedSecret(tpke::share_combine_simple_precomputed(&self.shares))
+        let shared_secret = tpke::api::share_combine_precomputed(&self.shares);
+        SharedSecret(tpke::api::SharedSecret(shared_secret))
     }
 }
 
@@ -211,7 +212,7 @@ impl SharedSecretSimpleBuilder {
 
     #[wasm_bindgen(js_name = "addDomainPoint")]
     pub fn add_domain_point(&mut self, domain_point: &DomainPoint) {
-        self.domain_points.push(domain_point.0.clone());
+        self.domain_points.push(domain_point.0);
     }
 
     #[wasm_bindgen]
@@ -224,7 +225,9 @@ impl SharedSecretSimpleBuilder {
             self.domain_points.iter().map(|x| x.0).collect();
         let lagrange_coeffs =
             tpke::prepare_combine_simple::<tpke::api::E>(&domain_points);
-        SharedSecret(tpke::share_combine_simple(&self.shares, &lagrange_coeffs))
+        let shared_secret =
+            tpke::share_combine_simple(&self.shares, &lagrange_coeffs);
+        SharedSecret(tpke::api::SharedSecret(shared_secret))
     }
 }
 
@@ -239,7 +242,7 @@ pub fn decrypt_with_shared_secret(
     tpke::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
-        &shared_secret.0,
+        &shared_secret.0 .0,
         &g_inv.0,
     )
     .map_err(map_js_err)
@@ -269,7 +272,7 @@ pub mod test_common {
                     threshold, shares_num, &mut rng,
                 );
             Self {
-                public_key: PublicKey(tpke::api::DkgPublicKey(public_key)),
+                public_key: PublicKey(ferveo::api::DkgPublicKey(public_key)),
                 private_key: PrivateKey(private_key),
                 private_contexts,
             }

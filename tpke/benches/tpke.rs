@@ -304,9 +304,7 @@ pub fn bench_share_combine(c: &mut Criterion) {
                 .collect();
 
             move || {
-                black_box(share_combine_simple_precomputed::<E>(
-                    &decryption_shares,
-                ));
+                black_box(share_combine_precomputed::<E>(&decryption_shares));
             }
         };
 
