@@ -336,6 +336,18 @@ impl DecryptionShareSimple {
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(ferveo::api::DecryptionSharePrecomputed);
 
+#[pymethods]
+impl DecryptionSharePrecomputed {
+    #[staticmethod]
+    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        from_py_bytes(bytes).map(Self)
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        to_py_bytes(&self.0)
+    }
+}
+
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct AggregatedTranscript(ferveo::api::AggregatedTranscript);
