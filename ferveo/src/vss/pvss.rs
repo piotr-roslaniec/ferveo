@@ -164,11 +164,13 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         print_time!("commitment fft");
         dkg.domain.fft_in_place(&mut commitment);
 
+        // Sort the validators to ensure that the shares are in the same order
+        let mut sorted_validators = dkg.validators.clone();
+        sorted_validators.sort();
+
         // Each validator checks that their share is correct
-        dkg.validators
-            .iter()
-            .zip(self.shares.iter())
-            .all(|(validator, y_i)| {
+        sorted_validators.iter().zip(self.shares.iter()).all(
+            |(validator, y_i)| {
                 // TODO: Check #3 is missing
                 // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
 
@@ -180,7 +182,8 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
                 // e(G,Y) = e(A, ek)
                 E::pairing(dkg.pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
-            })
+            },
+        )
     }
 }
 
@@ -474,10 +477,10 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    /// Show that if we dont maintain the ordering of the validators in the DKG instance
-    /// the PVSS aggregate verification will fail with a false negative
+    /// Show that the DKG instances and PVSS instances maintain a consistent ordering
+    /// of the validators.
     #[test]
-    fn test_implicit_ordering_of_shares_must_be_maintained() {
+    fn test_ordering_of_validators_is_maintaned() {
         let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dkg(0);
         let s = ScalarField::rand(rng);
@@ -493,42 +496,10 @@ mod test_pvss {
         shuffled_validators.shuffle(rng);
         dkg.validators = shuffled_validators;
 
-        // Optimistic verification will not catch any issues, should not fail here
+        // Optimistic verification would not catch an issue like this
         assert!(pvss.verify_optimistic());
-        // Full verification should and will fail here
-        assert!(!pvss.verify_full(&dkg));
-    }
-
-    /// Check that sorting validators in the DKG instance before creating a PVSS instance
-    /// will fix the issue of the implicit ordering of shares
-    #[test]
-    fn test_set_explicit_ordering_of_shares() {
-        let rng = &mut ark_std::test_rng();
-        let mut dkg = setup_dkg(0);
-        let s = ScalarField::rand(rng);
-
-        // Everyone sorts their validators
-        let mut sorted_validators = dkg.validators.clone();
-        sorted_validators.sort();
-        dkg.validators = sorted_validators;
-
-        // PVSS instance has the correct ordering of validators
-        let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
-
-        // Should fail because I had a different ordering of validators
-        let mut shuffled_validators = dkg.validators.clone();
-        shuffled_validators.shuffle(rng);
-        let mut my_dkg = dkg.clone();
-        my_dkg.validators = shuffled_validators;
-        assert!(!pvss.verify_full(&my_dkg));
-
-        // I need to sort my validators to match the PVSS instance
-        let mut sorted_validators = my_dkg.validators.clone();
-        sorted_validators.sort();
-        my_dkg.validators = sorted_validators;
-
-        // Now it should work
-        assert!(pvss.verify_full(&my_dkg));
+        // Full verification should not fail here because the ordering is maintained
+        assert!(pvss.verify_full(&dkg));
     }
 
     /// Check that happy flow of aggregating PVSS transcripts

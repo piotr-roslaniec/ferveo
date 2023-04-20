@@ -48,6 +48,10 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             return Err(Error::InvalidShareNumberParameter(params.shares_num));
         }
 
+        // Sort the validators to maintain a global ordering
+        let mut validators = validators.to_vec();
+        validators.sort();
+
         let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
             params.shares_num as usize,
         )
@@ -59,7 +63,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .position(|probe| me == probe)
             .ok_or_else(|| Error::ValidatorNotInSet(me.clone().address))?;
 
-        let validators = make_validators(validators);
+        let validators = make_validators(&validators);
 
         Ok(Self {
             session_keypair,
