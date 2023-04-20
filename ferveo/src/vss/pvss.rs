@@ -401,6 +401,7 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
+    use rand::seq::SliceRandom;
 
     use super::*;
     use crate::dkg::pv::test_common::*;
@@ -471,6 +472,31 @@ mod test_pvss {
         assert!(bad_pvss.verify_optimistic());
         // Full verification should catch this issue
         assert!(!bad_pvss.verify_full(&dkg));
+    }
+
+    /// Check that even if we change the implicit ordering of shares,
+    /// the PVSS aggregate is still correct
+    #[test]
+    fn test_implicit_ordering_of_shares() {
+        let rng = &mut ark_std::test_rng();
+        let mut dkg = setup_dkg(0);
+        let s = ScalarField::rand(rng);
+        let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
+
+        // So far, everything works
+        assert!(pvss.verify_optimistic());
+        assert!(pvss.verify_full(&dkg));
+
+        // Change the ordering of the validators in the DKG instance
+        // Now it won't match the ordering of the PVSS shares
+        let mut shuffled_validators = dkg.validators.clone();
+        shuffled_validators.shuffle(rng);
+        dkg.validators = shuffled_validators;
+
+        // Optimistic verification will not catch any issues, should not fail here
+        assert!(pvss.verify_optimistic());
+        // Full verification should also not fail on this
+        assert!(pvss.verify_full(&dkg)); // TODO: Throws an error, needs a fix
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
