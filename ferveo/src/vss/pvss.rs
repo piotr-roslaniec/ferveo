@@ -474,10 +474,10 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    /// Check that even if we change the implicit ordering of shares,
-    /// the PVSS aggregate is still correct
+    /// Show that if we dont maintain the ordering of the validators in the DKG instance
+    /// the PVSS aggregate verification will fail with a false negative
     #[test]
-    fn test_implicit_ordering_of_shares() {
+    fn test_implicit_ordering_of_shares_must_be_maintained() {
         let rng = &mut ark_std::test_rng();
         let mut dkg = setup_dkg(0);
         let s = ScalarField::rand(rng);
@@ -495,8 +495,40 @@ mod test_pvss {
 
         // Optimistic verification will not catch any issues, should not fail here
         assert!(pvss.verify_optimistic());
-        // Full verification should also not fail on this
-        assert!(pvss.verify_full(&dkg)); // TODO: Throws an error, needs a fix
+        // Full verification should and will fail here
+        assert!(!pvss.verify_full(&dkg));
+    }
+
+    /// Check that sorting validators in the DKG instance before creating a PVSS instance
+    /// will fix the issue of the implicit ordering of shares
+    #[test]
+    fn test_set_explicit_ordering_of_shares() {
+        let rng = &mut ark_std::test_rng();
+        let mut dkg = setup_dkg(0);
+        let s = ScalarField::rand(rng);
+
+        // Everyone sorts their validators
+        let mut sorted_validators = dkg.validators.clone();
+        sorted_validators.sort();
+        dkg.validators = sorted_validators;
+
+        // PVSS instance has the correct ordering of validators
+        let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
+
+        // Should fail because I had a different ordering of validators
+        let mut shuffled_validators = dkg.validators.clone();
+        shuffled_validators.shuffle(rng);
+        let mut my_dkg = dkg.clone();
+        my_dkg.validators = shuffled_validators;
+        assert!(!pvss.verify_full(&my_dkg));
+
+        // I need to sort my validators to match the PVSS instance
+        let mut sorted_validators = my_dkg.validators.clone();
+        sorted_validators.sort();
+        my_dkg.validators = sorted_validators;
+
+        // Now it should work
+        assert!(pvss.verify_full(&my_dkg));
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
