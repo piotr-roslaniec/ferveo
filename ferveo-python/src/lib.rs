@@ -146,7 +146,6 @@ impl Keypair {
         to_py_bytes(self.0)
     }
 
-    #[getter]
     pub fn public_key(&self) -> PublicKey {
         PublicKey(self.0.public())
     }
