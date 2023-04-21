@@ -46,7 +46,7 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
     tau = 1
     validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
     validators = [
-        ExternalValidator(f"validator-{i}", keypair.public_key)
+        ExternalValidator(f"validator-{i}", keypair.public_key())
         for i, keypair in enumerate(validator_keypairs)
     ]
     messages = []
