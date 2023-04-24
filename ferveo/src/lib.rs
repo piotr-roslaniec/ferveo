@@ -10,7 +10,6 @@ use ferveo_common::EthereumAddress;
 pub use primitives::*;
 pub use pvss::*;
 
-// TODO: Proof-read all error messages and their usage
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Threshold encryption error
@@ -79,11 +78,6 @@ pub enum Error {
     #[error("DKG validators not sorted")]
     ValidatorsNotSorted,
 
-    // TODO: Figure out how to handle this error without adding an additional generic to Error enum,
-    //  as it would trickle down to the Result type
-    // /// The validator public key doesn't match the one in the DKG
-    // #[error("Validator public key mismatch (expected {0}, got {1})")]
-    // ValidatorPublicKeyMismatch(PublicKey<E>, PublicKey<E>)
     /// The validator public key doesn't match the one in the DKG
     #[error("Validator public key mismatch")]
     ValidatorPublicKeyMismatch,

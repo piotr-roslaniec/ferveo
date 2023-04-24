@@ -499,11 +499,10 @@ mod test_pvss {
             &me,
         );
         assert!(result.is_err());
-        // TODO: Cannot derive PartialEq for ark_serialize::SerializationError
-        // assert_eq!(
-        //     result.unwrap_err(),
-        //     Error::ValidatorsNotSorted,
-        // );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            Error::ValidatorsNotSorted.to_string()
+        );
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
