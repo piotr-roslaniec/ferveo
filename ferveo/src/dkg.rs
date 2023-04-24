@@ -107,7 +107,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             })
             .collect();
 
-        // Make sure that `me` is a validator
+        // Make sure that `me` is a known validator
         if let Some(my_validator) = validators.get(&me.address) {
             if my_validator.validator.public_key != me.public_key {
                 return Err(Error::ValidatorPublicKeyMismatch);

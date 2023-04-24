@@ -27,9 +27,10 @@ shares_num = 4
 security_threshold = shares_num
 validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
 validators = [
-    ExternalValidator(gen_eth_addr(i), keypair.public_key)
+    ExternalValidator(gen_eth_addr(i), keypair.public_key())
     for i, keypair in enumerate(validator_keypairs)
 ]
+
 # Validators must be sorted by their public key
 validators.sort(key=lambda v: v.public_key)
 

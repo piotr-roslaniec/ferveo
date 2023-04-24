@@ -123,6 +123,7 @@ mod test_dkg_full {
         TargetField,
     ) {
         let pvss_aggregated = aggregate(dkg);
+        assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs

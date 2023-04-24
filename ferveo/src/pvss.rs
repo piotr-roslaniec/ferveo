@@ -416,7 +416,7 @@ mod test_pvss {
             Pvss::<EllipticCurve>::new(&s, &dkg, rng).expect("Test failed");
         // Check that the chosen secret coefficient is correct
         assert_eq!(pvss.coeffs[0], G1::generator().mul(s));
-        //Check that a polynomial of the correct degree was created
+        // Check that a polynomial of the correct degree was created
         assert_eq!(
             pvss.coeffs.len(),
             dkg.dkg_params.security_threshold as usize
@@ -438,7 +438,7 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let mut s = ScalarField::rand(rng);
-        // ensure that the proof of knowledge is not zero
+        // Ensure that the proof of knowledge is not zero
         while s == ScalarField::zero() {
             s = ScalarField::rand(rng);
         }
