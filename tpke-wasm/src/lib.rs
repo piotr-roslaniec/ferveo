@@ -16,7 +16,7 @@ extern crate wee_alloc;
 pub struct G1Prepared(tpke::api::G1Prepared);
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
@@ -33,7 +33,7 @@ impl DecryptionShareSimple {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptionShareSimplePrecomputed(
     tpke::api::DecryptionSharePrecomputed,
 );
@@ -101,7 +101,7 @@ impl PrivateKey {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ciphertext(tpke::api::Ciphertext);
 
 #[wasm_bindgen]

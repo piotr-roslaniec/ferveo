@@ -287,7 +287,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .validators
             .iter()
             .find(|(probe_address, _)| sender.address == **probe_address)
-            .ok_or_else(|| Error::UnknownDealer(sender.address))?;
+            .ok_or(Error::UnknownDealer(sender.address))?;
         self.vss.insert(sender_address.clone(), pvss);
         Ok(())
     }
@@ -405,7 +405,7 @@ pub(crate) mod test_common {
                     my_index as usize,
                 );
                 let me = dkg.me.validator.clone();
-                let message = dkg.share(rng).expect("Test failed");
+                let message = dkg.share(rng).unwrap();
                 (me, message)
             })
             .collect();
@@ -470,7 +470,7 @@ mod test_dealing {
         let mut messages = vec![];
         for i in 0..4 {
             let (mut dkg, _) = setup_dkg(i);
-            let message = dkg.share(rng).expect("Test failed");
+            let message = dkg.share(rng).unwrap();
             let sender = dkg.me.validator.clone();
             messages.push((sender, message));
         }
@@ -518,7 +518,7 @@ mod test_dealing {
                 block: 0
             }
         ));
-        let pvss = dkg.share(rng).expect("Test failed");
+        let pvss = dkg.share(rng).unwrap();
         let unknown_validator_i = dkg.dkg_params.shares_num + 1;
         let sender = Validator::<E> {
             address: gen_address(unknown_validator_i as usize),
@@ -553,14 +553,10 @@ mod test_dealing {
             }
         ));
 
-        let pvss = dkg.share(rng).expect("Test failed");
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let pvss = dkg.share(rng).unwrap();
+
+        // This validator has already sent a PVSS
+        let sender = dkg.me.validator.clone();
 
         // First PVSS is accepted
         assert!(dkg.verify_message(&sender, &pvss).is_ok());
@@ -593,7 +589,7 @@ mod test_dealing {
         ));
 
         // Sender creates a PVSS transcript
-        let pvss = dkg.share(rng).expect("Test failed");
+        let pvss = dkg.share(rng).unwrap();
         // Note that state of DKG has not changed
         assert!(matches!(
             dkg.state,
@@ -603,13 +599,7 @@ mod test_dealing {
             }
         ));
 
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let sender = dkg.me.validator.clone();
 
         // Sender verifies it's own PVSS transcript
         assert!(dkg.verify_message(&sender, &pvss).is_ok());
@@ -654,7 +644,7 @@ mod test_dealing {
     fn test_share_message_state_guards() {
         let rng = &mut ark_std::test_rng();
         let (mut dkg, _) = setup_dkg(0);
-        let pvss = dkg.share(rng).expect("Test failed");
+        let pvss = dkg.share(rng).unwrap();
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -662,13 +652,9 @@ mod test_dealing {
                 block: 0,
             }
         ));
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+
+        let sender = dkg.me.validator.clone();
+
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
@@ -695,14 +681,8 @@ mod test_aggregation {
     #[test]
     fn test_aggregate() {
         let (mut dkg, _) = setup_dealt_dkg();
-        let aggregate = dkg.aggregate().expect("Test failed");
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let aggregate = dkg.aggregate().unwrap();
+        let sender = dkg.me.validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_ok());
         assert!(dkg.apply_message(&sender, &aggregate).is_ok());
         assert!(matches!(dkg.state, DkgState::Success { .. }));
@@ -730,20 +710,16 @@ mod test_aggregation {
     #[test]
     fn test_aggregate_message_state_guards() {
         let (mut dkg, _) = setup_dealt_dkg();
-        let aggregate = dkg.aggregate().expect("Test failed");
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let aggregate = dkg.aggregate().unwrap();
+        let sender = dkg.me.validator.clone();
+
         dkg.state = DkgState::Sharing {
             accumulated_shares: 0,
             block: 0,
         };
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
         assert!(dkg.apply_message(&sender, &aggregate).is_err());
+
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
@@ -757,14 +733,8 @@ mod test_aggregation {
     fn test_aggregate_wont_verify_if_under_threshold() {
         let (mut dkg, _) = setup_dealt_dkg();
         dkg.dkg_params.shares_num = 10;
-        let aggregate = dkg.aggregate().expect("Test failed");
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let aggregate = dkg.aggregate().unwrap();
+        let sender = dkg.me.validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 
@@ -773,7 +743,7 @@ mod test_aggregation {
     #[test]
     fn test_aggregate_wont_verify_if_wrong_key() {
         let (dkg, _) = setup_dealt_dkg();
-        let mut aggregate = dkg.aggregate().expect("Test failed");
+        let mut aggregate = dkg.aggregate().unwrap();
         while dkg.final_key() == G1::zero() {
             let (_dkg, _) = setup_dealt_dkg();
         }
@@ -782,13 +752,7 @@ mod test_aggregation {
         {
             *final_key = G1::zero();
         }
-        let sender = dkg
-            .validators
-            .first_key_value()
-            .unwrap()
-            .1
-            .clone()
-            .validator;
+        let sender = dkg.me.validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 }

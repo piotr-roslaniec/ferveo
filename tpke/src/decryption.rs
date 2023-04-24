@@ -22,7 +22,7 @@ pub struct DecryptionShareFast<E: Pairing> {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ValidatorShareChecksum<E: Pairing> {
     #[serde_as(as = "serialization::SerdeAs")]
     pub checksum: E::G1Affine,
@@ -73,7 +73,7 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "ValidatorShareChecksum<E>: Serialize",
     deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"
@@ -148,7 +148,7 @@ impl<E: Pairing> DecryptionShareSimple<E> {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "ValidatorShareChecksum<E>: Serialize",
     deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"

@@ -138,7 +138,7 @@ fn main() {
     for (shares_num, threshold) in configs {
         println!("shares_num: {}, threshold: {}", shares_num, threshold);
         let dkg = setup(*shares_num as u32, threshold, rng);
-        let (_, transcript) = &dkg.vss.first_key_value().unwrap();
+        let transcript = &dkg.vss.values().next().unwrap();
         let transcript_bytes = bincode::serialize(&transcript).unwrap();
 
         save_data(

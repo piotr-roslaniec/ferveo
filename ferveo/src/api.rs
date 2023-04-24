@@ -33,7 +33,7 @@ impl DkgPublicKey {
 pub type UnblindingKey = FieldPoint;
 
 #[serde_as]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldPoint(#[serde_as(as = "serialization::SerdeAs")] pub Fr);
 
 impl FieldPoint {
@@ -103,7 +103,7 @@ impl Dkg {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregatedTranscript(
     crate::PubliclyVerifiableSS<E, crate::Aggregated>,
 );

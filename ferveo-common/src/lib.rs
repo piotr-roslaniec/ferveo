@@ -17,7 +17,7 @@ pub use utils::*;
 )]
 pub struct EthereumAddress(String);
 
-#[derive(Debug, Error, Clone, PartialEq)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum EthereumAddressParseError {
     #[error("Invalid Ethereum address length.")]
     InvalidLength,

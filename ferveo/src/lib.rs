@@ -304,8 +304,7 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec_share_recovery() {
         let rng = &mut test_rng();
 
-        let (mut dkg, validator_keypairs) =
-            setup_dealt_dkg_with_n_validators(3, 4);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.final_key();
@@ -325,14 +324,19 @@ mod test_dkg_full {
         let x_r = Fr::rand(rng);
 
         // Remove one participant from the contexts and all nested structure
-        let removed_validator = dkg.validators.pop_last().unwrap();
+        let removed_validator_addr =
+            dkg.validators.keys().last().unwrap().clone();
+        let removed_validator =
+            dkg.validators.get(&removed_validator_addr).unwrap();
+        let mut remaining_validators = dkg.validators.clone();
+        remaining_validators.remove(&removed_validator_addr);
+
         // Remember to remove one domain point too
         let mut domain_points = dkg.domain.elements().collect::<Vec<_>>();
         domain_points.pop().unwrap();
 
         // Each participant prepares an update for each other participant
-        let share_updates = &dkg
-            .validators
+        let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
                 let deltas_i = tpke::prepare_share_updates_for_recovery::<E>(
@@ -350,8 +354,7 @@ mod test_dkg_full {
         let pvss_aggregated = aggregate(&dkg);
 
         // Now, every participant separately:
-        let updated_shares: Vec<_> = dkg
-            .validators
+        let updated_shares: Vec<_> = remaining_validators
             .iter()
             .map(|(validator_address, validator)| {
                 // Receives updates from other participants
@@ -401,7 +404,7 @@ mod test_dkg_full {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        let share_index = removed_validator.1.share_index;
+        let share_index = removed_validator.share_index;
         decryption_shares.push(
             DecryptionShareSimple::create(
                 share_index,

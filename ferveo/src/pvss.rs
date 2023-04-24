@@ -29,11 +29,11 @@ use crate::{
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Unaggregated;
 
 /// Marker struct for aggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Aggregated;
 
 /// Trait gate used to add extra methods to aggregated PVSS transcripts
@@ -65,7 +65,7 @@ impl<E: Pairing> PubliclyVerifiableParams<E> {
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
 #[serde_as]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PubliclyVerifiableSS<E: Pairing, T = Unaggregated> {
     /// Used in Feldman commitment to the VSS polynomial, F = g^{\phi}
     #[serde_as(as = "ferveo_common::serialization::SerdeAs")]

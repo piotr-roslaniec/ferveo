@@ -57,7 +57,7 @@ impl<E: Pairing> BlindedKeyShare<E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateKeyShare<E: Pairing> {
     pub private_key_share: E::G2Affine,
 }
