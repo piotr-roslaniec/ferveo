@@ -1,12 +1,14 @@
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::unit_arg)]
 
+use std::str::FromStr;
+
 use ark_bls12_381::Bls12_381;
 pub use ark_bls12_381::Bls12_381 as EllipticCurve;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
 use digest::crypto_common::rand_core::SeedableRng;
 use ferveo::*;
-use ferveo_common::ExternalValidator;
+use ferveo_common::{EthereumAddress, Validator};
 use rand::prelude::StdRng;
 
 const NUM_SHARES_CASES: [usize; 5] = [4, 8, 16, 32, 64];
@@ -20,12 +22,16 @@ fn gen_keypairs(num: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
         .collect()
 }
 
+pub fn gen_address(i: usize) -> EthereumAddress {
+    EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+}
+
 fn gen_validators(
     keypairs: &[ferveo_common::Keypair<EllipticCurve>],
-) -> Vec<ExternalValidator<EllipticCurve>> {
+) -> Vec<Validator<EllipticCurve>> {
     (0..keypairs.len())
-        .map(|i| ExternalValidator {
-            address: format!("validator_{}", i),
+        .map(|i| Validator {
+            address: gen_address(i),
             public_key: keypairs[i].public(),
         })
         .collect()
@@ -40,13 +46,12 @@ fn setup_dkg(
     let me = validators[validator].clone();
     PubliclyVerifiableDkg::new(
         &validators,
-        Params {
+        &DkgParams {
             tau: 0,
             security_threshold: shares_num / 3,
             shares_num,
         },
         &me,
-        keypairs[validator],
     )
     .expect("Setup failed")
 }

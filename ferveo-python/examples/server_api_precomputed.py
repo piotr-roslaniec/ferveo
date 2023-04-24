@@ -1,5 +1,3 @@
-import os
-
 from ferveo_py import (
     encrypt,
     combine_decryption_shares_precomputed,
@@ -18,15 +16,22 @@ from ferveo_py import (
     SharedSecret,
 )
 
+
+def gen_eth_addr(i: int) -> str:
+    return f"0x{i:040x}"
+
+
 tau = 1
 shares_num = 4
 # In precomputed variant, security threshold must be equal to shares_num
 security_threshold = shares_num
 validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
 validators = [
-    ExternalValidator(f"validator-{i}", keypair.public_key)
+    ExternalValidator(gen_eth_addr(i), keypair.public_key)
     for i, keypair in enumerate(validator_keypairs)
 ]
+# Validators must be sorted by their public key
+validators.sort(key=lambda v: v.public_key)
 
 # Each validator holds their own DKG instance and generates a transcript every
 # validator, including themselves
@@ -51,6 +56,7 @@ dkg = Dkg(
     validators=validators,
     me=me,
 )
+
 # Let's say that we've only received `security_threshold` transcripts
 messages = messages[:security_threshold]
 pvss_aggregated = dkg.aggregate_transcripts(messages)
@@ -103,4 +109,3 @@ shared_secret = combine_decryption_shares_precomputed(decryption_shares)
 
 plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg_public_params_deser)
 assert bytes(plaintext) == msg
-

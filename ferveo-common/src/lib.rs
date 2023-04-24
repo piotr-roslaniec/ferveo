@@ -1,6 +1,8 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
 use ark_ec::pairing::Pairing;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod keypair;
 pub mod serialization;
@@ -10,54 +12,70 @@ pub use keypair::*;
 pub use serialization::*;
 pub use utils::*;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize, Hash,
+)]
+pub struct EthereumAddress(String);
+
+#[derive(Debug, Error, Clone, PartialEq)]
+pub enum EthereumAddressParseError {
+    #[error("Invalid Ethereum address length.")]
+    InvalidLength,
+
+    #[error("Invalid hex value in Ethereum address.")]
+    InvalidHex,
+}
+
+impl FromStr for EthereumAddress {
+    type Err = EthereumAddressParseError;
+
+    fn from_str(s: &str) -> Result<EthereumAddress, EthereumAddressParseError> {
+        if s.len() != 42 {
+            return Err(EthereumAddressParseError::InvalidLength);
+        }
+        hex::decode(&s[2..])
+            .map_err(|_| EthereumAddressParseError::InvalidHex)?;
+        Ok(EthereumAddress(s.to_string()))
+    }
+}
+
+impl Display for EthereumAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Represents an external validator
-pub struct ExternalValidator<E: Pairing> {
+pub struct Validator<E: Pairing> {
     /// The established address of the validator
-    pub address: String,
+    pub address: EthereumAddress,
     /// The Public key
     pub public_key: PublicKey<E>,
-}
-
-impl<E: Pairing> PartialOrd for ExternalValidator<E> {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.address.partial_cmp(&other.address)
-    }
-}
-
-impl<E: Pairing> Ord for ExternalValidator<E> {
-    #[inline]
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.address.cmp(&other.address)
-    }
-}
-
-impl<E: Pairing> ExternalValidator<E> {
-    pub fn new(address: String, public_key: PublicKey<E>) -> Self {
-        Self {
-            address,
-            public_key,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Validator<E: Pairing> {
-    pub validator: ExternalValidator<E>,
-    pub share_index: usize,
 }
 
 impl<E: Pairing> PartialOrd for Validator<E> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.validator.partial_cmp(&other.validator)
+        self.public_key.partial_cmp(&other.public_key)
     }
 }
 
 impl<E: Pairing> Ord for Validator<E> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
-        self.validator.cmp(&other.validator)
+        self.address.cmp(&other.address)
+    }
+}
+
+impl<E: Pairing> Validator<E> {
+    pub fn new(
+        address: String,
+        public_key: PublicKey<E>,
+    ) -> Result<Self, EthereumAddressParseError> {
+        Ok(Self {
+            address: EthereumAddress::from_str(&address)?,
+            public_key,
+        })
     }
 }

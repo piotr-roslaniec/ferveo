@@ -1,13 +1,16 @@
+use group_threshold_cryptography as tpke;
+
 pub mod api;
 pub mod dkg;
 pub mod primitives;
-mod vss;
+pub mod pvss;
 
 pub use dkg::*;
-use group_threshold_cryptography as tpke;
+use ferveo_common::EthereumAddress;
 pub use primitives::*;
-pub use vss::*;
+pub use pvss::*;
 
+// TODO: Proof-read all error messages and their usage
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Threshold encryption error
@@ -36,15 +39,15 @@ pub enum Error {
 
     /// DKG validator set must contain the validator with the given address
     #[error("Expected validator to be a part of the DKG validator set: {0}")]
-    ValidatorNotInSet(String),
+    DealerNotInValidatorSet(EthereumAddress),
 
     /// DKG received an unknown dealer. Dealer must be the part of the DKG validator set.
     #[error("DKG received an unknown dealer: {0}")]
-    UnknownDealer(String),
+    UnknownDealer(EthereumAddress),
 
     /// DKG received a PVSS transcript from a dealer that has already been dealt.
     #[error("DKG received a PVSS transcript from a dealer that has already been dealt: {0}")]
-    DuplicateDealer(String),
+    DuplicateDealer(EthereumAddress),
 
     /// DKG received an invalid transcript for which optimistic verification failed
     #[error("DKG received an invalid transcript")]
@@ -71,6 +74,19 @@ pub enum Error {
     /// Serialization error
     #[error("Serialization error")]
     SerializationError(#[from] ark_serialize::SerializationError),
+
+    /// DKG validators must be sorted
+    #[error("DKG validators not sorted")]
+    ValidatorsNotSorted,
+
+    // TODO: Figure out how to handle this error without adding an additional generic to Error enum,
+    //  as it would trickle down to the Result type
+    // /// The validator public key doesn't match the one in the DKG
+    // #[error("Validator public key mismatch (expected {0}, got {1})")]
+    // ValidatorPublicKeyMismatch(PublicKey<E>, PublicKey<E>)
+    /// The validator public key doesn't match the one in the DKG
+    #[error("Validator public key mismatch")]
+    ValidatorPublicKeyMismatch,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -89,10 +105,10 @@ mod test_dkg_full {
     use group_threshold_cryptography::{
         Ciphertext, DecryptionSharePrecomputed, DecryptionShareSimple,
     };
-    use itertools::{izip, Itertools};
+    use itertools::izip;
 
     use super::*;
-    use crate::dkg::pv::test_common::*;
+    use crate::dkg::test_common::*;
 
     type TargetField = <E as Pairing>::TargetField;
 
@@ -106,27 +122,20 @@ mod test_dkg_full {
         Vec<DecryptionShareSimple<E>>,
         TargetField,
     ) {
-        // Make sure validators are in the same order dkg is by comparing their public keys
-        dkg.validators
-            .iter()
-            .zip_eq(validator_keypairs.iter())
-            .for_each(|(v, k)| {
-                assert_eq!(v.validator.public_key, k.public());
-            });
-
         let pvss_aggregated = aggregate(dkg);
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
                 .iter()
-                .enumerate()
-                .map(|(validator_index, validator_keypair)| {
+                .map(|validator_keypair| {
+                    let validator =
+                        dkg.get_validator(&validator_keypair.public()).unwrap();
                     pvss_aggregated
                         .make_decryption_share_simple(
                             ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_index,
+                            validator.share_index,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -156,13 +165,12 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec() {
         let rng = &mut test_rng();
 
-        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
-        let validator_keypairs = gen_n_keypairs(4);
 
         let (_, _, shared_secret) = make_shared_secret_simple_tdec(
             &dkg,
@@ -185,15 +193,15 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec_precomputed() {
         let rng = &mut test_rng();
 
-        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
-        let validator_keypairs = gen_n_keypairs(4);
 
         let pvss_aggregated = aggregate(&dkg);
+        pvss_aggregated.verify_aggregation(&dkg).unwrap();
         let domain_points = dkg
             .domain
             .elements()
@@ -204,13 +212,13 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_index, validator_keypair)| {
+                .map(|(validator_address, validator_keypair)| {
                     pvss_aggregated
                         .make_decryption_share_simple_precomputed(
                             &ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_index,
+                            validator_address,
                             &domain_points,
                             &dkg.pvss_params.g_inv(),
                         )
@@ -236,13 +244,12 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec_share_verification() {
         let rng = &mut test_rng();
 
-        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.final_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
-        let validator_keypairs = gen_n_keypairs(4);
 
         let (pvss_aggregated, decryption_shares, _) =
             make_shared_secret_simple_tdec(
@@ -296,12 +303,12 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec_share_recovery() {
         let rng = &mut test_rng();
 
-        let mut dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let (mut dkg, validator_keypairs) =
+            setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.final_key();
         let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng).unwrap();
-        let mut validator_keypairs = gen_n_keypairs(4);
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
@@ -317,8 +324,7 @@ mod test_dkg_full {
         let x_r = Fr::rand(rng);
 
         // Remove one participant from the contexts and all nested structure
-        let removed_validator = dkg.validators.pop().unwrap();
-        validator_keypairs.pop();
+        let removed_validator = dkg.validators.pop_last().unwrap();
         // Remember to remove one domain point too
         let mut domain_points = dkg.domain.elements().collect::<Vec<_>>();
         domain_points.pop().unwrap();
@@ -326,16 +332,16 @@ mod test_dkg_full {
         // Each participant prepares an update for each other participant
         let share_updates = &dkg
             .validators
-            .iter()
-            .map(|p| {
+            .keys()
+            .map(|v_addr| {
                 let deltas_i = tpke::prepare_share_updates_for_recovery::<E>(
                     &domain_points,
                     &dkg.pvss_params.h.into_affine(),
                     &x_r,
-                    dkg.params.security_threshold as usize,
+                    dkg.dkg_params.security_threshold as usize,
                     rng,
                 );
-                (p.share_index, deltas_i)
+                (v_addr.clone(), deltas_i)
             })
             .collect::<HashMap<_, _>>();
 
@@ -343,21 +349,25 @@ mod test_dkg_full {
         let pvss_aggregated = aggregate(&dkg);
 
         // Now, every participant separately:
-        let updated_shares: Vec<_> = validator_keypairs
+        let updated_shares: Vec<_> = dkg
+            .validators
             .iter()
-            .enumerate()
-            .map(|(validator_index, validator_keypair)| {
+            .map(|(validator_address, validator)| {
                 // Receives updates from other participants
-                let updates_for_participant: Vec<_> = share_updates
-                    .values()
-                    .map(|updates| *updates.get(validator_index).unwrap())
-                    .collect();
+                let updates_for_participant =
+                    share_updates.get(validator_address).unwrap();
+
+                // Each validator uses their decryption key to update their share
+                let decryption_key = validator_keypairs
+                    .get(validator.share_index)
+                    .unwrap()
+                    .decryption_key;
 
                 // Creates updated private key shares
                 pvss_aggregated.update_private_key_share_for_recovery(
-                    &validator_keypair.decryption_key,
-                    validator_index,
-                    &updates_for_participant,
+                    &decryption_key,
+                    validator.share_index,
+                    updates_for_participant,
                 )
             })
             .collect();
@@ -375,13 +385,13 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_index, validator_keypair)| {
+                .map(|(validator_address, validator_keypair)| {
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_index,
+                            validator_address,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -390,10 +400,10 @@ mod test_dkg_full {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        let validator_index = removed_validator.share_index;
+        let share_index = removed_validator.1.share_index;
         decryption_shares.push(
             DecryptionShareSimple::create(
-                validator_index,
+                share_index,
                 &new_validator_decryption_key,
                 &new_private_key_share,
                 &ciphertext,
@@ -413,7 +423,7 @@ mod test_dkg_full {
     #[test]
     fn simple_tdec_share_refreshing() {
         let rng = &mut test_rng();
-        let dkg = setup_dealt_dkg_with_n_validators(3, 4);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
 
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
@@ -421,7 +431,6 @@ mod test_dkg_full {
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
-        let validator_keypairs = gen_n_keypairs(4);
         let pvss_aggregated = aggregate(&dkg);
 
         // Create an initial shared secret
@@ -436,7 +445,7 @@ mod test_dkg_full {
 
         // Dealer computes a new random polynomial with constant term x_r = 0
         let polynomial = tpke::make_random_polynomial_at::<E>(
-            dkg.params.security_threshold as usize,
+            dkg.dkg_params.security_threshold as usize,
             &Fr::zero(),
             rng,
         );
@@ -448,13 +457,13 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_index, validator_keypair)| {
+                .map(|(validator_address, validator_keypair)| {
                     pvss_aggregated
                         .refresh_decryption_share(
                             &ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_index,
+                            validator_address,
                             &polynomial,
                             &dkg,
                         )

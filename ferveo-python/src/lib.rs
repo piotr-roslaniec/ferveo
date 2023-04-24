@@ -4,7 +4,13 @@ use std::fmt::{self};
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{
+    basic::CompareOp,
+    exceptions::PyValueError,
+    prelude::*,
+    types::{PyBytes, PyUnicode},
+    PyClass,
+};
 use rand::thread_rng;
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
@@ -20,6 +26,31 @@ fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
 
 fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
     PyValueError::new_err(format!("{}", err))
+}
+
+// TODO: Not using generics here since some of the types don't implement AsRef<[u8]>
+fn hash(type_name: &str, bytes: &[u8]) -> PyResult<isize> {
+    // call `hash((class_name, bytes(obj)))`
+    Python::with_gil(|py| {
+        let builtins = PyModule::import(py, "builtins")?;
+        let arg1 = PyUnicode::new(py, type_name);
+        let arg2: PyObject = PyBytes::new(py, bytes).into();
+        builtins.getattr("hash")?.call1(((arg1, arg2),))?.extract()
+    })
+}
+
+fn richcmp<T>(obj: &T, other: &T, op: CompareOp) -> PyResult<bool>
+where
+    T: PyClass + PartialEq + PartialOrd,
+{
+    match op {
+        CompareOp::Eq => Ok(obj == other),
+        CompareOp::Ne => Ok(obj != other),
+        CompareOp::Lt => Ok(obj < other),
+        CompareOp::Le => Ok(obj <= other),
+        CompareOp::Gt => Ok(obj > other),
+        CompareOp::Ge => Ok(obj >= other),
+    }
 }
 
 #[pyfunction]
@@ -153,7 +184,9 @@ impl Keypair {
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(Clone, PartialEq, Eq, derive_more::From, derive_more::AsRef)]
+#[derive(
+    Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
+)]
 pub struct PublicKey(ferveo::api::PublicKey<E>);
 
 #[pymethods]
@@ -166,17 +199,28 @@ impl PublicKey {
     fn __bytes__(&self) -> PyResult<PyObject> {
         to_py_bytes(self.0)
     }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        richcmp(self, other, op)
+    }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        let bytes = self.0.to_bytes().map_err(map_py_error)?;
+        hash("PublicKey", &bytes)
+    }
 }
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct ExternalValidator(ferveo::api::ExternalValidator<E>);
+pub struct ExternalValidator(ferveo::api::Validator<E>);
 
 #[pymethods]
 impl ExternalValidator {
     #[new]
-    pub fn new(address: String, public_key: PublicKey) -> Self {
-        Self(ferveo::api::ExternalValidator::new(address, public_key.0))
+    pub fn new(address: String, public_key: PublicKey) -> PyResult<Self> {
+        let validator = ferveo::api::Validator::new(address, public_key.0)
+            .map_err(map_py_error)?;
+        Ok(Self(validator))
     }
 
     #[getter]

@@ -3,11 +3,12 @@ use std::{
     fs::{create_dir_all, OpenOptions},
     io::prelude::*,
     path::PathBuf,
+    str::FromStr,
 };
 
 use ark_bls12_381::Bls12_381 as EllipticCurve;
 use ferveo::*;
-use ferveo_common::ExternalValidator;
+use ferveo_common::{EthereumAddress, Validator};
 use itertools::iproduct;
 use rand::prelude::StdRng;
 use rand_core::SeedableRng;
@@ -59,12 +60,16 @@ fn gen_keypairs(num: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
         .collect()
 }
 
+pub fn gen_address(i: usize) -> EthereumAddress {
+    EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+}
+
 fn gen_validators(
     keypairs: &[ferveo_common::Keypair<EllipticCurve>],
-) -> Vec<ExternalValidator<EllipticCurve>> {
+) -> Vec<Validator<EllipticCurve>> {
     (0..keypairs.len())
-        .map(|i| ExternalValidator {
-            address: format!("validator_{}", i),
+        .map(|i| Validator {
+            address: gen_address(i),
             public_key: keypairs[i].public(),
         })
         .collect()
@@ -80,13 +85,12 @@ fn setup_dkg(
     let me = validators[validator].clone();
     PubliclyVerifiableDkg::new(
         &validators,
-        Params {
+        &DkgParams {
             tau: 0,
             security_threshold,
             shares_num,
         },
         &me,
-        keypairs[validator],
     )
     .expect("Setup failed")
 }
@@ -99,12 +103,14 @@ fn setup(
     let mut transcripts = vec![];
     for i in 0..shares_num {
         let mut dkg = setup_dkg(i as usize, shares_num, security_threshold);
-        transcripts.push(dkg.share(rng).expect("Test failed"));
+        let message = dkg.share(rng).expect("Test failed");
+        let sender = dkg.get_validator(&dkg.me.validator.public_key).unwrap();
+        transcripts.push((sender.clone(), message.clone()));
     }
 
     let mut dkg = setup_dkg(0, shares_num, security_threshold);
-    for (sender, pvss) in transcripts.into_iter().enumerate() {
-        dkg.apply_message(dkg.validators[sender].validator.clone(), pvss)
+    for (sender, pvss) in transcripts.into_iter() {
+        dkg.apply_message(&sender.validator, &pvss)
             .expect("Setup failed");
     }
     dkg
@@ -132,7 +138,8 @@ fn main() {
     for (shares_num, threshold) in configs {
         println!("shares_num: {}, threshold: {}", shares_num, threshold);
         let dkg = setup(*shares_num as u32, threshold, rng);
-        let transcript_bytes = bincode::serialize(&dkg.vss[&0]).unwrap();
+        let (_, transcript) = &dkg.vss.first_key_value().unwrap();
+        let transcript_bytes = bincode::serialize(&transcript).unwrap();
 
         save_data(
             *shares_num as usize,
