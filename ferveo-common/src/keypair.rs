@@ -19,7 +19,7 @@ pub fn to_bytes<T: CanonicalSerialize>(
     item: &T,
 ) -> Result<Vec<u8>, ark_serialize::SerializationError> {
     let mut writer = Vec::new();
-    item.serialize_uncompressed(&mut writer)?;
+    item.serialize_compressed(&mut writer)?;
     Ok(writer)
 }
 
@@ -27,7 +27,7 @@ pub fn from_bytes<T: CanonicalDeserialize>(
     bytes: &[u8],
 ) -> Result<T, ark_serialize::SerializationError> {
     let mut reader = io::Cursor::new(bytes);
-    let item = T::deserialize_uncompressed(&mut reader)?;
+    let item = T::deserialize_compressed(&mut reader)?;
     Ok(item)
 }
 

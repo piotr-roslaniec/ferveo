@@ -28,6 +28,10 @@ impl DkgPublicKey {
     pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
         from_bytes(bytes).map(DkgPublicKey).map_err(|e| e.into())
     }
+
+    pub fn serialized_size() -> usize {
+        48
+    }
 }
 
 pub type UnblindingKey = FieldPoint;
@@ -169,11 +173,33 @@ impl DkgPublicParameters {
 
 #[cfg(test)]
 mod test_ferveo_api {
-
     use itertools::izip;
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
     use crate::{api::*, dkg::test_common::*};
+
+    #[test]
+    fn test_dkg_public_serialization() {
+        let shares_num = 4;
+        let validator_keypairs = gen_keypairs(shares_num);
+        let validators = validator_keypairs
+            .iter()
+            .enumerate()
+            .map(|(i, keypair)| Validator {
+                address: gen_address(i),
+                public_key: keypair.public(),
+            })
+            .collect::<Vec<_>>();
+
+        let dkg =
+            Dkg::new(1, shares_num, 2, &validators, &validators[0]).unwrap();
+
+        let serialized = dkg.final_key().to_bytes().unwrap();
+        assert_eq!(serialized.len(), DkgPublicKey::serialized_size());
+
+        let deserialized = DkgPublicKey::from_bytes(&serialized).unwrap();
+        assert_eq!(dkg.final_key(), deserialized);
+    }
 
     #[test]
     fn test_server_api_tdec_precomputed() {
