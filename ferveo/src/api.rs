@@ -1,7 +1,6 @@
 use ark_poly::EvaluationDomain;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ferveo_common::serialization;
-pub use ferveo_common::{ExternalValidator, Keypair, PublicKey};
+use ferveo_common::{from_bytes, serialization, to_bytes};
+pub use ferveo_common::{Keypair, PublicKey, Validator};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -23,38 +22,31 @@ pub struct DkgPublicKey(
 
 impl DkgPublicKey {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let mut writer = Vec::new();
-        self.0.serialize_uncompressed(&mut writer)?;
-        Ok(writer)
+        to_bytes(&self.0).map_err(|e| e.into())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
-        let mut reader = bytes;
-        let pk = G1Affine::deserialize_uncompressed(&mut reader)?;
-        Ok(Self(pk))
+        from_bytes(bytes).map(DkgPublicKey).map_err(|e| e.into())
     }
 }
 
-pub type LagrangeCoefficient = FieldPoint;
 pub type UnblindingKey = FieldPoint;
 
 #[serde_as]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldPoint(#[serde_as(as = "serialization::SerdeAs")] pub Fr);
 
 impl FieldPoint {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let mut writer = Vec::new();
-        self.0.serialize_uncompressed(&mut writer)?;
-        Ok(writer)
+        to_bytes(&self.0).map_err(|e| e.into())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<FieldPoint> {
-        let mut reader = bytes;
-        let coeff = Fr::deserialize_uncompressed(&mut reader)?;
-        Ok(Self(coeff))
+        from_bytes(bytes).map(FieldPoint).map_err(|e| e.into())
     }
 }
+
+pub type ValidatorMessage = (Validator<E>, Transcript<E>);
 
 #[derive(Clone)]
 pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
@@ -64,22 +56,18 @@ impl Dkg {
         tau: u64,
         shares_num: u32,
         security_threshold: u32,
-        validators: &[ExternalValidator<E>],
-        me: &ExternalValidator<E>,
+        validators: &[Validator<E>],
+        me: &Validator<E>,
     ) -> Result<Self> {
-        let params = crate::Params {
+        let dkg_params = crate::DkgParams {
             tau,
             security_threshold,
             shares_num,
         };
-        let session_keypair = Keypair::<E> {
-            decryption_key: ark_ff::UniformRand::rand(&mut ark_std::test_rng()),
-        };
         let dkg = crate::PubliclyVerifiableDkg::<E>::new(
             validators,
-            params,
+            &dkg_params,
             me,
-            session_keypair,
         )?;
         Ok(Self(dkg))
     }
@@ -97,7 +85,7 @@ impl Dkg {
 
     pub fn aggregate_transcripts(
         &mut self,
-        messages: &Vec<(ExternalValidator<E>, Transcript<E>)>,
+        messages: &Vec<(Validator<E>, Transcript<E>)>,
     ) -> Result<AggregatedTranscript> {
         // Avoid mutating current state
         // TODO: Rewrite `deal` to not require mutability after validating this API design
@@ -115,7 +103,7 @@ impl Dkg {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregatedTranscript(
     crate::PubliclyVerifiableSS<E, crate::Aggregated>,
 );
@@ -137,7 +125,7 @@ impl AggregatedTranscript {
             ciphertext,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me,
+            dkg.0.me.share_index,
             &domain_points,
             &dkg.0.pvss_params.g_inv(),
         )
@@ -154,7 +142,7 @@ impl AggregatedTranscript {
             ciphertext,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me,
+            dkg.0.me.share_index,
             &dkg.0.pvss_params.g_inv(),
         )
     }
@@ -181,6 +169,7 @@ impl DkgPublicParameters {
 
 #[cfg(test)]
 mod test_ferveo_api {
+
     use itertools::izip;
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
 
@@ -193,16 +182,16 @@ mod test_ferveo_api {
         let tau = 1;
         let shares_num = 4;
         // In precomputed variant, the security threshold is equal to the number of shares
-        // TODO: Refactor DKG contractor to not require security threshold or this case
-        // TODO: Or figure out a different way to simplify the precomputed variant API
+        // TODO: Refactor DKG contractor to not require security threshold or this case.
+        //  Or figure out a different way to simplify the precomputed variant API.
         let security_threshold = shares_num;
 
-        let validator_keypairs = gen_n_keypairs(shares_num);
+        let validator_keypairs = gen_keypairs(shares_num);
         let validators = validator_keypairs
             .iter()
             .enumerate()
-            .map(|(i, keypair)| ExternalValidator {
-                address: format!("validator-{}", i),
+            .map(|(i, keypair)| Validator {
+                address: gen_address(i),
                 public_key: keypair.public(),
             })
             .collect::<Vec<_>>();
@@ -234,6 +223,7 @@ mod test_ferveo_api {
         // Lets say that we've only receives `security_threshold` transcripts
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(pvss_aggregated.validate(&dkg));
 
         // At this point, any given validator should be able to provide a DKG public key
         let public_key = dkg.final_key();
@@ -292,12 +282,12 @@ mod test_ferveo_api {
         let shares_num = 4;
         let security_threshold = 3;
 
-        let validator_keypairs = gen_n_keypairs(shares_num);
+        let validator_keypairs = gen_keypairs(shares_num);
         let validators = validator_keypairs
             .iter()
             .enumerate()
-            .map(|(i, keypair)| ExternalValidator {
-                address: format!("validator-{}", i),
+            .map(|(i, keypair)| Validator {
+                address: gen_address(i),
                 public_key: keypair.public(),
             })
             .collect::<Vec<_>>();
@@ -329,6 +319,7 @@ mod test_ferveo_api {
         // Lets say that we've only receives `security_threshold` transcripts
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(pvss_aggregated.validate(&dkg));
 
         // At this point, any given validator should be able to provide a DKG public key
         let public_key = dkg.final_key();
