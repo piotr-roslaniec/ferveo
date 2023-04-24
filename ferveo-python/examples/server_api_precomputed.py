@@ -32,7 +32,7 @@ validators = [
 ]
 
 # Validators must be sorted by their public key
-validators.sort(key=lambda v: v.public_key)
+validators.sort(key=lambda v: v.address)
 
 # Each validator holds their own DKG instance and generates a transcript every
 # validator, including themselves
@@ -110,3 +110,5 @@ shared_secret = combine_decryption_shares_precomputed(decryption_shares)
 
 plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg_public_params_deser)
 assert bytes(plaintext) == msg
+
+print("Success!")

@@ -57,7 +57,7 @@ pub struct Validator<E: Pairing> {
 impl<E: Pairing> PartialOrd for Validator<E> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.public_key.partial_cmp(&other.public_key)
+        self.address.partial_cmp(&other.address)
     }
 }
 

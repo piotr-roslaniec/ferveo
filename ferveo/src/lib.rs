@@ -75,7 +75,7 @@ pub enum Error {
     #[error("Serialization error")]
     SerializationError(#[from] ark_serialize::SerializationError),
 
-    /// DKG validators must be sorted
+    /// DKG validators must be sorted by their Ethereum address
     #[error("DKG validators not sorted")]
     ValidatorsNotSorted,
 

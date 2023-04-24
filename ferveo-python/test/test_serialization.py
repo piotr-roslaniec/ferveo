@@ -23,7 +23,7 @@ validators = [
     ExternalValidator(gen_eth_addr(i), keypair.public_key())
     for i, keypair in enumerate(validator_keypairs)
 ]
-validators.sort(key=lambda v: v.public_key)
+validators.sort(key=lambda v: v.address)
 
 def make_dkg_public_params():
     me = validators[0]

@@ -53,7 +53,7 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
         ExternalValidator(gen_eth_addr(i), keypair.public_key())
         for i, keypair in enumerate(validator_keypairs)
     ]
-    validators.sort(key=lambda v: v.public_key)
+    validators.sort(key=lambda v: v.address)
     messages = []
     for sender in validators:
         dkg = Dkg(
