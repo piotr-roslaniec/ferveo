@@ -1,3 +1,5 @@
+use std::io;
+
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bincode;
@@ -17,6 +19,21 @@ pub use tpke::api::{
 pub use crate::PubliclyVerifiableSS as Transcript;
 use crate::{do_verify_aggregation, PVSSMap, PubliclyVerifiableSS, Result};
 
+// Normally, we would use a custom trait for this, but we can't because
+// the arkworks will not let us create a blanket implementation for G1Affine
+// and Fr types. So instead, we're using this shared utility function:
+pub fn to_bytes<T: CanonicalSerialize>(item: &T) -> Result<Vec<u8>> {
+    let mut writer = Vec::new();
+    item.serialize_uncompressed(&mut writer)?;
+    Ok(writer)
+}
+
+pub fn from_bytes<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T> {
+    let mut reader = io::Cursor::new(bytes);
+    let item = T::deserialize_uncompressed(&mut reader)?;
+    Ok(item)
+}
+
 #[serde_as]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
@@ -25,19 +42,14 @@ pub struct DkgPublicKey(
 
 impl DkgPublicKey {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let mut writer = Vec::new();
-        self.0.serialize_uncompressed(&mut writer)?;
-        Ok(writer)
+        to_bytes(&self.0)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
-        let mut reader = bytes;
-        let pk = G1Affine::deserialize_uncompressed(&mut reader)?;
-        Ok(Self(pk))
+        from_bytes(bytes).map(DkgPublicKey)
     }
 }
 
-pub type LagrangeCoefficient = FieldPoint;
 pub type UnblindingKey = FieldPoint;
 
 #[serde_as]
@@ -46,17 +58,15 @@ pub struct FieldPoint(#[serde_as(as = "serialization::SerdeAs")] pub Fr);
 
 impl FieldPoint {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let mut writer = Vec::new();
-        self.0.serialize_uncompressed(&mut writer)?;
-        Ok(writer)
+        to_bytes(&self.0)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<FieldPoint> {
-        let mut reader = bytes;
-        let coeff = Fr::deserialize_uncompressed(&mut reader)?;
-        Ok(Self(coeff))
+        from_bytes(bytes).map(FieldPoint)
     }
 }
+
+pub type ValidatorMessage = (ExternalValidator<E>, Transcript<E>);
 
 #[derive(Clone)]
 pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
@@ -99,7 +109,7 @@ impl Dkg {
 
     pub fn aggregate_transcripts(
         &mut self,
-        messages: &[(ExternalValidator<E>, Transcript<E>)],
+        messages: &[ValidatorMessage],
     ) -> Result<AggregatedTranscript> {
         // TODO: Avoid mutating current state
         for (validator, transcript) in messages {
@@ -124,36 +134,6 @@ fn make_pvss_map(transcripts: &[PubliclyVerifiableSS<E>]) -> PVSSMap<E> {
     pvss_map
 }
 
-// TODO: Move into lib.rs?
-fn do_verify_aggregated_transcript(
-    aggregated_transcript: &AggregatedTranscript,
-    shares_num: u32,
-    transcripts: &[PubliclyVerifiableSS<E>],
-) -> Result<bool> {
-    // TODO: Replace with an input variable? Do we get that from DA or do we store it in the SDK?
-    let pvss_params = crate::pvss::PubliclyVerifiableParams::<E>::default();
-    let validators = vec![];
-    let domain = Radix2EvaluationDomain::<Fr>::new(shares_num as usize)
-        .expect("Unable to construct an evaluation domain");
-
-    let is_valid_optimistic = aggregated_transcript.0.verify_optimistic();
-    if !is_valid_optimistic {
-        return Err(crate::Error::InvalidTranscriptAggregate);
-    }
-
-    let pvss_map = make_pvss_map(transcripts);
-    // This check also includes `verify_full`. See impl. for details.
-    let is_valid = do_verify_aggregation(
-        &aggregated_transcript.0.coeffs,
-        &aggregated_transcript.0.shares,
-        &pvss_params,
-        &validators,
-        &domain,
-        &pvss_map,
-    )?;
-    Ok(is_valid)
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AggregatedTranscript(Transcript<E, crate::Aggregated>);
 
@@ -168,7 +148,27 @@ impl AggregatedTranscript {
         shares_num: u32,
         transcripts: &[Transcript<E>],
     ) -> Result<bool> {
-        do_verify_aggregated_transcript(self, shares_num, transcripts)
+        let pvss_params = crate::pvss::PubliclyVerifiableParams::<E>::default();
+        let validators = vec![];
+        let domain = Radix2EvaluationDomain::<Fr>::new(shares_num as usize)
+            .expect("Unable to construct an evaluation domain");
+
+        let is_valid_optimistic = self.0.verify_optimistic();
+        if !is_valid_optimistic {
+            return Err(crate::Error::InvalidTranscriptAggregate);
+        }
+
+        let pvss_map = make_pvss_map(transcripts);
+        // This check also includes `verify_full`. See impl. for details.
+        let is_valid = do_verify_aggregation(
+            &self.0.coeffs,
+            &self.0.shares,
+            &pvss_params,
+            &validators,
+            &domain,
+            &pvss_map,
+        )?;
+        Ok(is_valid)
     }
 
     pub fn create_decryption_share_precomputed(
@@ -239,7 +239,7 @@ mod test_ferveo_api {
         let tau = 1;
         let shares_num = 4;
         // In precomputed variant, the security threshold is equal to the number of shares
-        // TODO: Refactor DKG contractor to not require security threshold or this case
+        // TODO: Refactor DKG constructor to not require security threshold or this case
         // TODO: Or figure out a different way to simplify the precomputed variant API
         let security_threshold = shares_num;
 

@@ -1,6 +1,3 @@
-#![allow(clippy::many_single_char_names)]
-#![allow(non_snake_case)]
-
 use ark_ec::pairing::Pairing;
 use serde::{Deserialize, Serialize};
 
