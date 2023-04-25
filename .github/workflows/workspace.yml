@@ -87,7 +87,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.64 # MSRV
+          - 1.64 # MSRV, `cargo msrv`
           - stable
         target:
           - wasm32-unknown-unknown

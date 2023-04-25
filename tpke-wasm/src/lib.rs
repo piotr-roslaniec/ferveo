@@ -3,10 +3,8 @@ extern crate group_threshold_cryptography as tpke;
 mod utils;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ferveo::PubliclyVerifiableSS;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use tpke::api::E;
 use utils::*;
 use wasm_bindgen::prelude::*;
 
@@ -21,7 +19,7 @@ type Result<T> = std::result::Result<T, js_sys::Error>;
 pub struct G1Prepared(tpke::api::G1Prepared);
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
@@ -38,7 +36,7 @@ impl DecryptionShareSimple {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptionShareSimplePrecomputed(
     tpke::api::DecryptionSharePrecomputed,
 );
@@ -106,7 +104,7 @@ impl PrivateKey {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ciphertext(tpke::api::Ciphertext);
 
 #[wasm_bindgen]
@@ -282,41 +280,46 @@ pub struct AggregatedTranscript(pub(crate) ferveo::api::AggregatedTranscript);
 #[wasm_bindgen]
 impl AggregatedTranscript {
     // TODO: Add custom types section instead of exposing `JsValue` to TS: https://timryan.org/2019/01/22/exporting-serde-types-to-typescript.html
-    #[wasm_bindgen(constructor)]
-    pub fn new(transcripts_js: JsValue) -> Result<AggregatedTranscript> {
-        set_panic_hook();
-        // TODO: Consider using serde_wasm_bindgen throughout the codebase
-        let transcripts = Self::unpack_transcripts(transcripts_js)?;
-        let aggregated_transcript =
-            ferveo::api::AggregatedTranscript::from_transcripts(&transcripts);
-        Ok(Self(aggregated_transcript))
-    }
 
-    fn unpack_transcripts(
-        transcripts_js: JsValue,
-    ) -> Result<Vec<PubliclyVerifiableSS<E>>> {
-        let transcripts: Vec<Transcript> =
-            serde_wasm_bindgen::from_value(transcripts_js)
-                .map_err(map_js_err)?;
-        let inner_transcripts =
-            transcripts.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
-        Ok(inner_transcripts)
-    }
+    // TODO: Update bindings
 
-    #[wasm_bindgen]
-    pub fn verify(
-        &self,
-        shares_num: u32,
-        transcripts_js: JsValue,
-    ) -> Result<bool> {
-        set_panic_hook();
-        let transcripts = Self::unpack_transcripts(transcripts_js)?;
-        let is_valid = self
-            .0
-            .verify(shares_num, &transcripts[..])
-            .map_err(map_js_err)?;
-        Ok(is_valid)
-    }
+    // #[wasm_bindgen(constructor)]
+    // pub fn new(transcripts_js: JsValue) -> Result<AggregatedTranscript> {
+    //     set_panic_hook();
+    //     // TODO: Consider using serde_wasm_bindgen throughout the codebase
+    //     let transcripts = Self::unpack_transcripts(transcripts_js)?;
+    //     let aggregated_transcript =
+    //         ferveo::api::AggregatedTranscript::new(&transcripts);
+    //     Ok(Self(aggregated_transcript))
+    // }
+
+    // fn unpack_transcripts(
+    //     transcripts_js: JsValue,
+    // ) -> Result<Vec<PubliclyVerifiableSS<E>>> {
+    //     let transcripts: Vec<Transcript> =
+    //         serde_wasm_bindgen::from_value(transcripts_js)
+    //             .map_err(map_js_err)?;
+    //     let inner_transcripts =
+    //         transcripts.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
+    //     Ok(inner_transcripts)
+    // }
+
+    // TODO: Update bindings
+
+    // #[wasm_bindgen]
+    // pub fn verify(
+    //     &self,
+    //     shares_num: u32,
+    //     transcripts_js: JsValue,
+    // ) -> Result<bool> {
+    //     set_panic_hook();
+    //     let transcripts = Self::unpack_transcripts(transcripts_js)?;
+    //     let is_valid = self
+    //         .0
+    //         .verify(shares_num, &transcripts[..])
+    //         .map_err(map_js_err)?;
+    //     Ok(is_valid)
+    // }
 
     #[wasm_bindgen(js_name = "fromBytes")]
     pub fn from_bytes(bytes: &[u8]) -> Result<AggregatedTranscript> {

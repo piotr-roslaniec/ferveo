@@ -4,7 +4,13 @@ use std::fmt::{self};
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{
+    basic::CompareOp,
+    exceptions::PyValueError,
+    prelude::*,
+    types::{PyBytes, PyUnicode},
+    PyClass,
+};
 use rand::thread_rng;
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
@@ -20,6 +26,31 @@ fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
 
 fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
     PyValueError::new_err(format!("{}", err))
+}
+
+// TODO: Not using generics here since some of the types don't implement AsRef<[u8]>
+fn hash(type_name: &str, bytes: &[u8]) -> PyResult<isize> {
+    // call `hash((class_name, bytes(obj)))`
+    Python::with_gil(|py| {
+        let builtins = PyModule::import(py, "builtins")?;
+        let arg1 = PyUnicode::new(py, type_name);
+        let arg2: PyObject = PyBytes::new(py, bytes).into();
+        builtins.getattr("hash")?.call1(((arg1, arg2),))?.extract()
+    })
+}
+
+fn richcmp<T>(obj: &T, other: &T, op: CompareOp) -> PyResult<bool>
+where
+    T: PyClass + PartialEq + PartialOrd,
+{
+    match op {
+        CompareOp::Eq => Ok(obj == other),
+        CompareOp::Ne => Ok(obj != other),
+        CompareOp::Lt => Ok(obj < other),
+        CompareOp::Le => Ok(obj <= other),
+        CompareOp::Gt => Ok(obj > other),
+        CompareOp::Ge => Ok(obj >= other),
+    }
 }
 
 #[pyfunction]
@@ -146,14 +177,15 @@ impl Keypair {
         to_py_bytes(self.0)
     }
 
-    #[getter]
     pub fn public_key(&self) -> PublicKey {
         PublicKey(self.0.public())
     }
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(Clone, PartialEq, Eq, derive_more::From, derive_more::AsRef)]
+#[derive(
+    Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
+)]
 pub struct PublicKey(ferveo::api::PublicKey<E>);
 
 #[pymethods]
@@ -166,17 +198,28 @@ impl PublicKey {
     fn __bytes__(&self) -> PyResult<PyObject> {
         to_py_bytes(self.0)
     }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        richcmp(self, other, op)
+    }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        let bytes = self.0.to_bytes().map_err(map_py_error)?;
+        hash("PublicKey", &bytes)
+    }
 }
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct ExternalValidator(ferveo::api::ExternalValidator<E>);
+pub struct Validator(ferveo::api::Validator<E>);
 
 #[pymethods]
-impl ExternalValidator {
+impl Validator {
     #[new]
-    pub fn new(address: String, public_key: PublicKey) -> Self {
-        Self(ferveo::api::ExternalValidator::new(address, public_key.0))
+    pub fn new(address: String, public_key: PublicKey) -> PyResult<Self> {
+        let validator = ferveo::api::Validator::new(address, public_key.0)
+            .map_err(map_py_error)?;
+        Ok(Self(validator))
     }
 
     #[getter]
@@ -223,7 +266,7 @@ impl DkgPublicKey {
 }
 
 #[derive(FromPyObject)]
-pub struct ExternalValidatorMessage(ExternalValidator, Transcript);
+pub struct ValidatorMessage(Validator, Transcript);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
@@ -236,8 +279,8 @@ impl Dkg {
         tau: u64,
         shares_num: u32,
         security_threshold: u32,
-        validators: Vec<ExternalValidator>,
-        me: ExternalValidator,
+        validators: Vec<Validator>,
+        me: Validator,
     ) -> PyResult<Self> {
         let validators: Vec<_> = validators.into_iter().map(|v| v.0).collect();
         let dkg = ferveo::api::Dkg::new(
@@ -265,12 +308,14 @@ impl Dkg {
 
     pub fn aggregate_transcripts(
         &mut self,
-        transcripts: Vec<Transcript>,
+        messages: Vec<ValidatorMessage>,
     ) -> PyResult<AggregatedTranscript> {
-        let transcripts: Vec<_> =
-            transcripts.into_iter().map(|t| t.0).collect();
+        let messages: Vec<_> = messages
+            .into_iter()
+            .map(|ValidatorMessage(v, t)| (v.0, t.0))
+            .collect();
         let aggregated_transcript =
-            ferveo::api::AggregatedTranscript::from_transcripts(&transcripts);
+            ferveo::api::AggregatedTranscript::new(&messages);
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -350,17 +395,26 @@ pub struct AggregatedTranscript(ferveo::api::AggregatedTranscript);
 
 #[pymethods]
 impl AggregatedTranscript {
+    #[new]
+    pub fn new(messages: Vec<ValidatorMessage>) -> Self {
+        let messages: Vec<_> = messages
+            .into_iter()
+            .map(|ValidatorMessage(v, t)| (v.0, t.0))
+            .collect();
+        Self(ferveo::api::AggregatedTranscript::new(&messages))
+    }
+
     pub fn verify(
         &self,
         shares_num: u32,
-        transcripts: Vec<Transcript>,
+        messages: Vec<ValidatorMessage>,
     ) -> PyResult<bool> {
-        let transcripts: Vec<_> =
-            transcripts.into_iter().map(|t| t.0).collect();
-        let is_valid = self
-            .0
-            .verify(shares_num, &transcripts[..])
-            .map_err(map_py_error)?;
+        let messages: Vec<_> = messages
+            .into_iter()
+            .map(|ValidatorMessage(v, t)| (v.0, t.0))
+            .collect();
+        let is_valid =
+            self.0.verify(shares_num, &messages).map_err(map_py_error)?;
         Ok(is_valid)
     }
 
@@ -403,15 +457,6 @@ impl AggregatedTranscript {
     }
 
     #[staticmethod]
-    pub fn from_transcripts(transcripts: Vec<Transcript>) -> Self {
-        let transcripts: Vec<_> =
-            transcripts.into_iter().map(|t| t.0).collect();
-        Self(ferveo::api::AggregatedTranscript::from_transcripts(
-            &transcripts,
-        ))
-    }
-
-    #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
     }
@@ -433,7 +478,7 @@ fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decrypt_with_shared_secret, m)?)?;
     m.add_class::<Keypair>()?;
     m.add_class::<PublicKey>()?;
-    m.add_class::<ExternalValidator>()?;
+    m.add_class::<Validator>()?;
     m.add_class::<Transcript>()?;
     m.add_class::<Dkg>()?;
     m.add_class::<Ciphertext>()?;

@@ -15,7 +15,7 @@ use sha2::{digest::Digest, Sha256};
 use crate::{htp_bls12381_g2, Error, Result};
 
 #[serde_as]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ciphertext<E: Pairing> {
     // U
     #[serde_as(as = "serialization::SerdeAs")]

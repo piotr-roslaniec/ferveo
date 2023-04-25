@@ -10,15 +10,20 @@ from ferveo_py import (
     SharedSecret,
 )
 
+
+def gen_eth_addr(i: int) -> str:
+    return f"0x{i:040x}"
+
+
 tau = 1
 security_threshold = 3
 shares_num = 4
 validator_keypairs = [Keypair.random() for _ in range(shares_num)]
 validators = [
-    ExternalValidator(f"validator-{i}", keypair.public_key)
+    ExternalValidator(gen_eth_addr(i), keypair.public_key())
     for i, keypair in enumerate(validator_keypairs)
 ]
-
+validators.sort(key=lambda v: v.address)
 
 def make_dkg_public_params():
     me = validators[0]

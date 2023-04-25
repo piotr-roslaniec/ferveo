@@ -6,6 +6,7 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain,
 };
+use ferveo_common::is_sorted;
 use group_threshold_cryptography as tpke;
 use itertools::Itertools;
 use measure_time::print_time;
@@ -28,11 +29,11 @@ use crate::{
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Unaggregated;
 
 /// Marker struct for aggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Aggregated;
 
 /// Trait gate used to add extra methods to aggregated PVSS transcripts
@@ -73,7 +74,7 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
 #[serde_as]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PubliclyVerifiableSS<E: Pairing, T = Unaggregated> {
     /// Used in Feldman commitment to the VSS polynomial, F = g^{\phi}
     #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
@@ -105,7 +106,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     ) -> Result<Self> {
         // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
         let mut phi = DensePolynomial::<E::ScalarField>::rand(
-            (dkg.params.security_threshold - 1) as usize,
+            (dkg.dkg_params.security_threshold - 1) as usize,
             rng,
         );
         phi.coeffs[0] = *s; // setting the first coefficient to secret value
@@ -116,13 +117,13 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         let coeffs = fast_multiexp(&phi.coeffs, dkg.pvss_params.g);
         let shares = dkg
             .validators
-            .iter()
-            .map(|val| {
+            .values()
+            .map(|validator| {
                 // ek_{i}^{eval_i}, i = validator index
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
-                    &[evals.evals[val.share_index]], // one share per validator
-                    val.validator.public_key.encryption_key.into_group(),
+                    &[evals.evals[validator.share_index]], // one share per validator
+                    validator.validator.public_key.encryption_key.into_group(),
                 )[0]
             })
             .collect::<Vec<ShareEncryptions<E>>>();
@@ -168,16 +169,23 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
     pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
+        let validators = dkg
+            .validators
+            .values()
+            .map(|v| v.validator.clone())
+            .collect::<Vec<_>>();
+        let validators = validators.as_slice();
         do_verify_full(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            &dkg.validators,
+            validators,
             &dkg.domain,
         )
     }
 }
 
+// TODO: Return validator that failed the check
 pub fn do_verify_full<E: Pairing>(
     pvss_coefficients: &[E::G1Affine],
     pvss_encrypted_shares: &[E::G2Affine],
@@ -190,22 +198,26 @@ pub fn do_verify_full<E: Pairing>(
     print_time!("commitment fft");
     domain.fft_in_place(&mut commitment);
 
-    // Each validator checks that their share is correct
-    validators.iter().zip(pvss_encrypted_shares.iter()).all(
-        |(validator, y_i)| {
+    // At this point, validators must be sorted
+    assert!(is_sorted(validators));
+
+    //Each validator checks that their share is correct
+    validators
+        .iter()
+        .zip(pvss_encrypted_shares.iter())
+        .enumerate()
+        .all(|(share_index, (validator, y_i))| {
             // TODO: Check #3 is missing
             // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
 
             // Validator checks aggregated shares against commitment
-            let ek_i =
-                validator.validator.public_key.encryption_key.into_group();
-            let a_i = &commitment[validator.share_index];
+            let ek_i = validator.public_key.encryption_key.into_group();
+            let a_i = &commitment[share_index];
             // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
             // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
             // e(G,Y) = e(A, ek)
             E::pairing(pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
-        },
-    )
+        })
 }
 
 pub fn do_verify_aggregation<E: Pairing>(
@@ -216,7 +228,6 @@ pub fn do_verify_aggregation<E: Pairing>(
     domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
     vss: &PVSSMap<E>,
 ) -> Result<bool> {
-    print_time!("PVSS verify_aggregation");
     let is_valid = do_verify_full(
         pvss_agg_coefficients,
         pvss_agg_encrypted_shares,
@@ -250,11 +261,17 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
     ) -> Result<bool> {
+        let validators = dkg
+            .validators
+            .values()
+            .map(|v| v.validator.clone())
+            .collect::<Vec<_>>();
+        let validators = validators.as_slice();
         do_verify_aggregation(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            &dkg.validators,
+            validators,
             &dkg.domain,
             &dkg.vss,
         )
@@ -263,12 +280,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     pub fn decrypt_private_key_share(
         &self,
         validator_decryption_key: &E::ScalarField,
-        validator_index: usize,
+        share_index: usize,
     ) -> PrivateKeyShare<E> {
         // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
         let private_key_share = self
             .shares
-            .get(validator_index)
+            .get(share_index)
             .unwrap()
             .mul(
                 validator_decryption_key
@@ -284,15 +301,13 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
-        validator_index: usize,
+        share_index: usize,
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
-        let private_key_share = self.decrypt_private_key_share(
-            validator_decryption_key,
-            validator_index,
-        );
+        let private_key_share = self
+            .decrypt_private_key_share(validator_decryption_key, share_index);
         DecryptionShareSimple::create(
-            validator_index,
+            share_index,
             validator_decryption_key,
             &private_key_share,
             ciphertext,
@@ -306,24 +321,22 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
-        validator_index: usize,
+        share_index: usize,
         domain_points: &[E::ScalarField],
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
-        let private_key_share = self.decrypt_private_key_share(
-            validator_decryption_key,
-            validator_index,
-        );
+        let private_key_share = self
+            .decrypt_private_key_share(validator_decryption_key, share_index);
 
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
 
         DecryptionSharePrecomputed::new(
-            validator_index,
+            share_index,
             validator_decryption_key,
             &private_key_share,
             ciphertext,
             aad,
-            &lagrange_coeffs[validator_index],
+            &lagrange_coeffs[share_index],
             g_inv,
         )
         .map_err(|e| e.into())
@@ -334,16 +347,14 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
-        validator_index: usize,
+        share_index: usize,
         polynomial: &DensePolynomial<E::ScalarField>,
         dkg: &PubliclyVerifiableDkg<E>,
     ) -> Result<DecryptionShareSimple<E>> {
-        let validator_private_key_share = self.decrypt_private_key_share(
-            validator_decryption_key,
-            validator_index,
-        );
+        let validator_private_key_share = self
+            .decrypt_private_key_share(validator_decryption_key, share_index);
         let h = dkg.pvss_params.h;
-        let domain_point = dkg.domain.element(validator_index);
+        let domain_point = dkg.domain.element(share_index);
         let refreshed_private_key_share = refresh_private_key_share(
             &h,
             &domain_point,
@@ -351,7 +362,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &validator_private_key_share,
         );
         DecryptionShareSimple::create(
-            validator_index,
+            share_index,
             validator_decryption_key,
             &refreshed_private_key_share,
             ciphertext,
@@ -364,14 +375,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     pub fn update_private_key_share_for_recovery(
         &self,
         validator_decryption_key: &E::ScalarField,
-        validator_index: usize,
+        share_index: usize,
         share_updates: &[E::G2],
     ) -> PrivateKeyShare<E> {
         // Retrieves their private key share
-        let private_key_share = self.decrypt_private_key_share(
-            validator_decryption_key,
-            validator_index,
-        );
+        let private_key_share = self
+            .decrypt_private_key_share(validator_decryption_key, share_index);
 
         // And updates their share
         update_share_for_recovery::<E>(&private_key_share, share_updates)
@@ -448,9 +457,11 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
+    use ferveo_common::is_sorted;
+    use rand::seq::SliceRandom;
 
     use super::*;
-    use crate::dkg::pv::test_common::*;
+    use crate::dkg::test_common::*;
 
     type ScalarField = <EllipticCurve as Pairing>::ScalarField;
     type G1 = <EllipticCurve as Pairing>::G1Affine;
@@ -461,21 +472,24 @@ mod test_pvss {
     #[test]
     fn test_new_pvss() {
         let rng = &mut ark_std::test_rng();
-        let dkg = setup_dkg(0);
+        let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
         let pvss =
             Pvss::<EllipticCurve>::new(&s, &dkg, rng).expect("Test failed");
-        // check that the chosen secret coefficient is correct
+        // Check that the chosen secret coefficient is correct
         assert_eq!(pvss.coeffs[0], G1::generator().mul(s));
-        //check that a polynomial of the correct degree was created
-        assert_eq!(pvss.coeffs.len(), dkg.params.security_threshold as usize);
-        // check that the correct number of shares were created
+        // Check that a polynomial of the correct degree was created
+        assert_eq!(
+            pvss.coeffs.len(),
+            dkg.dkg_params.security_threshold as usize
+        );
+        // Check that the correct number of shares were created
         assert_eq!(pvss.shares.len(), dkg.validators.len());
-        // check that the prove of knowledge is correct
+        // Check that the prove of knowledge is correct
         assert_eq!(pvss.sigma, G2::generator().mul(s));
-        // check that the optimistic verify returns true
+        // Check that the optimistic verify returns true
         assert!(pvss.verify_optimistic());
-        // check that the full verify returns true
+        // Check that the full verify returns true
         assert!(pvss.verify_full(&dkg));
     }
 
@@ -484,9 +498,9 @@ mod test_pvss {
     #[test]
     fn test_verify_pvss_wrong_proof_of_knowledge() {
         let rng = &mut ark_std::test_rng();
-        let dkg = setup_dkg(0);
+        let (dkg, _) = setup_dkg(0);
         let mut s = ScalarField::rand(rng);
-        // ensure that the proof of knowledge is not zero
+        // Ensure that the proof of knowledge is not zero
         while s == ScalarField::zero() {
             s = ScalarField::rand(rng);
         }
@@ -502,7 +516,7 @@ mod test_pvss {
     #[test]
     fn test_verify_pvss_bad_shares() {
         let rng = &mut ark_std::test_rng();
-        let dkg = setup_dkg(0);
+        let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
         let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
 
@@ -520,24 +534,57 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
+    /// Check that the explicit ordering of validators is expected and enforced
+    /// by the DKG methods.
+    #[test]
+    fn test_ordering_of_validators_is_enforced() {
+        let rng = &mut ark_std::test_rng();
+
+        let shares_num = 4;
+        let security_threshold = shares_num - 1;
+        let keypairs = gen_keypairs(shares_num);
+        let mut validators = gen_validators(&keypairs);
+        let me = validators[0].clone();
+
+        // Validators are not sorted
+        validators.shuffle(rng);
+        assert!(!is_sorted(&validators));
+
+        // And because of that the DKG should fail
+        let result = PubliclyVerifiableDkg::new(
+            &validators,
+            &DkgParams {
+                tau: 0,
+                security_threshold,
+                shares_num,
+            },
+            &me,
+        );
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            Error::ValidatorsNotSorted.to_string()
+        );
+    }
+
     /// Check that happy flow of aggregating PVSS transcripts
     /// Should have the correct form and validations pass
     #[test]
     fn test_aggregate_pvss() {
-        let dkg = setup_dealt_dkg();
+        let (dkg, _) = setup_dealt_dkg();
         let aggregate = aggregate(&dkg.vss);
-        //check that a polynomial of the correct degree was created
+        // Check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
-            dkg.params.security_threshold as usize
+            dkg.dkg_params.security_threshold as usize
         );
-        // check that the correct number of shares were created
+        // Check that the correct number of shares were created
         assert_eq!(aggregate.shares.len(), dkg.validators.len());
-        // check that the optimistic verify returns true
+        // Check that the optimistic verify returns true
         assert!(aggregate.verify_optimistic());
-        // check that the full verify returns true
+        // Check that the full verify returns true
         assert!(aggregate.verify_full(&dkg));
-        // check that the verification of aggregation passes
+        // Check that the verification of aggregation passes
         assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"),);
     }
 
@@ -545,10 +592,10 @@ mod test_pvss {
     /// incorrect constant term, the verification fails
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
-        let dkg = setup_dealt_dkg();
+        let (dkg, _) = setup_dealt_dkg();
         let mut aggregated = aggregate(&dkg.vss);
         while aggregated.coeffs[0] == G1::zero() {
-            let dkg = setup_dkg(0);
+            let (dkg, _) = setup_dkg(0);
             aggregated = aggregate(&dkg.vss);
         }
         aggregated.coeffs[0] = G1::zero();

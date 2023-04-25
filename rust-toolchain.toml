@@ -1,0 +1,5 @@
+[toolchain]
+profile = "default"
+channel = "1.64.0"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]

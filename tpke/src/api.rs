@@ -23,7 +23,7 @@ pub use crate::{
 };
 
 #[serde_as]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DomainPoint(#[serde_as(as = "serialization::SerdeAs")] pub Fr);
 
 #[serde_as]
