@@ -239,8 +239,46 @@ mod test_ferveo_api {
 
     type E = ark_bls12_381::Bls12_381;
 
+    type TestInputs =
+        (Vec<ValidatorMessage>, Vec<Validator<E>>, Vec<Keypair<E>>);
+
+    fn make_test_inputs(
+        rng: &mut StdRng,
+        tau: u64,
+        security_threshold: u32,
+        shares_num: u32,
+    ) -> TestInputs {
+        let validator_keypairs = gen_keypairs(shares_num);
+        let validators = validator_keypairs
+            .iter()
+            .enumerate()
+            .map(|(i, keypair)| Validator {
+                address: gen_address(i),
+                public_key: keypair.public(),
+            })
+            .collect::<Vec<_>>();
+
+        // Each validator holds their own DKG instance and generates a transcript every
+        // every validator, including themselves
+        let messages: Vec<_> = validators
+            .iter()
+            .map(|sender| {
+                let dkg = Dkg::new(
+                    tau,
+                    shares_num,
+                    security_threshold,
+                    &validators,
+                    sender,
+                )
+                .unwrap();
+                (sender.clone(), dkg.generate_transcript(rng).unwrap())
+            })
+            .collect();
+        (messages, validators, validator_keypairs)
+    }
+
     #[test]
-    fn test_dkg_public_serialization() {
+    fn test_dkg_public_key_serialization() {
         let shares_num = 4;
         let validator_keypairs = gen_keypairs(shares_num);
         let validators = validator_keypairs
@@ -273,32 +311,8 @@ mod test_ferveo_api {
         //  Or figure out a different way to simplify the precomputed variant API.
         let security_threshold = shares_num;
 
-        let validator_keypairs = gen_keypairs(shares_num);
-        let validators = validator_keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public(),
-            })
-            .collect::<Vec<_>>();
-
-        // Each validator holds their own DKG instance and generates a transcript every
-        // every validator, including themselves
-        let messages: Vec<_> = validators
-            .iter()
-            .map(|sender| {
-                let dkg = Dkg::new(
-                    tau,
-                    shares_num,
-                    security_threshold,
-                    &validators,
-                    sender,
-                )
-                .unwrap();
-                (sender.clone(), dkg.generate_transcript(rng).unwrap())
-            })
-            .collect();
+        let (messages, validators, validator_keypairs) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
@@ -309,22 +323,17 @@ mod test_ferveo_api {
 
         // Lets say that we've only receives `security_threshold` transcripts
         let messages = messages[..security_threshold as usize].to_vec();
-        let _transcripts: Vec<_> = messages
-            .iter()
-            .map(|(_, transcript)| transcript)
-            .cloned()
-            .collect();
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let public_key = dkg.final_key();
+        let dkg_public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
+        let ciphertext = encrypt(msg, aad, &dkg_public_key.0, rng).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -339,7 +348,7 @@ mod test_ferveo_api {
                 )
                 .unwrap();
                 let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-                assert!(pvss_aggregated.verify(shares_num, &messages).is_ok());
+                assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
                 aggregate
                     .create_decryption_share_precomputed(
                         &dkg,
@@ -374,32 +383,8 @@ mod test_ferveo_api {
         let shares_num = 4;
         let security_threshold = 3;
 
-        let validator_keypairs = gen_keypairs(shares_num);
-        let validators = validator_keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public(),
-            })
-            .collect::<Vec<_>>();
-
-        // Each validator holds their own DKG instance and generates a transcript every
-        // every validator, including themselves
-        let messages: Vec<_> = validators
-            .iter()
-            .map(|sender| {
-                let dkg = Dkg::new(
-                    tau,
-                    shares_num,
-                    security_threshold,
-                    &validators,
-                    sender,
-                )
-                .unwrap();
-                (sender.clone(), dkg.generate_transcript(rng).unwrap())
-            })
-            .collect();
+        let (messages, validators, validator_keypairs) =
+            make_test_inputs(rng, tau, security_threshold, shares_num);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
@@ -437,7 +422,7 @@ mod test_ferveo_api {
                 let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
                 assert!(aggregate.verify(shares_num, &messages).unwrap());
                 aggregate
-                    .create_decryption_share_precomputed(
+                    .create_decryption_share_simple(
                         &dkg,
                         &ciphertext,
                         aad,
@@ -450,7 +435,10 @@ mod test_ferveo_api {
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
 
-        let shared_secret = share_combine_precomputed(&decryption_shares);
+        let lagrange_coeffs =
+            prepare_combine_simple::<E>(&dkg.public_params().domain_points);
+        let shared_secret =
+            share_combine_simple(&decryption_shares, &lagrange_coeffs);
 
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
@@ -470,7 +458,7 @@ mod test_ferveo_api {
         let security_threshold = 3;
         let shares_num = 4;
 
-        let (messages, validators, _validator_keypairs) =
+        let (messages, validators, _) =
             make_test_inputs(rng, tau, security_threshold, shares_num);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
@@ -529,43 +517,5 @@ mod test_ferveo_api {
         let bad_aggregate = AggregatedTranscript::new(&mixed_messages);
         let result = bad_aggregate.verify(shares_num, messages);
         assert!(result.is_err());
-    }
-
-    type TestInputs =
-        (Vec<ValidatorMessage>, Vec<Validator<E>>, Vec<Keypair<E>>);
-
-    fn make_test_inputs(
-        rng: &mut StdRng,
-        tau: u64,
-        security_threshold: u32,
-        shares_num: u32,
-    ) -> TestInputs {
-        let validator_keypairs = gen_keypairs(shares_num);
-        let validators = validator_keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public(),
-            })
-            .collect::<Vec<_>>();
-
-        // Each validator holds their own DKG instance and generates a transcript every
-        // every validator, including themselves
-        let messages: Vec<_> = validators
-            .iter()
-            .map(|sender| {
-                let dkg = Dkg::new(
-                    tau,
-                    shares_num,
-                    security_threshold,
-                    &validators,
-                    sender,
-                )
-                .unwrap();
-                (sender.clone(), dkg.generate_transcript(rng).unwrap())
-            })
-            .collect();
-        (messages, validators, validator_keypairs)
     }
 }

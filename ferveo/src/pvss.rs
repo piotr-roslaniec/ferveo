@@ -9,7 +9,6 @@ use ark_poly::{
 use ferveo_common::is_sorted;
 use group_threshold_cryptography as tpke;
 use itertools::Itertools;
-use measure_time::print_time;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -193,15 +192,13 @@ pub fn do_verify_full<E: Pairing>(
     validators: &[ferveo_common::Validator<E>],
     domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
 ) -> bool {
-    // compute the commitment
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
-    print_time!("commitment fft");
     domain.fft_in_place(&mut commitment);
 
     // At this point, validators must be sorted
     assert!(is_sorted(validators));
 
-    //Each validator checks that their share is correct
+    // Each validator checks that their share is correct
     validators
         .iter()
         .zip(pvss_encrypted_shares.iter())

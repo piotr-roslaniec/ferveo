@@ -789,6 +789,7 @@ dependencies = [
  "derive_more",
  "ferveo",
  "ferveo-common",
+ "itertools",
  "pyo3",
  "pyo3-build-config",
  "rand 0.8.5",

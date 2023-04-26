@@ -43,7 +43,7 @@ impl<E: Pairing> Ciphertext<E> {
 
     fn construct_tag_hash(&self) -> Result<E::G2Affine> {
         let mut hash_input = Vec::<u8>::new();
-        self.commitment.serialize_uncompressed(&mut hash_input)?;
+        self.commitment.serialize_compressed(&mut hash_input)?;
         hash_input.extend_from_slice(&self.ciphertext);
 
         hash_to_g2(&hash_input)
@@ -173,7 +173,7 @@ pub fn shared_secret_to_chacha<E: Pairing>(
     s: &E::TargetField,
 ) -> Result<ChaCha20Poly1305> {
     let mut prf_key = Vec::new();
-    s.serialize_uncompressed(&mut prf_key)?;
+    s.serialize_compressed(&mut prf_key)?;
     let prf_key_32 = sha256(&prf_key);
 
     Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32)))
@@ -181,7 +181,7 @@ pub fn shared_secret_to_chacha<E: Pairing>(
 
 fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Result<Nonce> {
     let mut commitment_bytes = Vec::new();
-    commitment.serialize_uncompressed(&mut commitment_bytes)?;
+    commitment.serialize_compressed(&mut commitment_bytes)?;
     let commitment_hash = sha256(&commitment_bytes);
     Ok(*Nonce::from_slice(&commitment_hash[..12]))
 }
@@ -191,8 +191,8 @@ fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
 ) -> Result<T> {
     let point = htp_bls12381_g2(message);
     let mut point_ser: Vec<u8> = Vec::new();
-    point.serialize_uncompressed(&mut point_ser)?;
-    T::deserialize_uncompressed(&point_ser[..])
+    point.serialize_compressed(&mut point_ser)?;
+    T::deserialize_compressed(&point_ser[..])
         .map_err(Error::ArkworksSerializationError)
 }
 
@@ -202,7 +202,7 @@ fn construct_tag_hash<E: Pairing>(
     aad: &[u8],
 ) -> Result<E::G2Affine> {
     let mut hash_input = Vec::<u8>::new();
-    commitment.serialize_uncompressed(&mut hash_input)?;
+    commitment.serialize_compressed(&mut hash_input)?;
     hash_input.extend_from_slice(stream_ciphertext);
     hash_input.extend_from_slice(aad);
     hash_to_g2(&hash_input)

@@ -88,7 +88,7 @@ impl PrivateKey {
     #[wasm_bindgen(js_name = "fromBytes")]
     pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey> {
         let mut reader = bytes;
-        let pk = tpke::api::PrivateKey::deserialize_uncompressed(&mut reader)
+        let pk = tpke::api::PrivateKey::deserialize_compressed(&mut reader)
             .map_err(map_js_err)?;
         Ok(PrivateKey(pk))
     }
@@ -97,7 +97,7 @@ impl PrivateKey {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         self.0
-            .serialize_uncompressed(&mut bytes)
+            .serialize_compressed(&mut bytes)
             .map_err(map_js_err)?;
         Ok(bytes)
     }

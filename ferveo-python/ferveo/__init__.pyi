@@ -11,13 +11,18 @@ class Keypair:
         ...
 
     @staticmethod
+    def secure_randomness_size(data: bytes) -> int:
+        ...
+
+    @staticmethod
     def from_bytes(data: bytes) -> Keypair:
         ...
 
     def __bytes__(self) -> bytes:
         ...
 
-    public_key: PublicKey
+    def public_key(self) -> PublicKey:
+        ...
 
 
 class PublicKey:
@@ -29,7 +34,7 @@ class PublicKey:
         ...
 
 
-class ExternalValidator:
+class Validator:
 
     def __init__(self, address: str, public_key: PublicKey):
         ...
@@ -64,8 +69,8 @@ class Dkg:
             tau: int,
             shares_num: int,
             security_threshold: int,
-            validators: Sequence[ExternalValidator],
-            me: ExternalValidator,
+            validators: Sequence[Validator],
+            me: Validator,
     ):
         ...
 
@@ -76,23 +81,13 @@ class Dkg:
     def generate_transcript(self) -> Transcript:
         ...
 
-    def aggregate_transcripts(self, transcripts: Sequence[(ExternalValidator, Transcript)]) -> Transcript:
+    def aggregate_transcripts(self, messages: Sequence[(Validator, Transcript)]) -> AggregatedTranscript:
         ...
 
 
 class Ciphertext:
     @staticmethod
     def from_bytes(data: bytes) -> Ciphertext:
-        ...
-
-    def __bytes__(self) -> bytes:
-        ...
-
-
-class UnblindingKey:
-
-    @staticmethod
-    def from_bytes(data: bytes) -> Keypair:
         ...
 
     def __bytes__(self) -> bytes:
@@ -128,6 +123,12 @@ class DkgPublicParameters:
 
 class AggregatedTranscript:
 
+    def __init__(self, messages: Sequence[(Validator, Transcript)]):
+        ...
+
+    def verify(self, shares_num: int, messages: Sequence[(Validator, Transcript)]) -> bool:
+        ...
+
     def create_decryption_share_simple(
             self,
             dkg: Dkg,
@@ -146,24 +147,9 @@ class AggregatedTranscript:
     ) -> DecryptionSharePrecomputed:
         ...
 
-    def validate(self, dkg: Dkg) -> bool:
-        ...
 
-    @staticmethod
-    def from_transcripts(transcripts: Sequence[Transcript]) -> AggregatedTranscript:
-        ...
     @staticmethod
     def from_bytes(data: bytes) -> AggregatedTranscript:
-        ...
-
-    def __bytes__(self) -> bytes:
-        ...
-
-
-class LagrangeCoefficient:
-
-    @staticmethod
-    def from_bytes(data: bytes) -> LagrangeCoefficient:
         ...
 
     def __bytes__(self) -> bytes:
@@ -186,7 +172,7 @@ def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphert
 
 def combine_decryption_shares_simple(
         decryption_shares: Sequence[DecryptionShareSimple],
-        lagrange_coefficients: LagrangeCoefficient,
+        dkg_public_params: DkgPublicParameters,
 ) -> bytes:
     ...
 

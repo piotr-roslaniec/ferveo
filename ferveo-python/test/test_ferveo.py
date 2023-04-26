@@ -7,11 +7,10 @@ from ferveo_py import (
     decrypt_with_shared_secret,
     Keypair,
     PublicKey,
-    ExternalValidator,
+    Validator,
     Transcript,
     Dkg,
     Ciphertext,
-    UnblindingKey,
     DecryptionShareSimple,
     DecryptionSharePrecomputed,
     AggregatedTranscript,
@@ -50,10 +49,11 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
     tau = 1
     validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
     validators = [
-        ExternalValidator(gen_eth_addr(i), keypair.public_key())
+        Validator(gen_eth_addr(i), keypair.public_key())
         for i, keypair in enumerate(validator_keypairs)
     ]
     validators.sort(key=lambda v: v.address)
+
     messages = []
     for sender in validators:
         dkg = Dkg(
@@ -64,6 +64,7 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
             me=sender,
         )
         messages.append((sender, dkg.generate_transcript()))
+
     me = validators[0]
     dkg = Dkg(
         tau=tau,
@@ -73,10 +74,12 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
         me=me,
     )
     pvss_aggregated = dkg.aggregate_transcripts(messages)
-    assert pvss_aggregated.validate(dkg)
+    assert pvss_aggregated.verify(shares_num, messages)
+
     msg = "abc".encode()
     aad = "my-aad".encode()
     ciphertext = encrypt(msg, aad, dkg.final_key)
+
     decryption_shares = []
     for validator, validator_keypair in zip(validators, validator_keypairs):
         dkg = Dkg(
@@ -87,13 +90,15 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
             me=validator,
         )
         agg_transcript_deser = AggregatedTranscript.from_bytes(bytes(pvss_aggregated))
-        agg_transcript_deser.validate(dkg)
+        agg_transcript_deser.verify(shares_num, messages)
 
         decryption_share = decryption_share_for_variant('simple', agg_transcript_deser)(
             dkg, ciphertext, aad, validator_keypair
         )
         decryption_shares.append(decryption_share)
+
     shared_secret = combine_shares_for_variant('simple')(decryption_shares, dkg.public_params)
+
     plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
     assert bytes(plaintext) == msg
 

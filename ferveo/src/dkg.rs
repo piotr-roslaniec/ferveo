@@ -337,11 +337,7 @@ pub(crate) mod test_common {
 
     pub fn gen_keypairs(n: u32) -> Vec<Keypair<E>> {
         let rng = &mut ark_std::test_rng();
-        let mut keypair: Vec<_> =
-            (0..n).map(|_| Keypair::<E>::new(rng)).collect();
-        keypair.sort_by_key(|a| a.public());
-        // keypair.sort();
-        keypair
+        (0..n).map(|_| Keypair::<E>::new(rng)).collect()
     }
 
     pub fn gen_address(i: usize) -> EthereumAddress {
@@ -440,6 +436,10 @@ mod test_dkg_init {
         let shares_num = 4;
         let known_keypairs = gen_keypairs(shares_num);
         let unknown_keypair = ferveo_common::Keypair::<E>::new(rng);
+        let unknown_validator = Validator::<E> {
+            address: gen_address((shares_num + 1) as usize),
+            public_key: unknown_keypair.public(),
+        };
         let err = PubliclyVerifiableDkg::<E>::new(
             &gen_validators(&known_keypairs),
             &DkgParams {
@@ -447,14 +447,11 @@ mod test_dkg_init {
                 security_threshold: shares_num / 2,
                 shares_num,
             },
-            &Validator::<E> {
-                address: gen_address(0),
-                public_key: unknown_keypair.public(),
-            },
+            &unknown_validator,
         )
-        .expect_err("Test failed");
+        .unwrap_err();
 
-        assert_eq!(err.to_string(), "Validator public key mismatch")
+        assert_eq!(err.to_string(), "Expected validator to be a part of the DKG validator set: 0x0000000000000000000000000000000000000005")
     }
 }
 

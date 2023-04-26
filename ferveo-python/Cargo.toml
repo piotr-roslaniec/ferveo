@@ -11,9 +11,18 @@ name = "ferveo_py"
 [dependencies]
 ferveo = { path = "../ferveo" }
 ferveo-common = { path = "../ferveo-common" }
-pyo3 = { version = "0.18.2", features = ["macros", "extension-module"] }
+pyo3 = { version = "0.18.2", features = ["macros"] }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
 rand = "0.8"
+itertools = "0.10.5"
+
+# We avoid declaring "pyo3/extension-module" in `dependencies` since it causes compile-time issues:
+# https://github.com/PyO3/pyo3/issues/340
+# Instead, we expose it in certain cases:
+# https://github.com/PyO3/maturin/issues/325
+# TODO: Verify whether this actually works
+#[tool.maturin]
+#features = ["pyo3/extension-module"]
 
 [build-dependencies]
 pyo3-build-config = "*"
