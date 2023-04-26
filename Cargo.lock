@@ -796,6 +796,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferveo-wasm"
+version = "0.1.0"
+dependencies = [
+ "ark-serialize",
+ "console_error_panic_hook",
+ "ferveo",
+ "ferveo-common",
+ "getrandom 0.2.8",
+ "group-threshold-cryptography",
+ "js-sys",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_with",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "wee_alloc",
+]
+
+[[package]]
 name = "findshlibs"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1951,37 +1972,6 @@ checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
 dependencies = [
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "tpke-python"
-version = "0.1.0"
-dependencies = [
- "ferveo-common",
- "group-threshold-cryptography",
- "pyo3",
- "pyo3-build-config",
-]
-
-[[package]]
-name = "tpke-wasm"
-version = "0.1.0-alpha.1"
-dependencies = [
- "ark-serialize",
- "console_error_panic_hook",
- "ferveo",
- "ferveo-common",
- "getrandom 0.2.8",
- "group-threshold-cryptography",
- "js-sys",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "serde-wasm-bindgen",
- "serde_with",
- "wasm-bindgen",
- "wasm-bindgen-test",
- "wee_alloc",
 ]
 
 [[package]]

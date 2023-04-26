@@ -5,7 +5,7 @@ import {
   encrypt,
   SharedSecretSimpleBuilder,
   DecryptionShareSimple,
-} from "tpke-wasm";
+} from "ferveo-wasm";
 
 const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 

@@ -1,4 +1,4 @@
-# `tpke-wasm` in Node.js:
+# `ferveo-wasm` in Node.js:
 
 ## Usage
 

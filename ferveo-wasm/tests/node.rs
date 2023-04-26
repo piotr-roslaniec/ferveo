@@ -3,7 +3,7 @@
 extern crate group_threshold_cryptography as tpke;
 extern crate wasm_bindgen_test;
 
-use tpke_wasm::{test_common::*, *};
+use ferveo_wasm::{test_common::*, *};
 use wasm_bindgen_test::*;
 
 #[test]

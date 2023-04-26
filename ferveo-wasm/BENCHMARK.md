@@ -77,28 +77,28 @@ combine: shares=128: 162 ms
 Raw results from `cargo bench`:
 
 ```
-TPKE-WASM/tpke-wasm::encrypt - num_shares=8, num_entities=8, threshold=8
+FERVEO-WASM/ferveo-wasm::encrypt - num_shares=8, num_entities=8, threshold=8
 time: [4.8288 ms 4.9155 ms 5.0219 ms]
-TPKE-WASM/tpke-wasm::combine - num_shares=8, num_entities=8, threshold=8
+FERVEO-WASM/ferveo-wasm::combine - num_shares=8, num_entities=8, threshold=8
 time: [10.197 ms 10.452 ms 10.994 ms]
 
-TPKE-WASM/tpke-wasm::encrypt - num_shares=16, num_entities=16, threshold=16
+FERVEO-WASM/ferveo-wasm::encrypt - num_shares=16, num_entities=16, threshold=16
 time: [4.9404 ms 5.0003 ms 5.1142 ms]
-TPKE-WASM/tpke-wasm::combine - num_shares=16, num_entities=16, threshold=16
+FERVEO-WASM/ferveo-wasm::combine - num_shares=16, num_entities=16, threshold=16
 time: [19.536 ms 20.278 ms 20.924 ms]
 
-TPKE-WASM/tpke-wasm::encrypt - num_shares=32, num_entities=32, threshold=32
+FERVEO-WASM/ferveo-wasm::encrypt - num_shares=32, num_entities=32, threshold=32
 time: [4.8744 ms 5.0070 ms 5.1049 ms]
-TPKE-WASM/tpke-wasm::combine - num_shares=32, num_entities=32, threshold=32
+FERVEO-WASM/ferveo-wasm::combine - num_shares=32, num_entities=32, threshold=32
 time: [38.619 ms 39.276 ms 39.939 ms]
 
-TPKE-WASM/tpke-wasm::encrypt - num_shares=64, num_entities=64, threshold=64
+FERVEO-WASM/ferveo-wasm::encrypt - num_shares=64, num_entities=64, threshold=64
 time: [5.0275 ms 5.1389 ms 5.2306 ms]
-TPKE-WASM/tpke-wasm::combine - num_shares=64, num_entities=64, threshold=64
+FERVEO-WASM/ferveo-wasm::combine - num_shares=64, num_entities=64, threshold=64
 time: [76.279 ms 82.054 ms 87.068 ms]
 
-TPKE-WASM/tpke-wasm::encrypt - num_shares=128, num_entities=128, threshold=128
+FERVEO-WASM/ferveo-wasm::encrypt - num_shares=128, num_entities=128, threshold=128
 time: [4.9211 ms 5.0305 ms 5.1302 ms]
-TPKE-WASM/tpke-wasm::combine - num_shares=128, num_entities=128, threshold=128
+FERVEO-WASM/ferveo-wasm::combine - num_shares=128, num_entities=128, threshold=128
 time: [155.29 ms 162.48 ms 174.21 ms]
 ```

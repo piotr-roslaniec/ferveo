@@ -1,4 +1,4 @@
-# `tpke-wasm` in the browser:
+# `ferveo-wasm` in the browser:
 
 ## Usage
 

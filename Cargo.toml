@@ -1,13 +1,12 @@
 [workspace]
 
 members = [
-  "ferveo",
-  "ferveo-common",
-  "ferveo-python",
-  "subproductdomain",
-  "tpke",
-  "tpke-wasm",
-  "tpke-python",
+    "ferveo",
+    "ferveo-common",
+    "ferveo-python",
+    "ferveo-wasm",
+    "subproductdomain",
+    "tpke",
 ]
 
 [profile.bench]

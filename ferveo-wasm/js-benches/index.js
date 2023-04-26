@@ -3,7 +3,7 @@ import init, {
   encrypt,
   ParticipantPayload,
   SharedSecretBuilder,
-} from "../pkg/tpke_wasm.js";
+} from "../pkg/ferveo_wasm.js";
 
 const BENCHMARK_TRIALS = 10;
 

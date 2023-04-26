@@ -1,7 +1,7 @@
 {
-  "name": "tpke-wasm-example-bundler",
+  "name": "ferveo-wasm-example-bundler",
   "version": "0.1.0",
-  "description": "A usage example for tpke-wasm",
+  "description": "A usage example for ferveo-wasm",
   "main": "index.js",
   "private": true,
   "author": "Piotr Rosłaniec <p.roslaniec@gmail.com>",
@@ -11,7 +11,7 @@
   },
   "license": "GPL-3.0-only",
   "dependencies": {
-    "tpke-wasm": "../../pkg"
+    "ferveo-wasm": "../../pkg"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^5.0.0",

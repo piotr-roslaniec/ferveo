@@ -5,11 +5,11 @@ import {
     encrypt,
     SharedSecretSimpleBuilder,
     DecryptionShareSimple,
-} from "tpke-wasm";
+} from "ferveo-wasm";
 
 const zip = <T>(a: Array<T>, b: Array<T>) => a.map((k: T, i: number) => [k, b[i]]);
 
-// This test suite replicates tests from tpke-wasm/tests/node.rs
+// This test suite replicates tests from ferveo-wasm/tests/node.rs
 describe("tpke", () => {
     it("performs simple tdec", () => {
         const sharesNum = 16;

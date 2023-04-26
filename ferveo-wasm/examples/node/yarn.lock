@@ -3104,7 +3104,7 @@ tough-cookie@^4.0.0:
     universalify "^0.2.0"
     url-parse "^1.5.3"
 
-"tpke-wasm@file:../../pkg":
+"ferveo-wasm@file:../../pkg":
   version "0.1.0-alpha.1"
 
 tr46@^2.1.0:

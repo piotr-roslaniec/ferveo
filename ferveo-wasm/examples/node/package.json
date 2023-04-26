@@ -1,7 +1,7 @@
 {
-  "name": "tpke-wasm",
+  "name": "ferveo-wasm",
   "version": "0.1.0",
-  "description": "A usage example for tpke-wasm",
+  "description": "A usage example for ferveo-wasm",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -21,7 +21,7 @@
   ],
   "license": "GPL-3.0-only",
   "dependencies": {
-    "tpke-wasm": "file:../../pkg"
+    "ferveo-wasm": "file:../../pkg"
   },
   "devDependencies": {
     "@babel/preset-typescript": "^7.16.5",
