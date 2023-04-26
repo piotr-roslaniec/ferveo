@@ -10,8 +10,8 @@ wasm-pack build --target nodejs
 
 Install dependencies and run tests:
 ```bash
-$ yarn install
-$ yarn test
+yarn install
+yarn test
 ```
 
 Inspect console output for results.

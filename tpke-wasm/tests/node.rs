@@ -78,7 +78,7 @@ fn tdec_simple() {
         &ciphertext,
         &aad,
         &shared_secret,
-        &dkg.g_inv(),
+        &dkg.public_parameters(),
     )
     .unwrap();
 
@@ -94,14 +94,13 @@ fn tdec_simple_precomputed() {
     let aad = "my-aad".as_bytes().to_vec();
 
     let dkg = Dkg::new(threshold, shares_num);
-    let dkg_pk = dkg.public_key;
 
     //
     // On the client side
     //
 
     // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg_pk).unwrap();
+    let ciphertext = encrypt(&msg, &aad, &dkg.public_key).unwrap();
 
     // Serialize and send to validators
     let ciphertext_bytes = ciphertext.to_bytes().unwrap();
@@ -154,7 +153,7 @@ fn tdec_simple_precomputed() {
         &ciphertext,
         &aad,
         &shared_secret,
-        &dkg.g_inv(),
+        &dkg.public_parameters(),
     )
     .unwrap();
 
@@ -176,7 +175,7 @@ fn encrypts_and_decrypts() {
         &ciphertext,
         &aad,
         &dkg.private_key,
-        &dkg.g_inv(),
+        &dkg.public_parameters(),
     )
     .unwrap();
 

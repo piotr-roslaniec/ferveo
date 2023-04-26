@@ -1,4 +1,6 @@
+use ark_ec::pairing::Pairing;
 use group_threshold_cryptography as tpke;
+use itertools::zip_eq;
 
 pub mod api;
 pub mod dkg;
@@ -6,7 +8,7 @@ pub mod primitives;
 pub mod pvss;
 
 pub use dkg::*;
-use ferveo_common::EthereumAddress;
+use ferveo_common::{EthereumAddress, Validator};
 pub use primitives::*;
 pub use pvss::*;
 
@@ -70,9 +72,13 @@ pub enum Error {
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
 
-    /// Serialization error
-    #[error("Serialization error")]
-    SerializationError(#[from] ark_serialize::SerializationError),
+    /// Serialization failed
+    #[error("Serialization failed")]
+    BincodeSerializationError(#[from] bincode::Error),
+
+    /// Serialization failed
+    #[error("Serialization failed")]
+    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
 
     /// DKG validators must be sorted by their Ethereum address
     #[error("DKG validators not sorted")]
@@ -84,6 +90,17 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub fn make_pvss_map<E: Pairing>(
+    transcripts: &[PubliclyVerifiableSS<E>],
+    validators: &[Validator<E>],
+) -> PVSSMap<E> {
+    let mut pvss_map: PVSSMap<E> = PVSSMap::new();
+    zip_eq(transcripts, validators).for_each(|(transcript, validator)| {
+        pvss_map.insert(validator.address.clone(), transcript.clone());
+    });
+    pvss_map
+}
 
 #[cfg(test)]
 mod test_dkg_full {
@@ -116,7 +133,7 @@ mod test_dkg_full {
         Vec<DecryptionShareSimple<E>>,
         TargetField,
     ) {
-        let pvss_aggregated = aggregate(dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
         assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
@@ -195,7 +212,7 @@ mod test_dkg_full {
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
         pvss_aggregated.verify_aggregation(&dkg).unwrap();
         let domain_points = dkg
             .domain
@@ -345,7 +362,7 @@ mod test_dkg_full {
             .collect::<HashMap<_, _>>();
 
         // Participants share updates and update their shares
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Now, every participant separately:
         let updated_shares: Vec<_> = remaining_validators
@@ -429,7 +446,7 @@ mod test_dkg_full {
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
-        let pvss_aggregated = aggregate(&dkg);
+        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(

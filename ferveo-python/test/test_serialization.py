@@ -1,7 +1,7 @@
 from ferveo_py import (
     Keypair,
     PublicKey,
-    ExternalValidator,
+    Validator,
     Transcript,
     Dkg,
     AggregatedTranscript,
@@ -20,7 +20,7 @@ security_threshold = 3
 shares_num = 4
 validator_keypairs = [Keypair.random() for _ in range(shares_num)]
 validators = [
-    ExternalValidator(gen_eth_addr(i), keypair.public_key())
+    Validator(gen_eth_addr(i), keypair.public_key())
     for i, keypair in enumerate(validator_keypairs)
 ]
 validators.sort(key=lambda v: v.address)

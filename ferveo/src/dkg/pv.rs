@@ -1,55 +1,19 @@
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_poly::EvaluationDomain;
-use ferveo_common::{
-    is_power_of_2, is_sorted, EthereumAddress, PublicKey, Validator,
-};
+use ferveo_common::{is_power_of_2, ExternalValidator};
 use measure_time::print_time;
 use rand::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate, AggregatedPvss, Error, PubliclyVerifiableParams,
-    PubliclyVerifiableSS, Pvss, Result,
+    aggregate, make_validators, AggregatedPvss, DkgState, Error, Params,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result,
 };
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct DkgParams {
-    pub tau: u64,
-    pub security_threshold: u32,
-    pub shares_num: u32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub struct DkgValidator<E: Pairing> {
-    pub validator: Validator<E>,
-    pub share_index: usize,
-}
-
-impl<E: Pairing> PartialOrd for DkgValidator<E> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.share_index.partial_cmp(&other.share_index)
-    }
-}
-
-impl<E: Pairing> Ord for DkgValidator<E> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.share_index.cmp(&other.share_index)
-    }
-}
-
-pub type ValidatorsMap<E> = BTreeMap<EthereumAddress, DkgValidator<E>>;
-pub type PVSSMap<E> = BTreeMap<EthereumAddress, PubliclyVerifiableSS<E>>;
-
-#[derive(Debug, Clone)]
-pub enum DkgState<E: Pairing> {
-    Sharing { accumulated_shares: u32, block: u32 },
-    Dealt,
-    Success { final_key: E::G1Affine },
-    Invalid,
-}
+pub type PVSSMap<E> = BTreeMap<u32, PubliclyVerifiableSS<E>>;
 
 /// The DKG context that holds all of the local state for participating in the DKG
 // TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
@@ -57,13 +21,15 @@ pub enum DkgState<E: Pairing> {
 //  Consider removing Clone after finalizing ferveo::api
 #[derive(Clone, Debug)]
 pub struct PubliclyVerifiableDkg<E: Pairing> {
-    pub dkg_params: DkgParams,
+    pub params: Params,
     pub pvss_params: PubliclyVerifiableParams<E>,
-    pub validators: ValidatorsMap<E>,
+    // TODO: What is session_keypair?
+    pub session_keypair: ferveo_common::Keypair<E>,
+    pub validators: Vec<ferveo_common::Validator<E>>,
     pub vss: PVSSMap<E>,
     pub domain: ark_poly::Radix2EvaluationDomain<E::ScalarField>,
-    pub me: DkgValidator<E>,
     pub state: DkgState<E>,
+    pub me: usize,
 }
 
 impl<E: Pairing> PubliclyVerifiableDkg<E> {
@@ -74,75 +40,45 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// `me` the validator creating this instance
     /// `session_keypair` the keypair for `me`
     pub fn new(
-        validators: &[Validator<E>],
-        dkg_params: &DkgParams,
-        me: &Validator<E>,
+        validators: &[ExternalValidator<E>],
+        params: Params,
+        me: &ExternalValidator<E>,
+        session_keypair: ferveo_common::Keypair<E>,
     ) -> Result<Self> {
         // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
-        if !is_power_of_2(dkg_params.shares_num) {
-            return Err(Error::InvalidShareNumberParameter(
-                dkg_params.shares_num,
-            ));
+        if !is_power_of_2(params.shares_num) {
+            return Err(Error::InvalidShareNumberParameter(params.shares_num));
         }
+
         let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
-            dkg_params.shares_num as usize,
+            params.shares_num as usize,
         )
-        .expect("unable to construct domain");
+        .expect("Unable to construct an evaluation domain");
 
-        // Sort the validators to verify a global ordering
-        if !is_sorted(validators) {
-            return Err(Error::ValidatorsNotSorted);
-        }
-        let validators: ValidatorsMap<E> = validators
+        // keep track of the owner of this instance in the validator set
+        let me = validators
             .iter()
-            .enumerate()
-            .map(|(validator_index, validator)| {
-                (
-                    validator.address.clone(),
-                    DkgValidator {
-                        validator: validator.clone(),
-                        share_index: validator_index,
-                    },
-                )
-            })
-            .collect();
+            .position(|probe| me == probe)
+            .ok_or_else(|| Error::ValidatorNotInSet(me.clone().address))?;
 
-        // Make sure that `me` is a known validator
-        if let Some(my_validator) = validators.get(&me.address) {
-            if my_validator.validator.public_key != me.public_key {
-                return Err(Error::ValidatorPublicKeyMismatch);
-            }
-        } else {
-            return Err(Error::DealerNotInValidatorSet(me.address.clone()));
-        }
+        let validators = make_validators(validators);
 
         Ok(Self {
-            dkg_params: *dkg_params,
+            session_keypair,
+            params,
             pvss_params: PubliclyVerifiableParams::<E> {
                 g: E::G1::generator(),
                 h: E::G2::generator(),
             },
             vss: BTreeMap::new(),
             domain,
-            me: DkgValidator {
-                validator: me.clone(),
-                share_index: validators[&me.address].share_index,
-            },
-            validators,
             state: DkgState::Sharing {
                 accumulated_shares: 0,
                 block: 0,
             },
+            me,
+            validators,
         })
-    }
-
-    pub fn get_validator(
-        &self,
-        public_key: &PublicKey<E>,
-    ) -> Option<&DkgValidator<E>> {
-        self.validators
-            .values()
-            .find(|validator| &validator.validator.public_key == public_key)
     }
 
     /// Create a new PVSS instance within this DKG session, contributing to the final key
@@ -190,10 +126,12 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .into_affine()
     }
 
+    /// Verify a DKG related message in a block proposal
+    /// `sender` is the validator of the sender of the message
     /// `payload` is the content of the message
     pub fn verify_message(
         &self,
-        sender: &Validator<E>,
+        sender: &ExternalValidator<E>,
         payload: &Message<E>,
     ) -> Result<()> {
         match payload {
@@ -203,10 +141,19 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     DkgState::Sharing { .. } | DkgState::Dealt
                 ) =>
             {
-                if !self.validators.contains_key(&sender.address) {
-                    Err(Error::UnknownDealer(sender.clone().address))
-                } else if self.vss.contains_key(&sender.address) {
-                    Err(Error::DuplicateDealer(sender.clone().address))
+                // TODO: If this is two slow, we can convert self.validators to
+                // an address keyed hashmap after partitioning the shares shares
+                // in the [`new`] method
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender == &probe.validator)
+                    .ok_or_else(|| {
+                        Error::UnknownDealer(sender.clone().address)
+                    })?;
+                if self.vss.contains_key(&(sender as u32)) {
+                    let sender = self.validators[sender].validator.clone();
+                    Err(Error::DuplicateDealer(sender.address))
                 } else if !pvss.verify_optimistic() {
                     Err(Error::InvalidPvssTranscript)
                 } else {
@@ -216,22 +163,27 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             Message::Aggregate(Aggregation { vss, final_key })
                 if matches!(self.state, DkgState::Dealt) =>
             {
-                let minimum_shares = self.dkg_params.shares_num
-                    - self.dkg_params.security_threshold;
+                let minimum_shares =
+                    self.params.shares_num - self.params.security_threshold;
                 let actual_shares = vss.shares.len() as u32;
-                // We reject aggregations that fail to meet the security threshold
+                // we reject aggregations that fail to meet the security threshold
                 if actual_shares < minimum_shares {
-                    Err(Error::InsufficientTranscriptsForAggregate(
+                    return Err(Error::InsufficientTranscriptsForAggregate(
                         minimum_shares,
                         actual_shares,
-                    ))
-                } else if vss.verify_aggregation(self).is_err() {
-                    Err(Error::InvalidTranscriptAggregate)
-                } else if &self.final_key() == final_key {
-                    Ok(())
-                } else {
-                    Err(Error::InvalidFinalKey)
+                    ));
                 }
+
+                let is_aggregate_valid = vss.verify_aggregation(self)?;
+                if !is_aggregate_valid {
+                    return Err(Error::InvalidTranscriptAggregate);
+                }
+
+                if &self.final_key() == final_key {
+                    return Ok(());
+                }
+
+                Err(Error::InvalidFinalKey)
             }
             _ => Err(Error::InvalidDkgStateToVerify),
         }
@@ -242,8 +194,8 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// to the state machine
     pub fn apply_message(
         &mut self,
-        sender: &Validator<E>,
-        payload: &Message<E>,
+        sender: ExternalValidator<E>,
+        payload: Message<E>,
     ) -> Result<()> {
         match payload {
             Message::Deal(pvss)
@@ -252,11 +204,13 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     DkgState::Sharing { .. } | DkgState::Dealt
                 ) =>
             {
-                if !self.validators.contains_key(&sender.address) {
-                    return Err(Error::UnknownDealer(sender.clone().address));
-                }
-
-                self.vss.insert(sender.address.clone(), pvss.clone());
+                // Add the ephemeral public key and pvss transcript
+                let sender = self
+                    .validators
+                    .iter()
+                    .position(|probe| sender.address == probe.validator.address)
+                    .ok_or_else(|| Error::UnknownDealer(sender.address))?;
+                self.vss.insert(sender as u32, pvss);
 
                 // we keep track of the amount of shares seen until the security
                 // threshold is met. Then we may change the state of the DKG
@@ -266,8 +220,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 } = &mut self.state
                 {
                     *accumulated_shares += 1;
-                    if *accumulated_shares >= self.dkg_params.security_threshold
-                    {
+                    if *accumulated_shares >= self.params.security_threshold {
                         self.state = DkgState::Dealt;
                     }
                 }
@@ -284,18 +237,20 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
+    // TODO: Instead of using this mutable functions, remove all state-fullness from the DKG
+    // implementation and make it a pure function that takes a DkgState and returns a new one
     pub fn deal(
         &mut self,
-        sender: &Validator<E>,
+        sender: &ExternalValidator<E>,
         pvss: &Pvss<E>,
     ) -> Result<()> {
         // Add the ephemeral public key and pvss transcript
-        let (sender_address, _) = self
+        let sender = self
             .validators
             .iter()
-            .find(|(probe_address, _)| sender.address == **probe_address)
-            .ok_or_else(|| Error::UnknownDealer(sender.address.clone()))?;
-        self.vss.insert(sender_address.clone(), pvss.clone());
+            .position(|probe| sender.address == probe.validator.address)
+            .ok_or_else(|| Error::UnknownDealer(sender.clone().address))?;
+        self.vss.insert(sender as u32, pvss.clone());
         Ok(())
     }
 }
@@ -325,101 +280,105 @@ pub enum Message<E: Pairing> {
 /// Factory functions for testing
 #[cfg(test)]
 pub(crate) mod test_common {
-    use std::str::FromStr;
-
-    pub use ark_bls12_381::Bls12_381 as E;
+    pub use ark_bls12_381::Bls12_381 as EllipticCurve;
     pub use ark_ff::UniformRand;
-    use ferveo_common::Keypair;
 
     pub use super::*;
 
-    pub type G1 = <E as Pairing>::G1Affine;
+    pub type G1 = <EllipticCurve as Pairing>::G1Affine;
 
-    pub fn gen_keypairs(n: u32) -> Vec<Keypair<E>> {
+    pub fn gen_n_keypairs(
+        n: u32,
+    ) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
         let rng = &mut ark_std::test_rng();
-        (0..n).map(|_| Keypair::<E>::new(rng)).collect()
+        (0..n)
+            .map(|_| ferveo_common::Keypair::<EllipticCurve>::new(rng))
+            .collect()
     }
 
-    pub fn gen_address(i: usize) -> EthereumAddress {
-        EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+    /// Generate a set of keypairs for each validator
+    pub fn gen_keypairs() -> Vec<ferveo_common::Keypair<EllipticCurve>> {
+        gen_n_keypairs(4)
     }
 
-    pub fn gen_validators(keypairs: &[Keypair<E>]) -> Vec<Validator<E>> {
-        keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public(),
+    pub fn gen_n_validators(
+        keypairs: &[ferveo_common::Keypair<EllipticCurve>],
+        n: u32,
+    ) -> Vec<ExternalValidator<EllipticCurve>> {
+        (0..n)
+            .map(|i| ExternalValidator {
+                address: format!("validator_{}", i),
+                public_key: keypairs[i as usize].public(),
             })
             .collect()
     }
 
-    pub type TestSetup = (PubliclyVerifiableDkg<E>, Vec<Keypair<E>>);
+    /// Generate a few validators
+    pub fn gen_validators(
+        keypairs: &[ferveo_common::Keypair<EllipticCurve>],
+    ) -> Vec<ExternalValidator<EllipticCurve>> {
+        gen_n_validators(keypairs, 4)
+    }
 
     pub fn setup_dkg_for_n_validators(
         security_threshold: u32,
         shares_num: u32,
         my_index: usize,
-    ) -> TestSetup {
-        let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(&keypairs);
-        validators.sort();
+    ) -> PubliclyVerifiableDkg<EllipticCurve> {
+        let keypairs = gen_n_keypairs(shares_num);
+        let validators = gen_n_validators(&keypairs, shares_num);
         let me = validators[my_index].clone();
-        let dkg = PubliclyVerifiableDkg::new(
+        PubliclyVerifiableDkg::new(
             &validators,
-            &DkgParams {
+            Params {
                 tau: 0,
                 security_threshold,
                 shares_num,
             },
             &me,
+            keypairs[my_index],
         )
-        .expect("Setup failed");
-        (dkg, keypairs)
+        .expect("Setup failed")
     }
 
     /// Create a test dkg
     ///
     /// The [`test_dkg_init`] module checks correctness of this setup
-    pub fn setup_dkg(validator: usize) -> TestSetup {
+    pub fn setup_dkg(validator: usize) -> PubliclyVerifiableDkg<EllipticCurve> {
         setup_dkg_for_n_validators(2, 4, validator)
     }
 
     /// Set up a dkg with enough pvss transcripts to meet the threshold
     ///
     /// The correctness of this function is tested in the module [`test_dealing`]
-    pub fn setup_dealt_dkg() -> TestSetup {
+    pub fn setup_dealt_dkg() -> PubliclyVerifiableDkg<EllipticCurve> {
         setup_dealt_dkg_with_n_validators(2, 4)
     }
 
     pub fn setup_dealt_dkg_with_n_validators(
         security_threshold: u32,
         shares_num: u32,
-    ) -> TestSetup {
+    ) -> PubliclyVerifiableDkg<EllipticCurve> {
         let rng = &mut ark_std::test_rng();
 
         // Gather everyone's transcripts
-        let messages: Vec<_> = (0..shares_num)
-            .map(|my_index| {
-                let (mut dkg, _) = setup_dkg_for_n_validators(
-                    security_threshold,
-                    shares_num,
-                    my_index as usize,
-                );
-                let me = dkg.me.validator.clone();
-                let message = dkg.share(rng).unwrap();
-                (me, message)
-            })
-            .collect();
-
-        // Create a test DKG instance
-        let (mut dkg, keypairs) =
-            setup_dkg_for_n_validators(security_threshold, shares_num, 0);
-        messages.iter().for_each(|(sender, message)| {
-            dkg.apply_message(sender, message).expect("Setup failed");
+        let transcripts = (0..shares_num).map(|i| {
+            let mut dkg = setup_dkg_for_n_validators(
+                security_threshold,
+                shares_num,
+                i as usize,
+            );
+            dkg.share(rng).expect("Test failed")
         });
-        (dkg, keypairs)
+
+        // Our test dkg
+        let mut dkg =
+            setup_dkg_for_n_validators(security_threshold, shares_num, 0);
+        transcripts.enumerate().for_each(|(sender, pvss)| {
+            dkg.apply_message(dkg.validators[sender].validator.clone(), pvss)
+                .expect("Setup failed");
+        });
+        dkg
     }
 }
 
@@ -433,25 +392,23 @@ mod test_dkg_init {
     #[test]
     fn test_dkg_fail_unknown_validator() {
         let rng = &mut ark_std::test_rng();
-        let shares_num = 4;
-        let known_keypairs = gen_keypairs(shares_num);
-        let unknown_keypair = ferveo_common::Keypair::<E>::new(rng);
-        let unknown_validator = Validator::<E> {
-            address: gen_address((shares_num + 1) as usize),
-            public_key: unknown_keypair.public(),
-        };
-        let err = PubliclyVerifiableDkg::<E>::new(
-            &gen_validators(&known_keypairs),
-            &DkgParams {
+        let keypairs = gen_keypairs();
+        let keypair = ferveo_common::Keypair::<EllipticCurve>::new(rng);
+        let err = PubliclyVerifiableDkg::<EllipticCurve>::new(
+            &gen_validators(&keypairs),
+            Params {
                 tau: 0,
-                security_threshold: shares_num / 2,
-                shares_num,
+                security_threshold: 4,
+                shares_num: 8,
             },
-            &unknown_validator,
+            &ExternalValidator::<EllipticCurve> {
+                address: "non-existent-validator".into(),
+                public_key: keypair.public(),
+            },
+            keypair,
         )
-        .unwrap_err();
-
-        assert_eq!(err.to_string(), "Expected validator to be a part of the DKG validator set: 0x0000000000000000000000000000000000000005")
+        .expect_err("Test failed");
+        assert_eq!(err.to_string(), "Expected validator to be a part of the DKG validator set: non-existent-validator")
     }
 }
 
@@ -469,29 +426,31 @@ mod test_dealing {
     #[test]
     fn test_pvss_dealing() {
         let rng = &mut ark_std::test_rng();
-
-        // Gather everyone's transcripts
-        let mut messages = vec![];
+        // gather everyone's transcripts
+        let mut transcripts = vec![];
         for i in 0..4 {
-            let (mut dkg, _) = setup_dkg(i);
-            let message = dkg.share(rng).unwrap();
-            let sender = dkg.me.validator.clone();
-            messages.push((sender, message));
+            let mut dkg = setup_dkg(i);
+            transcripts.push(dkg.share(rng).expect("Test failed"));
         }
-
-        // Create a test DKG instance
-        let (mut dkg, _) = setup_dkg(0);
+        // our test dkg
+        let mut dkg = setup_dkg(0);
 
         let mut expected = 0u32;
-        for (sender, pvss) in messages.iter() {
-            // Check the verification passes
-            assert!(dkg.verify_message(sender, pvss).is_ok());
-
-            // Check that application passes
-            assert!(dkg.apply_message(sender, pvss).is_ok());
+        for (sender, pvss) in transcripts.iter().enumerate() {
+            // check the verification passes
+            assert!(dkg
+                .verify_message(&dkg.validators[sender].validator, pvss)
+                .is_ok());
+            // check that application passes
+            assert!(dkg
+                .apply_message(
+                    dkg.validators[sender].validator.clone(),
+                    pvss.clone(),
+                )
+                .is_ok());
 
             expected += 1;
-            if expected < dkg.dkg_params.security_threshold {
+            if sender < (dkg.params.security_threshold - 1) as usize {
                 // check that shares accumulates correctly
                 match dkg.state {
                     DkgState::Sharing {
@@ -502,7 +461,7 @@ mod test_dealing {
                     _ => panic!("Test failed"),
                 }
             } else {
-                // Check that when enough shares is accumulated, we transition state
+                // check that when enough shares is accumulated, we transition state
                 assert!(matches!(dkg.state, DkgState::Dealt));
             }
         }
@@ -514,7 +473,7 @@ mod test_dealing {
     #[test]
     fn test_pvss_from_unknown_dealer_rejected() {
         let rng = &mut ark_std::test_rng();
-        let (mut dkg, _) = setup_dkg(0);
+        let mut dkg = setup_dkg(0);
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -522,16 +481,16 @@ mod test_dealing {
                 block: 0
             }
         ));
-        let pvss = dkg.share(rng).unwrap();
-        let unknown_validator_i = dkg.dkg_params.shares_num + 1;
-        let sender = Validator::<E> {
-            address: gen_address(unknown_validator_i as usize),
-            public_key: ferveo_common::Keypair::<E>::new(rng).public(),
+        let pvss = dkg.share(rng).expect("Test failed");
+        let sender = ExternalValidator::<EllipticCurve> {
+            address: "fake-address".into(),
+            public_key: ferveo_common::Keypair::<EllipticCurve>::new(rng)
+                .public(),
         };
         // check that verification fails
         assert!(dkg.verify_message(&sender, &pvss).is_err());
         // check that application fails
-        assert!(dkg.apply_message(&sender, &pvss).is_err());
+        assert!(dkg.apply_message(sender, pvss).is_err());
         // check that state has not changed
         assert!(matches!(
             dkg.state,
@@ -547,7 +506,7 @@ mod test_dealing {
     #[test]
     fn test_pvss_sent_twice_rejected() {
         let rng = &mut ark_std::test_rng();
-        let (mut dkg, _) = setup_dkg(0);
+        let mut dkg = setup_dkg(0);
         // We start with an empty state
         assert!(matches!(
             dkg.state,
@@ -557,14 +516,12 @@ mod test_dealing {
             }
         ));
 
-        let pvss = dkg.share(rng).unwrap();
-
-        // This validator has already sent a PVSS
-        let sender = dkg.me.validator.clone();
+        let pvss = dkg.share(rng).expect("Test failed");
+        let sender = dkg.validators[3].validator.clone();
 
         // First PVSS is accepted
         assert!(dkg.verify_message(&sender, &pvss).is_ok());
-        assert!(dkg.apply_message(&sender, &pvss).is_ok());
+        assert!(dkg.apply_message(sender.clone(), pvss.clone()).is_ok());
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -582,7 +539,7 @@ mod test_dealing {
     #[test]
     fn test_own_pvss() {
         let rng = &mut ark_std::test_rng();
-        let (mut dkg, _) = setup_dkg(0);
+        let mut dkg = setup_dkg(0);
         // We start with an empty state
         assert!(matches!(
             dkg.state,
@@ -593,7 +550,7 @@ mod test_dealing {
         ));
 
         // Sender creates a PVSS transcript
-        let pvss = dkg.share(rng).unwrap();
+        let pvss = dkg.share(rng).expect("Test failed");
         // Note that state of DKG has not changed
         assert!(matches!(
             dkg.state,
@@ -603,11 +560,11 @@ mod test_dealing {
             }
         ));
 
-        let sender = dkg.me.validator.clone();
+        let sender = dkg.validators[0].validator.clone();
 
         // Sender verifies it's own PVSS transcript
         assert!(dkg.verify_message(&sender, &pvss).is_ok());
-        assert!(dkg.apply_message(&sender, &pvss).is_ok());
+        assert!(dkg.apply_message(sender, pvss).is_ok());
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -622,7 +579,7 @@ mod test_dealing {
     #[test]
     fn test_pvss_cannot_share_from_wrong_state() {
         let rng = &mut ark_std::test_rng();
-        let (mut dkg, _) = setup_dkg(0);
+        let mut dkg = setup_dkg(0);
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -647,8 +604,8 @@ mod test_dealing {
     #[test]
     fn test_share_message_state_guards() {
         let rng = &mut ark_std::test_rng();
-        let (mut dkg, _) = setup_dkg(0);
-        let pvss = dkg.share(rng).unwrap();
+        let mut dkg = setup_dkg(0);
+        let pvss = dkg.share(rng).expect("Test failed");
         assert!(matches!(
             dkg.state,
             DkgState::Sharing {
@@ -656,19 +613,17 @@ mod test_dealing {
                 block: 0,
             }
         ));
-
-        let sender = dkg.me.validator.clone();
-
+        let sender = dkg.validators[3].validator.clone();
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
         assert!(dkg.verify_message(&sender, &pvss).is_err());
-        assert!(dkg.apply_message(&sender, &pvss).is_err());
+        assert!(dkg.apply_message(sender.clone(), pvss.clone()).is_err());
 
         // check that we can still accept pvss transcripts after meeting threshold
         dkg.state = Dealt;
         assert!(dkg.verify_message(&sender, &pvss).is_ok());
-        assert!(dkg.apply_message(&sender, &pvss).is_ok());
+        assert!(dkg.apply_message(sender, pvss).is_ok());
         assert!(matches!(dkg.state, DkgState::Dealt))
     }
 }
@@ -684,11 +639,11 @@ mod test_aggregation {
     /// met, we can create a final key
     #[test]
     fn test_aggregate() {
-        let (mut dkg, _) = setup_dealt_dkg();
-        let aggregate = dkg.aggregate().unwrap();
-        let sender = dkg.me.validator.clone();
+        let mut dkg = setup_dealt_dkg();
+        let aggregate = dkg.aggregate().expect("Test failed");
+        let sender = dkg.validators[dkg.me].validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_ok());
-        assert!(dkg.apply_message(&sender, &aggregate).is_ok());
+        assert!(dkg.apply_message(sender, aggregate).is_ok());
         assert!(matches!(dkg.state, DkgState::Success { .. }));
     }
 
@@ -696,7 +651,7 @@ mod test_aggregation {
     /// the state [`DkgState::Dealt]
     #[test]
     fn test_aggregate_state_guards() {
-        let (mut dkg, _) = setup_dealt_dkg();
+        let mut dkg = setup_dealt_dkg();
         dkg.state = DkgState::Sharing {
             accumulated_shares: 0,
             block: 0,
@@ -713,32 +668,32 @@ mod test_aggregation {
     /// [`DkgState::Dealt`]
     #[test]
     fn test_aggregate_message_state_guards() {
-        let (mut dkg, _) = setup_dealt_dkg();
-        let aggregate = dkg.aggregate().unwrap();
-        let sender = dkg.me.validator.clone();
-
+        let mut dkg = setup_dealt_dkg();
+        let aggregate = dkg.aggregate().expect("Test failed");
+        let sender = dkg.validators[dkg.me].validator.clone();
         dkg.state = DkgState::Sharing {
             accumulated_shares: 0,
             block: 0,
         };
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
-        assert!(dkg.apply_message(&sender, &aggregate).is_err());
-
+        assert!(dkg
+            .apply_message(sender.clone(), aggregate.clone())
+            .is_err());
         dkg.state = DkgState::Success {
             final_key: G1::zero(),
         };
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
-        assert!(dkg.apply_message(&sender, &aggregate).is_err())
+        assert!(dkg.apply_message(sender, aggregate).is_err())
     }
 
     /// Test that an aggregate message will fail to verify if the
     /// security threshold is not met
     #[test]
     fn test_aggregate_wont_verify_if_under_threshold() {
-        let (mut dkg, _) = setup_dealt_dkg();
-        dkg.dkg_params.shares_num = 10;
-        let aggregate = dkg.aggregate().unwrap();
-        let sender = dkg.me.validator.clone();
+        let mut dkg = setup_dealt_dkg();
+        dkg.params.shares_num = 10;
+        let aggregate = dkg.aggregate().expect("Test failed");
+        let sender = dkg.validators[dkg.me].validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 
@@ -746,17 +701,17 @@ mod test_aggregation {
     /// key is correct. Verification should fail if it is not
     #[test]
     fn test_aggregate_wont_verify_if_wrong_key() {
-        let (dkg, _) = setup_dealt_dkg();
-        let mut aggregate = dkg.aggregate().unwrap();
+        let mut dkg = setup_dealt_dkg();
+        let mut aggregate = dkg.aggregate().expect("Test failed");
         while dkg.final_key() == G1::zero() {
-            let (_dkg, _) = setup_dealt_dkg();
+            dkg = setup_dealt_dkg();
         }
         if let Message::Aggregate(Aggregation { final_key, .. }) =
             &mut aggregate
         {
             *final_key = G1::zero();
         }
-        let sender = dkg.me.validator.clone();
+        let sender = dkg.validators[dkg.me].validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
     }
 }
