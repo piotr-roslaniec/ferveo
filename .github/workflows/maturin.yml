@@ -1,3 +1,5 @@
+name: Maturin
+
 on:
   push:
     branches:
@@ -5,22 +7,22 @@ on:
   pull_request:
   workflow_dispatch:
 
+defaults:
+  run:
+    working-directory: ./ferveo-python
+
 jobs:
-  defaults:
-    run:
-      working-directory: ./ferveo-python
   linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [
-          x86_64,
+        target: [ x86_64 ]
+          # TODO: Enable these upon stable release
           #          x86,
           #          aarch64,
           #          armv7,
           #          s390x,
           #          ppc64le
-        ]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
