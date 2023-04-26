@@ -199,6 +199,13 @@ jobs:
           fail_ci_if_error: true
 
   benchmark:
+
+    # TODO: This job is failing with error:
+    # "No benchmark result was found in /home/runner/work/ferveo/ferveo/benchmarks/perf/tpke/output.txt. Benchmark output was '"
+    # For example, see: https://github.com/nucypher/ferveo/actions/runs/4790448140/jobs/8519706701
+    # TODO: Fix or remove this job from the workflow.
+    if: ${{ false }}
+
     runs-on: ubuntu-latest
     needs: [ test ]
     strategy:
