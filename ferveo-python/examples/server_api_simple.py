@@ -59,8 +59,13 @@ dkg = Dkg(
 # Let's say that we've only received `security_threshold` transcripts
 messages = messages[:security_threshold]
 
-pvss_aggregated = dkg.aggregate_transcripts(messages)
-assert pvss_aggregated.verify(shares_num, messages)
+# Server can aggregate the transcripts
+server_aggregate = dkg.aggregate_transcripts(messages)
+assert server_aggregate.verify(shares_num, messages)
+
+# And the client can also aggregate and verify the transcripts
+client_aggregate = AggregatedTranscript(messages)
+assert client_aggregate.verify(shares_num, messages)
 
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
