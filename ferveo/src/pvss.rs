@@ -149,14 +149,15 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// i.e. we optimistically do not check the commitment. This is deferred
     /// until the aggregation step
     pub fn verify_optimistic(&self) -> bool {
+        let pvss_params = PubliclyVerifiableParams::<E>::default();
         // We're only checking the proof of knowledge here, sigma ?= h^s
         // "Does the first coefficient of the secret polynomial match the proof of knowledge?"
         E::pairing(
             self.coeffs[0].into_group(), // F_0 = g^s
-            E::G2Affine::generator(),    // h // TODO: Use pvss_params.h?
+            pvss_params.h,
         ) == E::pairing(
-            E::G1Affine::generator(), // g // TODO: Use pvss_params.g?
-            self.sigma,               // h^s
+            pvss_params.g,
+            self.sigma, // h^s
         )
     }
 

@@ -4,7 +4,7 @@ import {
     Dkg,
     encrypt,
     SharedSecretSimpleBuilder,
-    DecryptionShareSimple, SharedSecretPrecomputedBuilder,
+    DecryptionShareSimple,
 } from "tpke-wasm";
 
 const zip = <T>(a: Array<T>, b: Array<T>) => a.map((k: T, i: number) => [k, b[i]]);

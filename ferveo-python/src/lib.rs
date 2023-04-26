@@ -266,6 +266,7 @@ impl DkgPublicKey {
     }
 }
 
+// TODO: Consider using a `pyclass` instead
 #[derive(FromPyObject, Clone)]
 pub struct ValidatorMessage(Validator, Transcript);
 

@@ -111,7 +111,13 @@ impl Dkg {
         &mut self,
         messages: &[ValidatorMessage],
     ) -> Result<AggregatedTranscript> {
-        // TODO: Avoid mutating current state
+        // We must use `deal` here instead of to produce AggregatedTranscript instead of simply
+        // creating an AggregatedTranscript from the messages, because `deal` also updates the
+        // internal state of the DKG.
+        // If we didn't do that, that would cause the DKG to produce incorrect decryption shares
+        // in the future.
+        // TODO: Remove this dependency on DKG state
+        // TODO: Avoid mutating current state here
         for (validator, transcript) in messages {
             self.0.deal(validator, transcript)?;
         }
