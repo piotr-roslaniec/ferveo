@@ -729,7 +729,7 @@ mod tests {
 
         // Remove one participant from the contexts and all nested structures
         let mut remaining_participants = contexts.clone();
-        let removed_participant = remaining_participants.pop().unwrap();
+        let _removed_participant = remaining_participants.pop().unwrap();
         for p in &mut remaining_participants {
             p.public_decryption_contexts.pop().unwrap();
         }
@@ -761,10 +761,8 @@ mod tests {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = ScalarField::rand(rng);
-        let validator_index = removed_participant.index;
         decryption_shares.push(
             DecryptionShareSimple::create(
-                validator_index,
                 &new_validator_decryption_key,
                 &new_private_key_share,
                 &ciphertext,
@@ -828,7 +826,6 @@ mod tests {
                     &p.private_key_share,
                 );
                 DecryptionShareSimple::create(
-                    p.index,
                     &p.validator_private_key,
                     &private_key_share,
                     &ciphertext,

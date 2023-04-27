@@ -8,7 +8,6 @@ pub use ark_bls12_381::Bls12_381 as EllipticCurve;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
 use digest::crypto_common::rand_core::SeedableRng;
 use ferveo::*;
-use ferveo_common::{EthereumAddress, Validator};
 use rand::prelude::StdRng;
 
 const NUM_SHARES_CASES: [usize; 5] = [4, 8, 16, 32, 64];

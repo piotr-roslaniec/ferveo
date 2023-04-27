@@ -753,6 +753,7 @@ dependencies = [
  "digest",
  "ferveo-common",
  "group-threshold-cryptography",
+ "hex",
  "itertools",
  "measure_time",
  "pprof",
@@ -774,12 +775,10 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "bincode",
- "hex",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
  "serde_with",
- "thiserror",
 ]
 
 [[package]]
@@ -805,6 +804,7 @@ dependencies = [
  "ferveo-common",
  "getrandom 0.2.8",
  "group-threshold-cryptography",
+ "itertools",
  "js-sys",
  "rand 0.8.5",
  "rand_core 0.6.4",

@@ -8,7 +8,6 @@ use std::{
 
 use ark_bls12_381::Bls12_381 as EllipticCurve;
 use ferveo::*;
-use ferveo_common::{EthereumAddress, Validator};
 use itertools::iproduct;
 use rand::prelude::StdRng;
 use rand_core::SeedableRng;

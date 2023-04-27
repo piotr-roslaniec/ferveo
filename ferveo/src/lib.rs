@@ -6,11 +6,12 @@ pub mod api;
 pub mod dkg;
 pub mod primitives;
 pub mod pvss;
+pub mod validator;
 
 pub use dkg::*;
-use ferveo_common::{EthereumAddress, Validator};
 pub use primitives::*;
 pub use pvss::*;
+pub use validator::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -415,10 +416,9 @@ mod test_dkg_full {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        let share_index = removed_validator.share_index;
+        let _share_index = removed_validator.share_index;
         decryption_shares.push(
             DecryptionShareSimple::create(
-                share_index,
                 &new_validator_decryption_key,
                 &new_private_key_share,
                 &ciphertext,

@@ -21,7 +21,7 @@ use tpke::{
 
 use crate::{
     batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
-    PubliclyVerifiableDkg, Result,
+    PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -190,7 +190,7 @@ pub fn do_verify_full<E: Pairing>(
     pvss_coefficients: &[E::G1Affine],
     pvss_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
-    validators: &[ferveo_common::Validator<E>],
+    validators: &[Validator<E>],
     domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
 ) -> bool {
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
@@ -222,7 +222,7 @@ pub fn do_verify_aggregation<E: Pairing>(
     pvss_agg_coefficients: &[E::G1Affine],
     pvss_agg_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
-    validators: &[ferveo_common::Validator<E>],
+    validators: &[Validator<E>],
     domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
     vss: &PVSSMap<E>,
 ) -> Result<bool> {
@@ -305,7 +305,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         let private_key_share = self
             .decrypt_private_key_share(validator_decryption_key, share_index);
         DecryptionShareSimple::create(
-            share_index,
             validator_decryption_key,
             &private_key_share,
             ciphertext,
@@ -360,7 +359,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &validator_private_key_share,
         );
         DecryptionShareSimple::create(
-            share_index,
             validator_decryption_key,
             &refreshed_private_key_share,
             ciphertext,
