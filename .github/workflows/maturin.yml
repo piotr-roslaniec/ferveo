@@ -8,14 +8,11 @@ on:
   workflow_dispatch:
 
 env:
-  working-directory: ./ferveo-python
+  python-versions: [ "3.7", "3.8", "3.9", "3.10" ]
 
 jobs:
   linux:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64 ]
@@ -25,11 +22,12 @@ jobs:
           #          armv7,
           #          s390x,
           #          ppc64le
+        python-version: ${{ env.python-versions }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -44,17 +42,15 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x64, x86 ]
+        python-version: ${{ env.python-versions }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -69,17 +65,15 @@ jobs:
 
   macos:
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64, aarch64 ]
+        python-version: ${{ env.python-versions }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
