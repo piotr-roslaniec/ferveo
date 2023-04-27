@@ -4,181 +4,228 @@ extern crate group_threshold_cryptography as tpke;
 extern crate wasm_bindgen_test;
 
 use ferveo_wasm::{test_common::*, *};
+use itertools::zip_eq;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
-#[test]
 #[wasm_bindgen_test]
 fn tdec_simple() {
-    let shares_num = 16;
-    let threshold = shares_num * 2 / 3;
-    let msg = "my-msg".as_bytes().to_vec();
-    let aad = "my-aad".as_bytes().to_vec();
+    let (
+        tau,
+        shares_num,
+        security_threshold,
+        validator_keypairs,
+        validators,
+        validators_js,
+        dkg,
+        messages_js,
+        msg,
+        aad,
+        ciphertext,
+    ) = setup_dkg();
 
-    let dkg = Dkg::new(threshold, shares_num);
+    // Having aggregated the transcripts, the validators can now create decryption shares
+    let decryption_shares = zip_eq(validators, validator_keypairs)
+        .map(|(validator, keypair)| {
+            let mut dkg = Dkg::new(
+                tau,
+                shares_num as u32,
+                security_threshold as u32,
+                validators_js.clone(),
+                &validator,
+            )
+            .unwrap();
+            let aggregate =
+                dkg.aggregate_transcripts(messages_js.clone()).unwrap();
 
-    //
-    // On the client side
-    //
-
-    // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg.public_key).unwrap();
-
-    // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
-
-    //
-    // On the server side
-    //
-
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
-    assert_eq!(ciphertext, ciphertext2);
-
-    // Create decryption shares
-
-    let decryption_shares = (0..threshold)
-        .map(|i| {
-            dkg.make_decryption_share_simple(&ciphertext, &aad, i)
+            aggregate
+                .create_decryption_share_simple(
+                    &dkg,
+                    &ciphertext,
+                    &aad,
+                    &keypair,
+                )
                 .unwrap()
         })
         .collect::<Vec<DecryptionShareSimple>>();
+    let decryption_shares_js =
+        serde_wasm_bindgen::to_value(&decryption_shares).unwrap();
 
-    let domain_points = (0..threshold)
-        .map(|i| dkg.get_domain_point(i))
-        .collect::<Vec<DomainPoint>>();
+    // Now, the decryption share can be used to decrypt the ciphertext
+    // This part is in the client API
 
-    // Serialize and send back to client
-    let decryption_shares_bytes = decryption_shares
-        .iter()
-        .map(|s| s.to_bytes().unwrap())
-        .collect::<Vec<Vec<u8>>>();
+    let shared_secret = combine_decryption_shares_simple(
+        decryption_shares_js,
+        &dkg.public_params(),
+    )
+    .unwrap();
 
-    //
-    // On the client side
-    //
-
-    let decryption_shares_2: Vec<DecryptionShareSimple> =
-        decryption_shares_bytes
-            .iter()
-            .map(|s| DecryptionShareSimple::from_bytes(s).unwrap())
-            .collect();
-    assert_eq!(decryption_shares, decryption_shares_2);
-
-    // Combine shares into a shared secret
-    let mut ss_builder = SharedSecretSimpleBuilder::new(threshold);
-    for share in decryption_shares {
-        ss_builder.add_decryption_share(&share);
-    }
-    for domain_point in domain_points {
-        ss_builder.add_domain_point(&domain_point);
-    }
-    let shared_secret = ss_builder.build();
-
-    // Decrypt the message
+    // The client should have access to the public parameters of the DKG
     let plaintext = decrypt_with_shared_secret(
         &ciphertext,
         &aad,
         &shared_secret,
-        &dkg.public_parameters(),
+        &dkg.public_params(),
     )
     .unwrap();
-
-    assert_eq!(msg, plaintext)
+    assert_eq!(msg, plaintext);
 }
 
-#[test]
 #[wasm_bindgen_test]
-fn tdec_simple_precomputed() {
-    let shares_num = 16;
-    let threshold = shares_num * 2 / 3;
-    let msg = "abc".as_bytes().to_vec();
-    let aad = "my-aad".as_bytes().to_vec();
+fn tdec_precomputed() {
+    let (
+        tau,
+        shares_num,
+        security_threshold,
+        validator_keypairs,
+        validators,
+        validators_js,
+        dkg,
+        messages_js,
+        msg,
+        aad,
+        ciphertext,
+    ) = setup_dkg();
 
-    let dkg = Dkg::new(threshold, shares_num);
+    // Having aggregated the transcripts, the validators can now create decryption shares
+    let decryption_shares = zip_eq(validators, validator_keypairs)
+        .map(|(validator, keypair)| {
+            let mut dkg = Dkg::new(
+                tau,
+                shares_num as u32,
+                security_threshold as u32,
+                validators_js.clone(),
+                &validator,
+            )
+            .unwrap();
+            let aggregate =
+                dkg.aggregate_transcripts(messages_js.clone()).unwrap();
 
-    //
-    // On the client side
-    //
-
-    // Encrypt the message
-    let ciphertext = encrypt(&msg, &aad, &dkg.public_key).unwrap();
-
-    // Serialize and send to validators
-    let ciphertext_bytes = ciphertext.to_bytes().unwrap();
-
-    //
-    // On the server side
-    //
-
-    let ciphertext2 = Ciphertext::from_bytes(&ciphertext_bytes).unwrap();
-    assert_eq!(ciphertext, ciphertext2);
-
-    // Create decryption shares
-
-    // Note that in this variant, if we use less than `share_num` shares, we will get a
-    // decryption error.
-
-    let decryption_shares = (0..shares_num)
-        .map(|i| {
-            dkg.make_decryption_share_precomputed(&ciphertext, &aad, i)
+            aggregate
+                .create_decryption_share_precomputed(
+                    &dkg,
+                    &ciphertext,
+                    &aad,
+                    &keypair,
+                )
                 .unwrap()
         })
-        .collect::<Vec<DecryptionShareSimplePrecomputed>>();
+        .collect::<Vec<DecryptionSharePrecomputed>>();
+    let decryption_shares_js =
+        serde_wasm_bindgen::to_value(&decryption_shares).unwrap();
 
-    // Serialize and send back to client
-    let decryption_shares_bytes = decryption_shares
-        .iter()
-        .map(|s| s.to_bytes().unwrap())
-        .collect::<Vec<Vec<u8>>>();
+    // Now, the decryption share can be used to decrypt the ciphertext
+    // This part is in the client API
 
-    //
-    // On the client side
-    //
+    let shared_secret =
+        combine_decryption_shares_precomputed(decryption_shares_js).unwrap();
 
-    let decryption_shares_2: Vec<DecryptionShareSimplePrecomputed> =
-        decryption_shares_bytes
-            .iter()
-            .map(|s| DecryptionShareSimplePrecomputed::from_bytes(s).unwrap())
-            .collect();
-    assert_eq!(decryption_shares, decryption_shares_2);
-
-    // Combine shares into a shared secret
-    let mut ss_builder = SharedSecretPrecomputedBuilder::new(threshold);
-    for share in decryption_shares {
-        ss_builder.add_decryption_share(&share);
-    }
-    let shared_secret = ss_builder.build();
-
-    // Decrypt the message
+    // The client should have access to the public parameters of the DKG
     let plaintext = decrypt_with_shared_secret(
         &ciphertext,
         &aad,
         &shared_secret,
-        &dkg.public_parameters(),
+        &dkg.public_params(),
     )
     .unwrap();
-
-    assert_eq!(msg, plaintext)
+    assert_eq!(msg, plaintext);
 }
 
-#[test]
-#[wasm_bindgen_test]
-fn encrypts_and_decrypts() {
+type TestSetup = (
+    u64,
+    usize,
+    usize,
+    Vec<Keypair>,
+    Vec<Validator>,
+    JsValue,
+    Dkg,
+    JsValue,
+    Vec<u8>,
+    Vec<u8>,
+    Ciphertext,
+);
+
+fn setup_dkg() -> TestSetup {
+    let tau = 1;
     let shares_num = 16;
-    let threshold = shares_num * 2 / 3;
-    let message = "my-secret-message".as_bytes().to_vec();
-    let aad = "my-aad".as_bytes().to_vec();
+    let security_threshold = shares_num * 2 / 3;
 
-    let dkg = Dkg::new(threshold, shares_num);
+    let validator_keypairs =
+        (0..shares_num).map(gen_keypair).collect::<Vec<Keypair>>();
+    let validators = validator_keypairs
+        .iter()
+        .enumerate()
+        .map(|(i, keypair)| gen_validator(i, keypair))
+        .collect::<Vec<Validator>>();
+    let validators_js = serde_wasm_bindgen::to_value(&validators).unwrap();
 
-    let ciphertext = encrypt(&message, &aad, &dkg.public_key).unwrap();
-    let plaintext = decrypt_with_private_key(
-        &ciphertext,
-        &aad,
-        &dkg.private_key,
-        &dkg.public_parameters(),
+    // Each validator holds their own DKG instance and generates a transcript every
+    // validator, including themselves
+    let messages: Vec<_> = validators
+        .iter()
+        .map(|sender| {
+            let dkg = Dkg::new(
+                tau,
+                shares_num as u32,
+                security_threshold as u32,
+                validators_js.clone(),
+                sender,
+            )
+            .unwrap();
+            let transcript = dkg.generate_transcript().unwrap();
+
+            ValidatorMessage::new(sender.clone(), transcript).unwrap()
+        })
+        .collect();
+
+    // Now that every validator holds a dkg instance and a transcript for every other validator,
+    // every validator can aggregate the transcripts
+
+    let mut dkg = Dkg::new(
+        tau,
+        shares_num as u32,
+        security_threshold as u32,
+        validators_js.clone(),
+        &validators[0],
     )
     .unwrap();
 
-    // TODO: Plaintext is padded to 32 bytes. Fix this.
-    assert_eq!(message, plaintext[..message.len()])
+    // Let's say that we've only received `security_threshold` transcripts
+    let messages: Vec<_> = messages.iter().take(security_threshold).collect();
+    let messages_js = serde_wasm_bindgen::to_value(&messages).unwrap();
+
+    // Server can aggregate the transcripts and verify them
+    let server_aggregate =
+        dkg.aggregate_transcripts(messages_js.clone()).unwrap();
+    let is_valid = server_aggregate
+        .verify(shares_num, messages_js.clone())
+        .unwrap();
+    assert!(is_valid);
+
+    // Client can also aggregate the transcripts and verify them
+    let client_aggregate =
+        AggregatedTranscript::new(messages_js.clone()).unwrap();
+    let is_valid = client_aggregate
+        .verify(shares_num, messages_js.clone())
+        .unwrap();
+    assert!(is_valid);
+
+    // In the meantime, the client creates a ciphertext and decryption request
+    let msg = "my-msg".as_bytes().to_vec();
+    let aad = "my-aad".as_bytes().to_vec();
+    let ciphertext = encrypt(&msg, &aad, &dkg.final_key()).unwrap();
+
+    (
+        tau,
+        shares_num,
+        security_threshold,
+        validator_keypairs,
+        validators,
+        validators_js,
+        dkg,
+        messages_js,
+        msg,
+        aad,
+        ciphertext,
+    )
 }

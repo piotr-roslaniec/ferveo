@@ -86,7 +86,6 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
         aad: &[u8],
     ) -> Result<DecryptionShareSimple<E>> {
         DecryptionShareSimple::create(
-            self.index,
             &self.validator_private_key,
             &self.private_key_share,
             ciphertext,

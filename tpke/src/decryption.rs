@@ -79,7 +79,6 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
     deserialize = "ValidatorShareChecksum<E>: DeserializeOwned"
 ))]
 pub struct DecryptionShareSimple<E: Pairing> {
-    pub share_index: usize,
     #[serde_as(as = "serialization::SerdeAs")]
     pub decryption_share: E::TargetField,
     pub validator_checksum: ValidatorShareChecksum<E>,
@@ -89,7 +88,6 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     /// Create a decryption share from the given parameters.
     /// This function checks that the ciphertext is valid.
     pub fn create(
-        share_index: usize,
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
@@ -98,7 +96,6 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
         Self::create_unchecked(
-            share_index,
             validator_decryption_key,
             private_key_share,
             ciphertext,
@@ -108,7 +105,6 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     /// Create a decryption share from the given parameters.
     /// This function does not check that the ciphertext is valid.
     pub fn create_unchecked(
-        share_index: usize,
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
         ciphertext: &Ciphertext<E>,
@@ -124,7 +120,6 @@ impl<E: Pairing> DecryptionShareSimple<E> {
             ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
 
         Ok(Self {
-            share_index,
             decryption_share,
             validator_checksum,
         })

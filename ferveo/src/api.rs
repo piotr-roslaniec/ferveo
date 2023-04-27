@@ -4,7 +4,7 @@ use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bincode;
 use ferveo_common::serialization;
-pub use ferveo_common::{Keypair, PublicKey, Validator};
+pub use ferveo_common::{Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,8 @@ pub use tpke::api::{
     G1Affine, G1Prepared, SharedSecret, E,
 };
 
-pub use crate::PubliclyVerifiableSS as Transcript;
 use crate::{do_verify_aggregation, PVSSMap, Result};
+pub use crate::{PubliclyVerifiableSS as Transcript, Validator};
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
