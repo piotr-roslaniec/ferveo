@@ -729,7 +729,7 @@ mod tests {
 
         // Remove one participant from the contexts and all nested structures
         let mut remaining_participants = contexts.clone();
-        let _removed_participant = remaining_participants.pop().unwrap();
+        remaining_participants.pop().unwrap();
         for p in &mut remaining_participants {
             p.public_decryption_contexts.pop().unwrap();
         }
