@@ -20,9 +20,8 @@ itertools = "0.10.5"
 # https://github.com/PyO3/pyo3/issues/340
 # Instead, we expose it in certain cases:
 # https://github.com/PyO3/maturin/issues/325
-# TODO: Verify whether this actually works
-#[tool.maturin]
-#features = ["pyo3/extension-module"]
+[tool.maturin]
+features = ["pyo3/extension-module"]
 
 [build-dependencies]
 pyo3-build-config = "*"

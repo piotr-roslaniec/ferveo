@@ -7,13 +7,15 @@ on:
   pull_request:
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: ./ferveo-python
+env:
+  working-directory: ./ferveo-python
 
 jobs:
   linux:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64 ]
@@ -32,7 +34,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter --manifest-path ferveo-python/Cargo.toml
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -42,6 +44,9 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x64, x86 ]
@@ -55,7 +60,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter --manifest-path ferveo-python/Cargo.toml
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -64,6 +69,9 @@ jobs:
 
   macos:
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64, aarch64 ]
@@ -76,7 +84,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter --manifest-path ferveo-python/Cargo.toml
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
