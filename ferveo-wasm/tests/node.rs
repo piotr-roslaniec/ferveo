@@ -37,6 +37,11 @@ fn tdec_simple() {
             .unwrap();
             let aggregate =
                 dkg.aggregate_transcripts(messages_js.clone()).unwrap();
+            let is_valid = aggregate
+                .clone()
+                .verify(shares_num, messages_js.clone())
+                .unwrap();
+            assert!(is_valid);
 
             aggregate
                 .create_decryption_share_simple(
@@ -100,6 +105,11 @@ fn tdec_precomputed() {
             .unwrap();
             let aggregate =
                 dkg.aggregate_transcripts(messages_js.clone()).unwrap();
+            let is_valid = aggregate
+                .clone()
+                .verify(shares_num, messages_js.clone())
+                .unwrap();
+            assert!(is_valid);
 
             aggregate
                 .create_decryption_share_precomputed(
@@ -132,7 +142,7 @@ fn tdec_precomputed() {
 }
 
 type TestSetup = (
-    u64,
+    u32,
     usize,
     usize,
     Vec<Keypair>,
@@ -161,22 +171,19 @@ fn setup_dkg() -> TestSetup {
 
     // Each validator holds their own DKG instance and generates a transcript every
     // validator, including themselves
-    let messages: Vec<_> = validators
-        .iter()
-        .map(|sender| {
-            let dkg = Dkg::new(
-                tau,
-                shares_num as u32,
-                security_threshold as u32,
-                validators_js.clone(),
-                sender,
-            )
-            .unwrap();
-            let transcript = dkg.generate_transcript().unwrap();
+    let messages = validators.iter().map(|sender| {
+        let dkg = Dkg::new(
+            tau,
+            shares_num as u32,
+            security_threshold as u32,
+            validators_js.clone(),
+            sender,
+        )
+        .unwrap();
+        let transcript = dkg.generate_transcript().unwrap();
 
-            ValidatorMessage::new(sender.clone(), transcript).unwrap()
-        })
-        .collect();
+        ValidatorMessage::new(sender.clone(), transcript).unwrap()
+    });
 
     // Now that every validator holds a dkg instance and a transcript for every other validator,
     // every validator can aggregate the transcripts
@@ -191,7 +198,8 @@ fn setup_dkg() -> TestSetup {
     .unwrap();
 
     // Let's say that we've only received `security_threshold` transcripts
-    let messages: Vec<_> = messages.iter().take(security_threshold).collect();
+    let messages: Vec<_> =
+        messages.into_iter().take(security_threshold).collect();
     let messages_js = serde_wasm_bindgen::to_value(&messages).unwrap();
 
     // Server can aggregate the transcripts and verify them

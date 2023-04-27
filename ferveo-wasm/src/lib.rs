@@ -2,11 +2,11 @@ extern crate group_threshold_cryptography as tpke;
 
 mod utils;
 
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use std::str::FromStr;
+
 use ferveo::EthereumAddress;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use tpke::api::E;
 use utils::*;
 use wasm_bindgen::prelude::*;
@@ -77,34 +77,6 @@ impl PublicKey {
     #[wasm_bindgen(js_name = "toBytes")]
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.0.to_bytes().map_err(map_js_err)
-    }
-}
-
-#[serde_as]
-#[wasm_bindgen]
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct PrivateKey(
-    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
-    pub(crate)  tpke::api::PrivateKey,
-);
-
-#[wasm_bindgen]
-impl PrivateKey {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<PrivateKey> {
-        let mut reader = bytes;
-        let pk = tpke::api::PrivateKey::deserialize_compressed(&mut reader)
-            .map_err(map_js_err)?;
-        Ok(PrivateKey(pk))
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let mut bytes = Vec::new();
-        self.0
-            .serialize_compressed(&mut bytes)
-            .map_err(map_js_err)?;
-        Ok(bytes)
     }
 }
 
@@ -249,7 +221,7 @@ pub struct Dkg(ferveo::api::Dkg);
 impl Dkg {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        tau: u64,
+        tau: u32,
         shares_num: u32,
         security_threshold: u32,
         validators: JsValue, // Vec<Validator>
@@ -272,16 +244,19 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
+    #[wasm_bindgen(js_name = "finalKey")]
     pub fn final_key(&self) -> DkgPublicKey {
         DkgPublicKey(self.0.final_key())
     }
 
+    #[wasm_bindgen(js_name = "generateTranscript")]
     pub fn generate_transcript(&self) -> Result<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self.0.generate_transcript(rng).map_err(map_js_err)?;
         Ok(Transcript(transcript))
     }
 
+    #[wasm_bindgen(js_name = "aggregateTranscript")]
     pub fn aggregate_transcripts(
         &mut self,
         messages: JsValue, // Vec<ValidatorMessage>
@@ -294,6 +269,7 @@ impl Dkg {
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
+    #[wasm_bindgen(js_name = "publicParams")]
     pub fn public_params(&self) -> DkgPublicParameters {
         DkgPublicParameters(self.0.public_params())
     }
@@ -325,13 +301,12 @@ pub struct Validator {
     public_key: Vec<u8>,
 }
 
+#[wasm_bindgen]
 impl Validator {
-    pub fn new(
-        address: EthereumAddress,
-        public_key: PublicKey,
-    ) -> Result<Self> {
+    #[wasm_bindgen(constructor)]
+    pub fn new(address: &str, public_key: &PublicKey) -> Result<Validator> {
         Ok(Self {
-            address,
+            address: EthereumAddress::from_str(address).map_err(map_js_err)?,
             public_key: public_key.to_bytes()?,
         })
     }
@@ -367,7 +342,7 @@ impl ValidatorMessage {
 }
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregatedTranscript(pub(crate) ferveo::api::AggregatedTranscript);
 
 #[wasm_bindgen]
