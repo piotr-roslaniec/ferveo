@@ -3,12 +3,14 @@
 ## Usage
 
 Make sure `pkg` is build with correct target:
+
 ```bash
 cd ../../
 wasm-pack build --target web
 ```
 
 Install dependencies and run tests:
+
 ```bash
 $ yarn install
 $ yarn start

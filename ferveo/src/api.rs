@@ -77,7 +77,7 @@ pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
 
 impl Dkg {
     pub fn new(
-        tau: u64,
+        tau: u32,
         shares_num: u32,
         security_threshold: u32,
         validators: &[Validator<E>],
@@ -250,7 +250,7 @@ mod test_ferveo_api {
 
     fn make_test_inputs(
         rng: &mut StdRng,
-        tau: u64,
+        tau: u32,
         security_threshold: u32,
         shares_num: u32,
     ) -> TestInputs {

@@ -278,7 +278,7 @@ pub struct Dkg(ferveo::api::Dkg);
 impl Dkg {
     #[new]
     pub fn new(
-        tau: u64,
+        tau: u32,
         shares_num: u32,
         security_threshold: u32,
         validators: Vec<Validator>,
@@ -488,7 +488,7 @@ mod test_ferveo_python {
     type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
 
     fn make_test_inputs(
-        tau: u64,
+        tau: u32,
         security_threshold: u32,
         shares_num: u32,
     ) -> TestInputs {

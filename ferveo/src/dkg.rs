@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DkgParams {
-    pub tau: u64,
+    pub tau: u32,
     pub security_threshold: u32,
     pub shares_num: u32,
 }
