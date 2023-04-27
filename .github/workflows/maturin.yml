@@ -13,9 +13,6 @@ env:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64 ]
@@ -45,9 +42,6 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x64, x86 ]
@@ -71,9 +65,6 @@ jobs:
 
   macos:
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: ${{ env.working-directory }}
     strategy:
       matrix:
         target: [ x86_64, aarch64 ]
