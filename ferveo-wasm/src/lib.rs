@@ -4,59 +4,74 @@ mod utils;
 
 use std::str::FromStr;
 
-use ferveo::EthereumAddress;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use tpke::api::E;
+pub use utils::into_js_array;
 use utils::*;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_derive::TryFromJsValue;
 
-extern crate wee_alloc;
+extern crate alloc;
 
-type Result<T> = std::result::Result<T, js_sys::Error>;
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "ValidatorMessage[]")]
+    pub type ValidatorMessageArray;
+
+    #[wasm_bindgen(typescript_type = "Validator[]")]
+    pub type ValidatorArray;
+
+    #[wasm_bindgen(typescript_type = "DecryptionShareSimple[]")]
+    pub type DecryptionShareSimpleArray;
+
+    #[wasm_bindgen(typescript_type = "DecryptionSharePrecomputed[]")]
+    pub type DecryptionSharePrecomputedArray;
+}
 
 fn unwrap_messages_js(
-    messages: JsValue,
-) -> Result<Vec<(ferveo::api::Validator<E>, ferveo::api::Transcript<E>)>> {
-    let messages: Vec<ValidatorMessage> =
-        serde_wasm_bindgen::from_value(messages).map_err(map_js_err)?;
+    messages: &ValidatorMessageArray,
+) -> JsResult<Vec<(ferveo::api::Validator<E>, ferveo::api::Transcript<E>)>> {
+    let messages = try_from_js_array::<ValidatorMessage>(messages)?;
     let messages = messages
         .iter()
         .map(|m| m.to_inner())
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<JsResult<Vec<_>>>()?;
     Ok(messages)
 }
 
+#[derive(TryFromJsValue)]
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
 impl DecryptionShareSimple {
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionShareSimple> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<DecryptionShareSimple> {
         from_js_bytes(bytes).map(Self)
     }
 }
 
+#[derive(TryFromJsValue)]
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(tpke::api::DecryptionSharePrecomputed);
 
 #[wasm_bindgen]
 impl DecryptionSharePrecomputed {
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<DecryptionSharePrecomputed> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<DecryptionSharePrecomputed> {
         from_js_bytes(bytes).map(Self)
     }
 }
@@ -68,15 +83,20 @@ pub struct PublicKey(pub(crate) ferveo::api::PublicKey<E>);
 #[wasm_bindgen]
 impl PublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<PublicKey> {
         ferveo::api::PublicKey::from_bytes(bytes)
             .map_err(map_js_err)
             .map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         self.0.to_bytes().map_err(map_js_err)
+    }
+
+    #[wasm_bindgen]
+    pub fn equals(&self, other: &PublicKey) -> bool {
+        self.0 == other.0
     }
 }
 
@@ -87,12 +107,12 @@ pub struct Ciphertext(tpke::api::Ciphertext);
 #[wasm_bindgen]
 impl Ciphertext {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Ciphertext> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<Ciphertext> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
@@ -102,7 +122,7 @@ pub fn encrypt(
     message: &[u8],
     aad: &[u8],
     dkg_public_key: &DkgPublicKey,
-) -> Result<Ciphertext> {
+) -> JsResult<Ciphertext> {
     set_panic_hook();
     let rng = &mut thread_rng();
     let ciphertext =
@@ -117,12 +137,12 @@ pub struct DkgPublicParameters(ferveo::api::DkgPublicParameters);
 #[wasm_bindgen]
 impl DkgPublicParameters {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicParameters> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicParameters> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
@@ -134,24 +154,23 @@ pub struct SharedSecret(tpke::api::SharedSecret);
 #[wasm_bindgen]
 impl SharedSecret {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<SharedSecret> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<SharedSecret> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
 
 #[wasm_bindgen(js_name = "combineDecryptionSharesSimple")]
 pub fn combine_decryption_shares_simple(
-    decryption_shares_js: JsValue,
+    decryption_shares_js: &DecryptionShareSimpleArray,
     dkg_public_params: &DkgPublicParameters,
-) -> Result<SharedSecret> {
-    let shares: Vec<DecryptionShareSimple> =
-        serde_wasm_bindgen::from_value(decryption_shares_js)
-            .map_err(map_js_err)?;
+) -> JsResult<SharedSecret> {
+    let shares =
+        try_from_js_array::<DecryptionShareSimple>(decryption_shares_js)?;
     let shares = shares
         .iter()
         .map(|share| share.0.clone())
@@ -168,11 +187,10 @@ pub fn combine_decryption_shares_simple(
 
 #[wasm_bindgen(js_name = "combineDecryptionSharesPrecomputed")]
 pub fn combine_decryption_shares_precomputed(
-    decryption_shares_js: JsValue,
-) -> Result<SharedSecret> {
-    let shares: Vec<DecryptionSharePrecomputed> =
-        serde_wasm_bindgen::from_value(decryption_shares_js)
-            .map_err(map_js_err)?;
+    decryption_shares_js: &DecryptionSharePrecomputedArray,
+) -> JsResult<SharedSecret> {
+    let shares =
+        try_from_js_array::<DecryptionSharePrecomputed>(decryption_shares_js)?;
     let shares = shares
         .iter()
         .map(|share| share.0.clone())
@@ -187,7 +205,7 @@ pub fn decrypt_with_shared_secret(
     aad: &[u8],
     shared_secret: &SharedSecret,
     dkg_public_params: &DkgPublicParameters,
-) -> Result<Vec<u8>> {
+) -> JsResult<Vec<u8>> {
     set_panic_hook();
     tpke::api::decrypt_with_shared_secret(
         &ciphertext.0,
@@ -204,12 +222,12 @@ pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
 #[wasm_bindgen]
 impl DkgPublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicKey> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
@@ -224,15 +242,14 @@ impl Dkg {
         tau: u32,
         shares_num: u32,
         security_threshold: u32,
-        validators: JsValue, // Vec<Validator>
+        validators_js: &ValidatorArray,
         me: &Validator,
-    ) -> Result<Dkg> {
-        let validators: Vec<Validator> =
-            serde_wasm_bindgen::from_value(validators).map_err(map_js_err)?;
+    ) -> JsResult<Dkg> {
+        let validators = try_from_js_array::<Validator>(validators_js)?;
         let validators = validators
             .into_iter()
             .map(|v| v.to_inner())
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<JsResult<Vec<_>>>()?;
         let dkg = ferveo::api::Dkg::new(
             tau,
             shares_num,
@@ -250,7 +267,7 @@ impl Dkg {
     }
 
     #[wasm_bindgen(js_name = "generateTranscript")]
-    pub fn generate_transcript(&self) -> Result<Transcript> {
+    pub fn generate_transcript(&self) -> JsResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self.0.generate_transcript(rng).map_err(map_js_err)?;
         Ok(Transcript(transcript))
@@ -259,9 +276,9 @@ impl Dkg {
     #[wasm_bindgen(js_name = "aggregateTranscript")]
     pub fn aggregate_transcripts(
         &mut self,
-        messages: JsValue, // Vec<ValidatorMessage>
-    ) -> Result<AggregatedTranscript> {
-        let messages = unwrap_messages_js(messages)?;
+        messages_js: &ValidatorMessageArray,
+    ) -> JsResult<AggregatedTranscript> {
+        let messages = unwrap_messages_js(messages_js)?;
         let aggregated_transcript = self
             .0
             .aggregate_transcripts(&messages)
@@ -282,73 +299,104 @@ pub struct Transcript(pub(crate) ferveo::api::Transcript<E>);
 #[wasm_bindgen]
 impl Transcript {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Transcript> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<Transcript> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
+    }
+}
+
+#[wasm_bindgen(js_name = EthereumAddress)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EthereumAddress(ferveo::api::EthereumAddress);
+
+#[wasm_bindgen]
+impl EthereumAddress {
+    #[wasm_bindgen(js_name = "fromString")]
+    pub fn from_string(address: &str) -> JsResult<EthereumAddress> {
+        set_panic_hook();
+        Ok(Self(
+            ferveo::api::EthereumAddress::from_str(address)
+                .map_err(map_js_err)?,
+        ))
     }
 }
 
 // Using a separate Validator struct for WASM bindings to avoid issues with serialization of
 // `ark_ec::models::bls12::Bls12<ark_bls12_381::curves::Config>`, i.e. G2Affine public key
+#[derive(TryFromJsValue)]
 #[wasm_bindgen]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct Validator {
     address: EthereumAddress,
-    public_key: Vec<u8>,
+    public_key: PublicKey,
 }
 
 #[wasm_bindgen]
 impl Validator {
     #[wasm_bindgen(constructor)]
-    pub fn new(address: &str, public_key: &PublicKey) -> Result<Validator> {
+    pub fn new(
+        address: &EthereumAddress,
+        public_key: &PublicKey,
+    ) -> JsResult<Validator> {
+        set_panic_hook();
         Ok(Self {
-            address: EthereumAddress::from_str(address).map_err(map_js_err)?,
-            public_key: public_key.to_bytes()?,
+            address: address.clone(),
+            public_key: *public_key,
         })
     }
 
-    pub(crate) fn to_inner(&self) -> Result<ferveo::api::Validator<E>> {
+    pub(crate) fn to_inner(&self) -> JsResult<ferveo::api::Validator<E>> {
+        set_panic_hook();
         Ok(ferveo::api::Validator {
-            address: self.address.clone(),
-            public_key: ferveo::api::PublicKey::from_bytes(&self.public_key)
-                .map_err(map_js_err)?,
+            address: self.address.0.clone(),
+            public_key: self.public_key.0,
         })
+    }
+
+    #[wasm_bindgen(getter, js_name = "publicKey")]
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
     }
 }
 
+// TODO: Consider removing and replacing with tuple
+#[derive(TryFromJsValue)]
 #[wasm_bindgen]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct ValidatorMessage(Validator, Transcript);
 
 #[wasm_bindgen]
 impl ValidatorMessage {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        validator: Validator,
-        transcript: Transcript,
-    ) -> Result<ValidatorMessage> {
-        Ok(Self(validator, transcript))
+        validator: &Validator,
+        transcript: &Transcript,
+    ) -> JsResult<ValidatorMessage> {
+        Ok(Self(validator.clone(), transcript.clone()))
     }
 
     pub(crate) fn to_inner(
         &self,
-    ) -> Result<(ferveo::api::Validator<E>, ferveo::api::Transcript<E>)> {
+    ) -> JsResult<(ferveo::api::Validator<E>, ferveo::api::Transcript<E>)> {
         Ok((self.0.to_inner()?, self.1 .0.clone()))
     }
 }
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AggregatedTranscript(pub(crate) ferveo::api::AggregatedTranscript);
+pub struct AggregatedTranscript(ferveo::api::AggregatedTranscript);
 
 #[wasm_bindgen]
 impl AggregatedTranscript {
     #[wasm_bindgen(constructor)]
-    pub fn new(messages: JsValue) -> Result<AggregatedTranscript> {
+    pub fn new(
+        messages: &ValidatorMessageArray,
+    ) -> JsResult<AggregatedTranscript> {
+        set_panic_hook();
         let messages = unwrap_messages_js(messages)?;
         let aggregated_transcript =
             ferveo::api::AggregatedTranscript::new(&messages);
@@ -356,7 +404,11 @@ impl AggregatedTranscript {
     }
 
     #[wasm_bindgen]
-    pub fn verify(self, shares_num: usize, messages: JsValue) -> Result<bool> {
+    pub fn verify(
+        &self,
+        shares_num: usize,
+        messages: &ValidatorMessageArray,
+    ) -> JsResult<bool> {
         set_panic_hook();
         let messages = unwrap_messages_js(messages)?;
         let is_valid = self
@@ -373,7 +425,8 @@ impl AggregatedTranscript {
         ciphertext: &Ciphertext,
         aad: &[u8],
         validator_keypair: &Keypair,
-    ) -> Result<DecryptionSharePrecomputed> {
+    ) -> JsResult<DecryptionSharePrecomputed> {
+        set_panic_hook();
         let decryption_share = self
             .0
             .create_decryption_share_precomputed(
@@ -393,7 +446,8 @@ impl AggregatedTranscript {
         ciphertext: &Ciphertext,
         aad: &[u8],
         validator_keypair: &Keypair,
-    ) -> Result<DecryptionShareSimple> {
+    ) -> JsResult<DecryptionShareSimple> {
+        set_panic_hook();
         let decryption_share = self
             .0
             .create_decryption_share_simple(
@@ -407,12 +461,12 @@ impl AggregatedTranscript {
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<AggregatedTranscript> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<AggregatedTranscript> {
         from_js_bytes(bytes).map(Self)
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 }
@@ -423,54 +477,56 @@ pub struct Keypair(ferveo::api::Keypair<E>);
 
 #[wasm_bindgen]
 impl Keypair {
+    #[wasm_bindgen(getter, js_name = "secureRandomnessSize")]
+    pub fn secure_randomness_size() -> usize {
+        ferveo::api::Keypair::<E>::secure_randomness_size()
+    }
+
+    #[wasm_bindgen(getter, js_name = "publicKey")]
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.public())
+    }
+
     #[wasm_bindgen]
     pub fn random() -> Self {
         Self(ferveo::api::Keypair::new(&mut thread_rng()))
     }
 
     #[wasm_bindgen(js_name = "fromSecureRandomness")]
-    pub fn from_secure_randomness(bytes: &[u8]) -> Result<Keypair> {
+    pub fn from_secure_randomness(bytes: &[u8]) -> JsResult<Keypair> {
+        set_panic_hook();
         let keypair = ferveo::api::Keypair::<E>::from_secure_randomness(bytes)
             .map_err(map_js_err)?;
         Ok(Self(keypair))
     }
 
-    #[wasm_bindgen(js_name = "secureRandomnessSize")]
-    pub fn secure_randomness_size() -> usize {
-        ferveo::api::Keypair::<E>::secure_randomness_size()
-    }
-
-    #[wasm_bindgen(js_name = "publicKey")]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public())
-    }
-
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
 
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Keypair> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<Keypair> {
         from_js_bytes(bytes).map(Self)
     }
 }
 
 /// Factory functions for testing
 pub mod test_common {
-    use std::str::FromStr;
-
     use crate::*;
 
     pub fn gen_keypair(i: usize) -> Keypair {
         Keypair::from_secure_randomness(&[i as u8; 32]).unwrap()
     }
 
+    pub fn gen_address(i: usize) -> EthereumAddress {
+        EthereumAddress::from_string(&format!("0x{:040}", i)).unwrap()
+    }
+
     pub fn gen_validator(i: usize, keypair: &Keypair) -> Validator {
         Validator {
-            address: EthereumAddress::from_str(&format!("0x{:040}", i))
-                .unwrap(),
-            public_key: keypair.public_key().to_bytes().unwrap(),
+            address: gen_address(i),
+            public_key: keypair.public_key(),
         }
     }
 }

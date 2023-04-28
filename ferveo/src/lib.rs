@@ -338,7 +338,7 @@ mod test_dkg_full {
         // Remove one participant from the contexts and all nested structure
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
-        let removed_validator =
+        let _removed_validator =
             dkg.validators.get(&removed_validator_addr).unwrap();
         let mut remaining_validators = dkg.validators.clone();
         remaining_validators.remove(&removed_validator_addr);
@@ -416,7 +416,6 @@ mod test_dkg_full {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        let _share_index = removed_validator.share_index;
         decryption_shares.push(
             DecryptionShareSimple::create(
                 &new_validator_decryption_key,

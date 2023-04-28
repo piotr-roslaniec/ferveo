@@ -17,7 +17,9 @@ pub use tpke::api::{
 };
 
 use crate::{do_verify_aggregation, PVSSMap, Result};
-pub use crate::{PubliclyVerifiableSS as Transcript, Validator};
+pub use crate::{
+    EthereumAddress, PubliclyVerifiableSS as Transcript, Validator,
+};
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine

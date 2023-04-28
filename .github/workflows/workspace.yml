@@ -48,6 +48,11 @@ jobs:
         with:
           crate: cargo-machete
       - run: cargo machete
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-sort
+      - run: cargo sort --check
 
   test:
     runs-on: ubuntu-latest

@@ -7,10 +7,10 @@ authors = ["Heliax AG <hello@heliax.dev>"]
 
 [dependencies]
 anyhow = "1.0.47"
-ark-std = "0.4"
 ark-ec = "0.4"
 ark-ff = "0.4"
 ark-poly = "0.4"
+ark-std = "0.4"
 
 [dev-dependencies]
 ark-bls12-381 = "0.4"
