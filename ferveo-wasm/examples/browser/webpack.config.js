@@ -14,7 +14,7 @@ const config = {
     open: true,
     host: "localhost",
   },
-  plugins: [new CopyWebpackPlugin({ patterns: ["index.html"]})],
+  plugins: [new CopyWebpackPlugin({ patterns: ["index.html"] })],
   module: {
     rules: [
       {
@@ -28,7 +28,7 @@ const config = {
   },
   experiments: {
     asyncWebAssembly: true,
-  }
+  },
 };
 
 module.exports = () => {

@@ -33,22 +33,10 @@ pub enum Error {
     #[error("Ciphertext verification failed")]
     CiphertextVerificationFailed,
 
-    /// Symmetric ciphertext decryption failed
-    #[error("Ciphertext decryption failed")]
-    CiphertextDecryptionFailed,
-
     /// Decryption share verification failed
     /// Refers to the check 4.4.4 in the paper: https://eprint.iacr.org/2022/898.pdf
     #[error("Decryption share verification failed")]
     DecryptionShareVerificationFailed,
-
-    /// Hashing to curve failed
-    #[error("Could not hash to curve")]
-    HashToCurveError,
-
-    /// Plaintext verification failed
-    #[error("Plaintext verification failed")]
-    PlaintextVerificationFailed,
 
     /// Serialization failed
     #[error("Bytes serialization failed")]
