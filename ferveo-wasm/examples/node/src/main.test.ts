@@ -9,25 +9,27 @@ import {
   combineDecryptionSharesSimple,
   ValidatorMessage,
   DecryptionSharePrecomputed,
-  combineDecryptionSharesPrecomputed, EthereumAddress,
+  combineDecryptionSharesPrecomputed,
+  EthereumAddress,
 } from "ferveo-wasm";
 
-const zip = <T, U>(a: Array<T>, b: Array<U>) =>
-  a.map((k: T, i: number) => [k, b[i]]);
+const zip = <A1, A2>(a: Array<A1>, b: Array<A2>): Array<[A1, A2]> =>
+  a.map((k: A1, i: number) => [k, b[i]]);
 
-const genEthAddr = (i: number) =>{
-  const ethAddr = "0x" + "0".repeat(40 - i.toString(16).length) + i.toString(16);
+const genEthAddr = (i: number) => {
+  const ethAddr =
+    "0x" + "0".repeat(40 - i.toString(16).length) + i.toString(16);
   return EthereumAddress.fromString(ethAddr);
 };
 
 function setupTest() {
   const tau = 1;
-  const sharesNum = 16;
+  const sharesNum = 4;
   const threshold = Math.floor((sharesNum * 2) / 3);
 
   const validator_keypairs: Keypair[] = [];
   const validators: Validator[] = [];
-  for (let i = 0; i < threshold; i++) {
+  for (let i = 0; i < sharesNum; i++) {
     const keypair = Keypair.random();
     validator_keypairs.push(keypair);
     const validator = new Validator(genEthAddr(i), keypair.publicKey);
@@ -46,13 +48,7 @@ function setupTest() {
 
   // Now that every validator holds a dkg instance and a transcript for every other validator,
   // every validator can aggregate the transcripts
-  const dkg = new Dkg(
-    tau,
-    sharesNum,
-    threshold,
-    validators,
-    validators[0]
-  );
+  const dkg = new Dkg(tau, sharesNum, threshold, validators, validators[0]);
 
   // Let's say that we've only received `threshold` transcripts
   const receivedMessages = messages.slice(0, threshold);
@@ -104,22 +100,16 @@ describe("ferveo-wasm", () => {
     zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
       expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
-      const dkg = new Dkg(
-        tau,
-        sharesNum,
-        threshold,
-        validators,
-        validator as Validator
-      );
+      const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
       const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const is_valid = aggregate.verify(sharesNum, receivedMessages);
-      expect(is_valid).toBe(true);
+      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionShareSimple(
         dkg,
         ciphertext,
         aad,
-        keypair as Keypair
+        keypair
       );
       decryptionShares.push(decryptionShare);
     });
@@ -140,7 +130,7 @@ describe("ferveo-wasm", () => {
       sharedSecret,
       dkg.publicParams()
     );
-    expect(plaintext).toEqual(msg);
+    expect(Buffer.from(plaintext)).toEqual(msg);
   });
 
   it("precomputed tdec variant", () => {
@@ -160,22 +150,16 @@ describe("ferveo-wasm", () => {
     // Having aggregated the transcripts, the validators can now create decryption shares
     const decryptionShares: DecryptionSharePrecomputed[] = [];
     zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
-      const dkg = new Dkg(
-        tau,
-        sharesNum,
-        threshold,
-        validators,
-        validator as Validator
-      );
+      const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
       const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const is_valid = aggregate.verify(sharesNum, receivedMessages);
-      expect(is_valid).toBe(true);
+      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionSharePrecomputed(
         dkg,
         ciphertext,
         aad,
-        keypair as Keypair
+        keypair
       );
       decryptionShares.push(decryptionShare);
     });
@@ -193,6 +177,6 @@ describe("ferveo-wasm", () => {
       sharedSecret,
       dkg.publicParams()
     );
-    expect(plaintext).toEqual(msg);
+    expect(Buffer.from(plaintext)).toEqual(msg);
   });
 });

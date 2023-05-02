@@ -238,6 +238,17 @@ impl DkgPublicParameters {
     }
 }
 
+pub fn combine_shares_simple(
+    dkg_public_params: &DkgPublicParameters,
+    shares: &[DecryptionShareSimple],
+) -> SharedSecret {
+    let domain_points = &dkg_public_params.domain_points;
+    let lagrange_coefficients = prepare_combine_simple::<E>(&domain_points[..]);
+    let shared_secret =
+        share_combine_simple(shares, &lagrange_coefficients[..]);
+    SharedSecret(shared_secret)
+}
+
 #[cfg(test)]
 mod test_ferveo_api {
     use itertools::izip;
@@ -410,7 +421,7 @@ mod test_ferveo_api {
         let public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
         let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();

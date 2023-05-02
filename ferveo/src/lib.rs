@@ -401,13 +401,13 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_address, validator_keypair)| {
+                .map(|(share_index, validator_keypair)| {
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_address,
+                            share_index,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()

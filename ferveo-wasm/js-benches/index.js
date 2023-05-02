@@ -1,3 +1,5 @@
+// TODO: Consider rewriting or deleting this outdated benchmarking code
+
 import init, {
   Setup,
   encrypt,
@@ -30,7 +32,7 @@ function benchmark_combine(setup) {
   const message = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   const aad = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   const ciphertext = encrypt(message, aad, setup.public_key);
-  // Using a push to array here instead of map because somehow map breaks 
+  // Using a push to array here instead of map because somehow map breaks
   // DecryptionShare into Uint8Array during iteration
   const decryptionShares = [];
   setup.decrypter_indexes().forEach((index) => {

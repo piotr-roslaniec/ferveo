@@ -175,14 +175,9 @@ pub fn combine_decryption_shares_simple(
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    let domain_points = &dkg_public_params.0.domain_points;
-    let lagrange_coefficients =
-        ferveo::api::prepare_combine_simple::<E>(&domain_points[..]);
-    let shared_secret = ferveo::api::share_combine_simple(
-        &shares[..],
-        &lagrange_coefficients[..],
-    );
-    Ok(SharedSecret(ferveo::api::SharedSecret(shared_secret)))
+    let shared_secret =
+        ferveo::api::combine_shares_simple(&dkg_public_params.0, &shares);
+    Ok(SharedSecret(shared_secret))
 }
 
 #[wasm_bindgen(js_name = "combineDecryptionSharesPrecomputed")]
