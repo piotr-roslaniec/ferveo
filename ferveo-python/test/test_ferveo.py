@@ -109,5 +109,37 @@ def test_tdec_workflow_for_precomputed_variant():
             scenario_for_variant("precomputed", shares_num, security_threshold)
 
 
+PARAMS = [
+    # dkg_size, ritual_id, variant
+    (1, 0, 'simple'),
+    (4, 1, 'simple'),
+    (8, 2, 'simple'),
+    # TODO: enable this test - it is failing because ferveo_python does not support > 10 nodes
+    #       (Number of shares parameter must be a power of two. Got 10)
+    (32, 3, 'simple'),
+
+    (1, 3, 'precomputed'),
+    # TODO: enable these tests - they are failing for unknown reasons (Ciphertext verification failed)
+    (4, 4, 'precomputed'),
+    (8, 5, 'precomputed'),
+    (32, 7, 'precomputed'),
+
+]
+
+TEST_CASES = [
+    (shares_num, int(shares_num / 2) + 1, variant) for (shares_num, _, variant) in PARAMS
+]
+
+TEST_CASES_WITH_THRESHOLD_RANGE = []
+for (shares_num, _, variant) in TEST_CASES:
+    for threshold in range(1, shares_num):
+        TEST_CASES_WITH_THRESHOLD_RANGE.append((shares_num, threshold, variant))
+
+
+@pytest.mark.parametrize("shares_num,threshold,variant", TEST_CASES_WITH_THRESHOLD_RANGE)
+def test_reproduce_nucypher_issue(shares_num, threshold, variant):
+    scenario_for_variant(variant, shares_num, threshold)
+
+
 if __name__ == "__main__":
     pytest.main(["-v", "-k", "test_ferveo"])
