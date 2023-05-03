@@ -48,6 +48,7 @@ test-common = []
 [[example]]
 name = "bench_primitives_size"
 path = "examples/bench_primitives_size.rs"
+
 #[[bench]]
 #name = "pvdkg"
 #path = "benches/benchmarks/pvdkg.rs"
