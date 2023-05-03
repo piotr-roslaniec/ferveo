@@ -338,8 +338,6 @@ mod test_dkg_full {
         // Remove one participant from the contexts and all nested structure
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
-        let _removed_validator =
-            dkg.validators.get(&removed_validator_addr).unwrap();
         let mut remaining_validators = dkg.validators.clone();
         remaining_validators.remove(&removed_validator_addr);
 
