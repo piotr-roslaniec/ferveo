@@ -18,6 +18,7 @@ use tpke::{
     update_share_for_recovery, Ciphertext, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
+use zeroize::{self, Zeroize};
 
 use crate::{
     batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
@@ -69,6 +70,27 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
     }
 }
 
+pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<E::ScalarField>);
+
+impl<E: Pairing> SecretPolynomial<E> {
+    pub fn new(
+        s: &E::ScalarField,
+        degree: usize,
+        rng: &mut impl RngCore,
+    ) -> Self {
+        // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
+        let mut phi = DensePolynomial::<E::ScalarField>::rand(degree, rng);
+        phi.coeffs[0] = *s; // setting the first coefficient to secret value
+        Self(phi)
+    }
+}
+
+impl<E: Pairing> Zeroize for SecretPolynomial<E> {
+    fn zeroize(&mut self) {
+        self.0.coeffs.iter_mut().for_each(|c| c.zeroize());
+    }
+}
+
 /// Each validator posts a transcript to the chain. Once enough
 /// validators have done this (their total voting power exceeds
 /// 2/3 the total), this will be aggregated into a final key
@@ -103,17 +125,16 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         dkg: &PubliclyVerifiableDkg<E>,
         rng: &mut R,
     ) -> Result<Self> {
-        // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
-        let mut phi = DensePolynomial::<E::ScalarField>::rand(
+        let mut phi = SecretPolynomial::<E>::new(
+            s,
             (dkg.dkg_params.security_threshold - 1) as usize,
             rng,
         );
-        phi.coeffs[0] = *s; // setting the first coefficient to secret value
 
         // Evaluations of the polynomial over the domain
-        let evals = phi.evaluate_over_domain_by_ref(dkg.domain);
+        let evals = phi.0.evaluate_over_domain_by_ref(dkg.domain);
         // commitment to coeffs, F_i
-        let coeffs = fast_multiexp(&phi.coeffs, dkg.pvss_params.g);
+        let coeffs = fast_multiexp(&phi.0.coeffs, dkg.pvss_params.g);
         let shares = dkg
             .validators
             .values()
@@ -132,7 +153,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 dkg.validators.len() as u32,
             ));
         }
-        // phi.zeroize(); // TODO zeroize?
+        phi.zeroize();
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
         // Sigma is a proof of knowledge of the secret, sigma = h^s
         let sigma = E::G2Affine::generator().mul(*s).into(); //todo hash to curve
