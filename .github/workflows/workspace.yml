@@ -48,6 +48,11 @@ jobs:
         with:
           crate: cargo-machete
       - run: cargo machete
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-sort
+      - run: cargo sort --check
 
   test:
     runs-on: ubuntu-latest
@@ -101,7 +106,7 @@ jobs:
           override: true
       - run: cargo install wasm-pack
       - run: wasm-pack test --node
-        working-directory: tpke-wasm
+        working-directory: ferveo-wasm
   
   yarn-test:
     runs-on: ubuntu-latest
@@ -121,16 +126,16 @@ jobs:
           override: true
       - run: cargo install wasm-pack
       - run: wasm-pack build --target nodejs
-        working-directory: tpke-wasm
+        working-directory: ferveo-wasm
       - uses: borales/actions-yarn@v3.0.0
         with:
-          cmd: --cwd tpke-wasm/examples/node install
+          cmd: --cwd ferveo-wasm/examples/node install
       - uses: borales/actions-yarn@v3.0.0
         with:
-          cmd: --cwd tpke-wasm/examples/node build
+          cmd: --cwd ferveo-wasm/examples/node build
       - uses: borales/actions-yarn@v3.0.0
         with:
-          cmd: --cwd tpke-wasm/examples/node test
+          cmd: --cwd ferveo-wasm/examples/node test
 
   python-test:
     runs-on: ubuntu-latest

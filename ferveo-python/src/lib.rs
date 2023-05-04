@@ -15,17 +15,17 @@ use pyo3::{
 use rand::thread_rng;
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
-    T::from_bytes(bytes).map_err(map_py_error)
+    T::from_bytes(bytes).map_err(map_py_err)
 }
 
 fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
-    let bytes = t.to_bytes().map_err(map_py_error)?;
+    let bytes = t.to_bytes().map_err(map_py_err)?;
     Ok(Python::with_gil(|py| -> PyObject {
         PyBytes::new(py, &bytes).into()
     }))
 }
 
-fn map_py_error<T: fmt::Display>(err: T) -> PyErr {
+fn map_py_err<T: fmt::Display>(err: T) -> PyErr {
     PyValueError::new_err(format!("{}", err))
 }
 
@@ -63,7 +63,7 @@ pub fn encrypt(
     let rng = &mut thread_rng();
     let ciphertext =
         ferveo::api::encrypt(message, aad, &dkg_public_key.0 .0, rng)
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -111,7 +111,7 @@ pub fn decrypt_with_shared_secret(
         &shared_secret.0 .0,
         &dkg_params.0.g1_inv,
     )
-    .map_err(map_py_error)
+    .map_err(map_py_err)
 }
 
 #[pyclass(module = "ferveo")]
@@ -160,7 +160,7 @@ impl Keypair {
     #[staticmethod]
     pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
         let keypair = ferveo::api::Keypair::<E>::from_secure_randomness(bytes)
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
         Ok(Self(keypair))
     }
 
@@ -205,7 +205,7 @@ impl PublicKey {
     }
 
     fn __hash__(&self) -> PyResult<isize> {
-        let bytes = self.0.to_bytes().map_err(map_py_error)?;
+        let bytes = self.0.to_bytes().map_err(map_py_err)?;
         hash("PublicKey", &bytes)
     }
 }
@@ -219,7 +219,7 @@ impl Validator {
     #[new]
     pub fn new(address: String, public_key: &PublicKey) -> PyResult<Self> {
         let validator = ferveo::api::Validator::new(address, public_key.0)
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
         Ok(Self(validator))
     }
 
@@ -278,7 +278,7 @@ pub struct Dkg(ferveo::api::Dkg);
 impl Dkg {
     #[new]
     pub fn new(
-        tau: u64,
+        tau: u32,
         shares_num: u32,
         security_threshold: u32,
         validators: Vec<Validator>,
@@ -292,7 +292,7 @@ impl Dkg {
             &validators,
             &me.0,
         )
-        .map_err(map_py_error)?;
+        .map_err(map_py_err)?;
         Ok(Self(dkg))
     }
 
@@ -303,8 +303,7 @@ impl Dkg {
 
     pub fn generate_transcript(&self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
-        let transcript =
-            self.0.generate_transcript(rng).map_err(map_py_error)?;
+        let transcript = self.0.generate_transcript(rng).map_err(map_py_err)?;
         Ok(Transcript(transcript))
     }
 
@@ -319,7 +318,7 @@ impl Dkg {
         let aggregated_transcript = self
             .0
             .aggregate_transcripts(&messages)
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -402,7 +401,7 @@ impl AggregatedTranscript {
             .map(|ValidatorMessage(v, t)| (v.0, t.0))
             .collect();
         let is_valid =
-            self.0.verify(shares_num, &messages).map_err(map_py_error)?;
+            self.0.verify(shares_num, &messages).map_err(map_py_err)?;
         Ok(is_valid)
     }
 
@@ -421,7 +420,7 @@ impl AggregatedTranscript {
                 aad,
                 &validator_keypair.0,
             )
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
         Ok(DecryptionSharePrecomputed(decryption_share))
     }
 
@@ -440,7 +439,7 @@ impl AggregatedTranscript {
                 aad,
                 &validator_keypair.0,
             )
-            .map_err(map_py_error)?;
+            .map_err(map_py_err)?;
         Ok(DecryptionShareSimple(decryption_share))
     }
 
@@ -489,7 +488,7 @@ mod test_ferveo_python {
     type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
 
     fn make_test_inputs(
-        tau: u64,
+        tau: u32,
         security_threshold: u32,
         shares_num: u32,
     ) -> TestInputs {

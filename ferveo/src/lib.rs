@@ -6,11 +6,12 @@ pub mod api;
 pub mod dkg;
 pub mod primitives;
 pub mod pvss;
+pub mod validator;
 
 pub use dkg::*;
-use ferveo_common::{EthereumAddress, Validator};
 pub use primitives::*;
 pub use pvss::*;
+pub use validator::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -337,8 +338,6 @@ mod test_dkg_full {
         // Remove one participant from the contexts and all nested structure
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
-        let removed_validator =
-            dkg.validators.get(&removed_validator_addr).unwrap();
         let mut remaining_validators = dkg.validators.clone();
         remaining_validators.remove(&removed_validator_addr);
 
@@ -400,13 +399,13 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_address, validator_keypair)| {
+                .map(|(share_index, validator_keypair)| {
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator_address,
+                            share_index,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -415,10 +414,8 @@ mod test_dkg_full {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        let share_index = removed_validator.share_index;
         decryption_shares.push(
             DecryptionShareSimple::create(
-                share_index,
                 &new_validator_decryption_key,
                 &new_private_key_share,
                 &ciphertext,

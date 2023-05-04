@@ -4,7 +4,7 @@ use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bincode;
 use ferveo_common::serialization;
-pub use ferveo_common::{Keypair, PublicKey, Validator};
+pub use ferveo_common::{Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,10 @@ pub use tpke::api::{
     G1Affine, G1Prepared, SharedSecret, E,
 };
 
-pub use crate::PubliclyVerifiableSS as Transcript;
 use crate::{do_verify_aggregation, PVSSMap, Result};
+pub use crate::{
+    EthereumAddress, PubliclyVerifiableSS as Transcript, Validator,
+};
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
@@ -77,7 +79,7 @@ pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
 
 impl Dkg {
     pub fn new(
-        tau: u64,
+        tau: u32,
         shares_num: u32,
         security_threshold: u32,
         validators: &[Validator<E>],
@@ -236,6 +238,17 @@ impl DkgPublicParameters {
     }
 }
 
+pub fn combine_shares_simple(
+    dkg_public_params: &DkgPublicParameters,
+    shares: &[DecryptionShareSimple],
+) -> SharedSecret {
+    let domain_points = &dkg_public_params.domain_points;
+    let lagrange_coefficients = prepare_combine_simple::<E>(&domain_points[..]);
+    let shared_secret =
+        share_combine_simple(shares, &lagrange_coefficients[..]);
+    SharedSecret(shared_secret)
+}
+
 #[cfg(test)]
 mod test_ferveo_api {
     use itertools::izip;
@@ -250,7 +263,7 @@ mod test_ferveo_api {
 
     fn make_test_inputs(
         rng: &mut StdRng,
-        tau: u64,
+        tau: u32,
         security_threshold: u32,
         shares_num: u32,
     ) -> TestInputs {
@@ -408,7 +421,7 @@ mod test_ferveo_api {
         let public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
         let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();

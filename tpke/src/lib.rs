@@ -33,22 +33,10 @@ pub enum Error {
     #[error("Ciphertext verification failed")]
     CiphertextVerificationFailed,
 
-    /// Symmetric ciphertext decryption failed
-    #[error("Ciphertext decryption failed")]
-    CiphertextDecryptionFailed,
-
     /// Decryption share verification failed
     /// Refers to the check 4.4.4 in the paper: https://eprint.iacr.org/2022/898.pdf
     #[error("Decryption share verification failed")]
     DecryptionShareVerificationFailed,
-
-    /// Hashing to curve failed
-    #[error("Could not hash to curve")]
-    HashToCurveError,
-
-    /// Plaintext verification failed
-    #[error("Plaintext verification failed")]
-    PlaintextVerificationFailed,
 
     /// Serialization failed
     #[error("Bytes serialization failed")]
@@ -729,7 +717,7 @@ mod tests {
 
         // Remove one participant from the contexts and all nested structures
         let mut remaining_participants = contexts.clone();
-        let removed_participant = remaining_participants.pop().unwrap();
+        remaining_participants.pop().unwrap();
         for p in &mut remaining_participants {
             p.public_decryption_contexts.pop().unwrap();
         }
@@ -761,10 +749,8 @@ mod tests {
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = ScalarField::rand(rng);
-        let validator_index = removed_participant.index;
         decryption_shares.push(
             DecryptionShareSimple::create(
-                validator_index,
                 &new_validator_decryption_key,
                 &new_private_key_share,
                 &ciphertext,
@@ -828,7 +814,6 @@ mod tests {
                     &p.private_key_share,
                 );
                 DecryptionShareSimple::create(
-                    p.index,
                     &p.validator_private_key,
                     &private_key_share,
                     &ciphertext,
