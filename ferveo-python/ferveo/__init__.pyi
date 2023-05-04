@@ -33,6 +33,9 @@ class PublicKey:
     def __bytes__(self) -> bytes:
         ...
 
+    def __hash__(self) -> int:
+        ...
+
 
 class Validator:
 
@@ -146,7 +149,6 @@ class AggregatedTranscript:
             validator_keypair: Keypair
     ) -> DecryptionSharePrecomputed:
         ...
-
 
     @staticmethod
     def from_bytes(data: bytes) -> AggregatedTranscript:
