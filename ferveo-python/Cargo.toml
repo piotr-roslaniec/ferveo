@@ -1,12 +1,16 @@
 [package]
 name = "ferveo-python"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
-version = "0.1.7"
+version = "0.1.8"
 edition = "2018"
 
 [lib]
 crate-type = ["cdylib"]
 name = "ferveo_py"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
 
 [dependencies]
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }

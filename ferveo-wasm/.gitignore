@@ -5,3 +5,5 @@ bin/
 pkg/**/*.*
 wasm-pack.log
 !pkg/.gitkeep
+node_modules
+yarn.lock
