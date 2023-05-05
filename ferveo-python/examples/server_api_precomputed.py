@@ -49,9 +49,6 @@ dkg = Dkg(
     me=validators[0],
 )
 
-# Let's say that we've only received `security_threshold` transcripts
-messages = messages[:security_threshold]
-
 # Server can aggregate the transcripts
 server_aggregate = dkg.aggregate_transcripts(messages)
 assert server_aggregate.verify(shares_num, messages)

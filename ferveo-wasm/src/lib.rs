@@ -43,7 +43,7 @@ fn unwrap_messages_js(
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
-pub struct DecryptionShareSimple(tpke::api::DecryptionShareSimple);
+pub struct DecryptionShareSimple(ferveo::api::DecryptionShareSimple);
 
 #[wasm_bindgen]
 impl DecryptionShareSimple {
@@ -167,16 +167,11 @@ impl SharedSecret {
 #[wasm_bindgen(js_name = "combineDecryptionSharesSimple")]
 pub fn combine_decryption_shares_simple(
     decryption_shares_js: &DecryptionShareSimpleArray,
-    dkg_public_params: &DkgPublicParameters,
 ) -> JsResult<SharedSecret> {
     let shares =
         try_from_js_array::<DecryptionShareSimple>(decryption_shares_js)?;
-    let shares = shares
-        .iter()
-        .map(|share| share.0.clone())
-        .collect::<Vec<_>>();
-    let shared_secret =
-        ferveo::api::combine_shares_simple(&dkg_public_params.0, &shares);
+    let shares: Vec<_> = shares.iter().map(|share| share.0.clone()).collect();
+    let shared_secret = ferveo::api::combine_shares_simple(&shares[..]);
     Ok(SharedSecret(shared_secret))
 }
 
