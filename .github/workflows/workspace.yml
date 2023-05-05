@@ -85,7 +85,9 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - run: ${{ matrix.deps }}
       - run: cargo check --all-features
-      - run: cargo test --release --all-features
+        # We're disabling default features here because pyo3/extension-module causes linking issues when testing
+        # See https://pyo3.rs/v0.13.2/faq.html#i-cant-run-cargo-test-im-having-linker-issues-like-symbol-not-found-or-undefined-reference-to-_pyexc_systemerror
+      - run: cargo test --release --no-default-features
 
   wasm-test:
     runs-on: ubuntu-latest

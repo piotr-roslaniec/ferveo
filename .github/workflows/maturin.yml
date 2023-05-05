@@ -21,7 +21,7 @@ jobs:
           #          aarch64,
           #          armv7,
           #          s390x,
-          #          ppc64le
+        #          ppc64le
         python-version: ${{ env.python-versions }}
     steps:
       - uses: actions/checkout@v3
