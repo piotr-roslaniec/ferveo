@@ -20,6 +20,7 @@ validators = [
 ]
 validators.sort(key=lambda v: v.address)
 
+
 def make_dkg_public_params():
     me = validators[0]
     dkg = Dkg(
@@ -30,6 +31,18 @@ def make_dkg_public_params():
         me=me,
     )
     return dkg.public_params
+
+
+def make_dkg_public_key():
+    me = validators[0]
+    dkg = Dkg(
+        tau=tau,
+        shares_num=shares_num,
+        security_threshold=security_threshold,
+        validators=validators,
+        me=me,
+    )
+    return dkg.public_key
 
 
 def make_shared_secret():
@@ -58,3 +71,9 @@ def test_keypair_serialization():
     deserialized = Keypair.from_bytes(serialized)
     # TODO: Implement comparison
     # assert keypair == deserialized
+
+
+def test_dkg_public_key_serialization():
+    dkg_pk = make_dkg_public_key()
+    serialized = bytes(dkg_pk)
+    assert len(serialized) == 48

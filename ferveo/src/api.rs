@@ -98,8 +98,8 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
-    pub fn final_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.final_key())
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key())
     }
 
     pub fn generate_transcript<R: RngCore>(
@@ -312,11 +312,11 @@ mod test_ferveo_api {
         let dkg =
             Dkg::new(1, shares_num, 2, &validators, &validators[0]).unwrap();
 
-        let serialized = dkg.final_key().to_bytes().unwrap();
+        let serialized = dkg.public_key().to_bytes().unwrap();
         assert_eq!(serialized.len(), DkgPublicKey::serialized_size());
 
         let deserialized = DkgPublicKey::from_bytes(&serialized).unwrap();
-        assert_eq!(dkg.final_key(), deserialized);
+        assert_eq!(dkg.public_key(), deserialized);
     }
 
     #[test]
@@ -346,7 +346,7 @@ mod test_ferveo_api {
         assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.final_key();
+        let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg: &[u8] = "abc".as_bytes();
@@ -418,7 +418,7 @@ mod test_ferveo_api {
         assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg: &[u8] = "my-msg".as_bytes();

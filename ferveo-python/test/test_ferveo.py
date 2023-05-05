@@ -70,7 +70,7 @@ def scenario_for_variant(variant, shares_num=4, security_threshold=3):
 
     msg = "abc".encode()
     aad = "my-aad".encode()
-    ciphertext = encrypt(msg, aad, dkg.final_key)
+    ciphertext = encrypt(msg, aad, dkg.public_key)
 
     decryption_shares = []
     for validator, validator_keypair in zip(validators, validator_keypairs):

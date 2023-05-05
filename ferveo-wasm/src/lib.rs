@@ -90,8 +90,10 @@ impl PublicKey {
     }
 
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        self.0.to_bytes().map_err(map_js_err)
+    pub fn to_bytes(&self) -> JsResult<Box<[u8]>> {
+        let bytes = self.0.to_bytes().map_err(map_js_err)?;
+        let bytes: &[u8] = bytes.as_ref();
+        Ok(bytes.into())
     }
 
     #[wasm_bindgen]
@@ -256,9 +258,9 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
-    #[wasm_bindgen(js_name = "finalKey")]
-    pub fn final_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.final_key())
+    #[wasm_bindgen(js_name = "publicKey")]
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key())
     }
 
     #[wasm_bindgen(js_name = "generateTranscript")]
