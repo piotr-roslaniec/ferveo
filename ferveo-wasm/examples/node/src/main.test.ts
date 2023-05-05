@@ -69,7 +69,7 @@ function setupTest() {
     validator_keypairs,
     validators,
     dkg,
-    receivedMessages,
+    messages,
     msg,
     aad,
     ciphertext,
@@ -86,7 +86,7 @@ describe("ferveo-wasm", () => {
       validator_keypairs,
       validators,
       dkg,
-      receivedMessages,
+      messages,
       msg,
       aad,
       ciphertext,
@@ -98,8 +98,8 @@ describe("ferveo-wasm", () => {
       expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      const aggregate = dkg.aggregateTranscript(messages);
+      const isValid = aggregate.verify(sharesNum, messages);
       expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionShareSimple(
@@ -137,7 +137,7 @@ describe("ferveo-wasm", () => {
       validator_keypairs,
       validators,
       dkg,
-      receivedMessages,
+      messages,
       msg,
       aad,
       ciphertext,
@@ -147,8 +147,8 @@ describe("ferveo-wasm", () => {
     const decryptionShares: DecryptionSharePrecomputed[] = [];
     zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      const aggregate = dkg.aggregateTranscript(messages);
+      const isValid = aggregate.verify(sharesNum, messages);
       expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionSharePrecomputed(
