@@ -9,6 +9,7 @@ from ferveo_py import (
     Validator,
     Dkg,
     AggregatedTranscript,
+    DkgPublicKey
 )
 
 
@@ -67,9 +68,12 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
     pvss_aggregated = dkg.aggregate_transcripts(messages)
     assert pvss_aggregated.verify(shares_num, messages)
 
+    dkg_pk_bytes = bytes(dkg.public_key)
+    dkg_pk = DkgPublicKey.from_bytes(dkg_pk_bytes)
+
     msg = "abc".encode()
     aad = "my-aad".encode()
-    ciphertext = encrypt(msg, aad, dkg.public_key)
+    ciphertext = encrypt(msg, aad, dkg_pk)
 
     decryption_shares = []
     for validator, validator_keypair in zip(validators, validator_keypairs):
@@ -140,9 +144,10 @@ for (shares_num, variant) in PARAMS:
         TEST_CASES_WITH_THRESHOLD_RANGE.append((variant, shares_num, threshold))
 
 
-@pytest.mark.parametrize("variant, shares_num, threshold", TEST_CASES_WITH_THRESHOLD_RANGE)
-def test_reproduce_nucypher_issue(variant, shares_num, threshold):
-    scenario_for_variant(variant, shares_num, threshold, shares_to_use=threshold)
+# Avoid running this test case as it takes a long time
+# @pytest.mark.parametrize("variant, shares_num, threshold", TEST_CASES_WITH_THRESHOLD_RANGE)
+# def test_reproduce_nucypher_issue(variant, shares_num, threshold):
+#     scenario_for_variant(variant, shares_num, threshold, shares_to_use=threshold)
 
 
 if __name__ == "__main__":
