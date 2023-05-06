@@ -75,20 +75,13 @@ pub fn encrypt(
 #[pyfunction]
 pub fn combine_decryption_shares_simple(
     shares: Vec<DecryptionShareSimple>,
-    dkg_public_params: &DkgPublicParameters,
 ) -> SharedSecret {
     let shares = shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    let domain_points = &dkg_public_params.0.domain_points;
-    let lagrange_coefficients =
-        ferveo::api::prepare_combine_simple::<E>(&domain_points[..]);
-    let shared_secret = ferveo::api::share_combine_simple(
-        &shares[..],
-        &lagrange_coefficients[..],
-    );
-    SharedSecret(ferveo::api::SharedSecret(shared_secret))
+    let shared_secret = ferveo::api::combine_shares_simple(&shares[..]);
+    SharedSecret(shared_secret)
 }
 
 #[pyfunction]
@@ -690,10 +683,7 @@ mod test_ferveo_python {
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
 
-        let shared_secret = combine_decryption_shares_simple(
-            decryption_shares,
-            &dkg.public_params(),
-        );
+        let shared_secret = combine_decryption_shares_simple(decryption_shares);
 
         // TODO: Fails because of a bad shared secret
         let plaintext = decrypt_with_shared_secret(

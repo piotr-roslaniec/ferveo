@@ -63,9 +63,6 @@ fn setup_dkg() -> TestSetup {
     )
     .unwrap();
 
-    // Let's say that we've only received `security_threshold` transcripts
-    let messages: Vec<_> =
-        messages.into_iter().take(security_threshold).collect();
     let messages_js = into_js_array(messages);
 
     // Server can aggregate the transcripts and verify them
@@ -144,11 +141,8 @@ fn tdec_simple() {
     // Now, the decryption share can be used to decrypt the ciphertext
     // This part is in the client API
 
-    let shared_secret = combine_decryption_shares_simple(
-        &decryption_shares_js,
-        &dkg.public_params(),
-    )
-    .unwrap();
+    let shared_secret =
+        combine_decryption_shares_simple(&decryption_shares_js).unwrap();
 
     // The client should have access to the public parameters of the DKG
     let plaintext = decrypt_with_shared_secret(

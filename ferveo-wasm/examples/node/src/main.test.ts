@@ -50,15 +50,12 @@ function setupTest() {
   // every validator can aggregate the transcripts
   const dkg = new Dkg(tau, sharesNum, threshold, validators, validators[0]);
 
-  // Let's say that we've only received `threshold` transcripts
-  const receivedMessages = messages.slice(0, threshold);
-
-  const serverAggregate = dkg.aggregateTranscript(receivedMessages);
-  expect(serverAggregate.verify(sharesNum, receivedMessages)).toBe(true);
+  const serverAggregate = dkg.aggregateTranscript(messages);
+  expect(serverAggregate.verify(sharesNum, messages)).toBe(true);
 
   // Client can also aggregate the transcripts and verify them
-  const clientAggregate = new AggregatedTranscript(receivedMessages);
-  expect(clientAggregate.verify(sharesNum, receivedMessages)).toBe(true);
+  const clientAggregate = new AggregatedTranscript(messages);
+  expect(clientAggregate.verify(sharesNum, messages)).toBe(true);
 
   // In the meantime, the client creates a ciphertext and decryption request
   const msg = Buffer.from("my-msg");
@@ -72,7 +69,7 @@ function setupTest() {
     validator_keypairs,
     validators,
     dkg,
-    receivedMessages,
+    messages,
     msg,
     aad,
     ciphertext,
@@ -89,7 +86,7 @@ describe("ferveo-wasm", () => {
       validator_keypairs,
       validators,
       dkg,
-      receivedMessages,
+      messages,
       msg,
       aad,
       ciphertext,
@@ -101,8 +98,8 @@ describe("ferveo-wasm", () => {
       expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      const aggregate = dkg.aggregateTranscript(messages);
+      const isValid = aggregate.verify(sharesNum, messages);
       expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionShareSimple(
@@ -119,7 +116,6 @@ describe("ferveo-wasm", () => {
 
     const sharedSecret = combineDecryptionSharesSimple(
       decryptionShares,
-      dkg.publicParams()
     );
 
     // The client should have access to the public parameters of the DKG
@@ -141,7 +137,7 @@ describe("ferveo-wasm", () => {
       validator_keypairs,
       validators,
       dkg,
-      receivedMessages,
+      messages,
       msg,
       aad,
       ciphertext,
@@ -151,8 +147,8 @@ describe("ferveo-wasm", () => {
     const decryptionShares: DecryptionSharePrecomputed[] = [];
     zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(receivedMessages);
-      const isValid = aggregate.verify(sharesNum, receivedMessages);
+      const aggregate = dkg.aggregateTranscript(messages);
+      const isValid = aggregate.verify(sharesNum, messages);
       expect(isValid).toBe(true);
 
       const decryptionShare = aggregate.createDecryptionSharePrecomputed(

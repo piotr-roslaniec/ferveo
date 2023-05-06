@@ -198,7 +198,7 @@ jobs:
       # Only checking the coverage of the main library,
       # bindings are covered by their language's tests.
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --all-features
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --no-default-features
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
