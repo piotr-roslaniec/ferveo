@@ -21,7 +21,6 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
 ferveo = { path = "../ferveo" }
 ferveo-common = { path = "../ferveo-common" }
-generic-array = "0.14.7"
 getrandom = { version = "0.2", features = ["js"] }
 group-threshold-cryptography = { path = "../tpke", features = ["test-common", "api"] }
 itertools = "0.10.1"
