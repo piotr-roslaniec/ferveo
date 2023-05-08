@@ -181,7 +181,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
@@ -209,7 +209,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
@@ -260,7 +260,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 
@@ -319,7 +319,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = &dkg.final_key();
+        let public_key = &dkg.public_key();
         let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng).unwrap();
 
         // Create an initial shared secret
@@ -439,7 +439,7 @@ mod test_dkg_full {
 
         let msg: &[u8] = "abc".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
 

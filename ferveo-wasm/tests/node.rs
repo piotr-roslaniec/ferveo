@@ -78,7 +78,7 @@ fn setup_dkg() -> TestSetup {
     // In the meantime, the client creates a ciphertext and decryption request
     let msg = "my-msg".as_bytes().to_vec();
     let aad = "my-aad".as_bytes().to_vec();
-    let ciphertext = encrypt(&msg, &aad, &dkg.final_key()).unwrap();
+    let ciphertext = encrypt(&msg, &aad, &dkg.public_key()).unwrap();
 
     (
         tau,

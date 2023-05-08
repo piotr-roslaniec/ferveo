@@ -74,7 +74,7 @@ class Dkg:
     ):
         ...
 
-    final_key: DkgPublicKey
+    public_key: DkgPublicKey
 
     public_params: DkgPublicParameters
 

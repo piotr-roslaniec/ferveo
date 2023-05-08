@@ -60,7 +60,7 @@ assert client_aggregate.verify(shares_num, messages)
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
 aad = "my-aad".encode()
-ciphertext = encrypt(msg, aad, dkg.final_key)
+ciphertext = encrypt(msg, aad, dkg.public_key)
 
 # The client can serialize/deserialize ciphertext for transport
 ciphertext_ser = bytes(ciphertext)

@@ -31,19 +31,6 @@ pub fn from_bytes<T: CanonicalDeserialize>(
     Ok(item)
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct PreparedPublicKey<E: Pairing> {
-    pub encryption_key: E::G2Prepared,
-}
-
-impl<E: Pairing> From<PublicKey<E>> for PreparedPublicKey<E> {
-    fn from(value: PublicKey<E>) -> Self {
-        PreparedPublicKey::<E> {
-            encryption_key: E::G2Prepared::from(value.encryption_key),
-        }
-    }
-}
-
 #[serde_as]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey<E: Pairing> {

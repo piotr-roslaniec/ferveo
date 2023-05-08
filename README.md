@@ -4,7 +4,13 @@
 
 _This project is under active development. For questions, please join us at [Threshold Network Discord](https://discord.com/invite/threshold&ved=2ahUKEwivucaW2Y3-AhXiwosKHQCEAKUQFnoECA0QAQ&usg=AOvVaw08x-9JYJFDcd6PEOx0xAeg)_
 
-_See original README.md:_
+_See original README.md below_
+
+## Testing
+
+```bash
+cargo test --no-default-features
+```
 
 ---
 
