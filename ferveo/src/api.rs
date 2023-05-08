@@ -12,8 +12,8 @@ use serde_with::serde_as;
 pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, prepare_combine_simple,
     share_combine_precomputed, share_combine_simple, Ciphertext,
-    DecryptionSharePrecomputed, DecryptionShareSimple, DomainPoint, Fr,
-    G1Affine, G1Prepared, SharedSecret, E,
+    DecryptionSharePrecomputed, DecryptionShareSimple, Fr, G1Affine,
+    G1Prepared, E,
 };
 
 use crate::{do_verify_aggregation, PVSSMap, Result};
@@ -248,6 +248,9 @@ pub fn combine_shares_simple(
         share_combine_simple(shares, &lagrange_coefficients[..]);
     SharedSecret(shared_secret)
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedSecret(pub tpke::api::SharedSecret<E>);
 
 #[cfg(test)]
 mod test_ferveo_api {

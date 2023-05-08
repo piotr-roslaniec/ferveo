@@ -4,8 +4,17 @@ use std::ops::Mul;
 
 use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_ff::{Field, One, PrimeField, Zero};
+use ferveo_common::serialization;
 use itertools::izip;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use subproductdomain::SubproductDomain;
+
+#[serde_as]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedSecret<E: Pairing>(
+    #[serde_as(as = "serialization::SerdeAs")] pub(crate) E::TargetField,
+);
 
 use crate::{
     verify_decryption_shares_fast, Ciphertext, DecryptionShareFast,
@@ -74,7 +83,7 @@ pub fn lagrange_basis_at<E: Pairing>(
 pub fn share_combine_fast_unchecked<E: Pairing>(
     shares: &[DecryptionShareFast<E>],
     prepared_key_shares: &[E::G2Prepared],
-) -> E::TargetField {
+) -> SharedSecret<E> {
     let mut pairing_a = vec![];
     let mut pairing_b = vec![];
 
@@ -91,7 +100,8 @@ pub fn share_combine_fast_unchecked<E: Pairing>(
         );
     }
     // e(D_i, [b*omega_i^-1] Z_{i,omega_i})
-    E::multi_pairing(pairing_a, pairing_b).0
+    let shared_secret = E::multi_pairing(pairing_a, pairing_b).0;
+    SharedSecret(shared_secret)
 }
 
 pub fn share_combine_fast<E: Pairing>(
@@ -99,7 +109,7 @@ pub fn share_combine_fast<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     decryption_shares: &[DecryptionShareFast<E>],
     prepared_key_shares: &[E::G2Prepared],
-) -> Result<E::TargetField> {
+) -> Result<SharedSecret<E>> {
     let is_valid_shares = verify_decryption_shares_fast(
         pub_contexts,
         ciphertext,
@@ -117,23 +127,25 @@ pub fn share_combine_fast<E: Pairing>(
 pub fn share_combine_simple<E: Pairing>(
     decryption_shares: &[DecryptionShareSimple<E>],
     lagrange_coeffs: &[E::ScalarField],
-) -> E::TargetField {
+) -> SharedSecret<E> {
     // Sum of C_i^{L_i}z
-    izip!(decryption_shares, lagrange_coeffs).fold(
+    let shared_secret = izip!(decryption_shares, lagrange_coeffs).fold(
         E::TargetField::one(),
         |acc, (c_i, alpha_i)| {
             acc * c_i.decryption_share.pow(alpha_i.into_bigint())
         },
-    )
+    );
+    SharedSecret(shared_secret)
 }
 
 pub fn share_combine_precomputed<E: Pairing>(
     shares: &[DecryptionSharePrecomputed<E>],
-) -> E::TargetField {
+) -> SharedSecret<E> {
     // s = ∏ C_{λ_i}, where λ_i is the Lagrange coefficient for i
-    shares
+    let shared_secret = shares
         .iter()
-        .fold(E::TargetField::one(), |acc, c_i| acc * c_i.decryption_share)
+        .fold(E::TargetField::one(), |acc, c_i| acc * c_i.decryption_share);
+    SharedSecret(shared_secret)
 }
 
 #[cfg(test)]

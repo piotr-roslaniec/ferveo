@@ -300,7 +300,7 @@ mod tests {
         contexts: &[PrivateDecryptionContextSimple<E>],
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-    ) -> E::TargetField {
+    ) -> SharedSecret<E> {
         let decryption_shares: Vec<_> = contexts
             .iter()
             .map(|c| c.create_share(ciphertext, aad).unwrap())
@@ -334,7 +334,7 @@ mod tests {
         msg: &[u8],
         aad: &[u8],
         ciphertext: &Ciphertext<E>,
-        shared_secret: &E::TargetField,
+        shared_secret: &SharedSecret<E>,
         g_inv: &E::G1Prepared,
     ) {
         // So far, the ciphertext is valid
@@ -416,7 +416,7 @@ mod tests {
     fn make_shared_secret<E: Pairing>(
         pub_contexts: &[PublicDecryptionContextSimple<E>],
         decryption_shares: &[DecryptionShareSimple<E>],
-    ) -> E::TargetField {
+    ) -> SharedSecret<E> {
         let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
         share_combine_simple::<E>(decryption_shares, &lagrange_coeffs)

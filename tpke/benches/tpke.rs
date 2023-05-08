@@ -20,7 +20,6 @@ const MSG_SIZE_CASES: [usize; 7] = [256, 512, 1024, 2048, 4096, 8192, 16384];
 
 type E = Bls12_381;
 type G2Prepared = <E as Pairing>::G2Prepared;
-type TargetField = <E as Pairing>::TargetField;
 
 #[allow(dead_code)]
 struct SetupShared {
@@ -31,7 +30,7 @@ struct SetupShared {
     pubkey: G1,
     privkey: G2,
     ciphertext: Ciphertext<E>,
-    shared_secret: TargetField,
+    shared_secret: SharedSecret<E>,
 }
 
 struct SetupFast {

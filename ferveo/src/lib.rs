@@ -116,6 +116,7 @@ mod test_dkg_full {
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
         Ciphertext, DecryptionSharePrecomputed, DecryptionShareSimple,
+        SharedSecret,
     };
     use itertools::izip;
 
@@ -132,7 +133,7 @@ mod test_dkg_full {
     ) -> (
         PubliclyVerifiableSS<E, Aggregated>,
         Vec<DecryptionShareSimple<E>>,
-        TargetField,
+        SharedSecret<E>,
     ) {
         let pvss_aggregated = aggregate(&dkg.vss);
         assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());

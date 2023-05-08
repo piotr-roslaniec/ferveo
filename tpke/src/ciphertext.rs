@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sha2::{digest::Digest, Sha256};
 
-use crate::{htp_bls12381_g2, Error, Result};
+use crate::{htp_bls12381_g2, Error, Result, SharedSecret};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,7 +76,8 @@ pub fn encrypt<E: Pairing>(
     let commitment = g_gen.mul(rand_element).into();
 
     let nonce = nonce_from_commitment::<E>(commitment)?;
-    let ciphertext = shared_secret_to_chacha::<E>(&product)?
+    let shared_secret = SharedSecret(product);
+    let ciphertext = shared_secret_to_chacha::<E>(&shared_secret)?
         .encrypt(&nonce, message)
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
@@ -134,12 +135,13 @@ pub fn decrypt_symmetric<E: Pairing>(
         E::G2Prepared::from(*private_key),
     )
     .0;
+    let shared_secret = SharedSecret(shared_secret);
     decrypt_with_shared_secret_unchecked(ciphertext, &shared_secret)
 }
 
 fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     ciphertext: &Ciphertext<E>,
-    shared_secret: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
 ) -> Result<Vec<u8>> {
     let nonce = nonce_from_commitment::<E>(ciphertext.commitment)?;
     let ciphertext = ciphertext.ciphertext.to_vec();
@@ -155,7 +157,7 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
 pub fn decrypt_with_shared_secret<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
-    shared_secret: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
     check_ciphertext_validity(ciphertext, aad, g_inv)?;
@@ -170,10 +172,10 @@ fn sha256(input: &[u8]) -> Vec<u8> {
 }
 
 pub fn shared_secret_to_chacha<E: Pairing>(
-    s: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
 ) -> Result<ChaCha20Poly1305> {
     let mut prf_key = Vec::new();
-    s.serialize_compressed(&mut prf_key)?;
+    shared_secret.0.serialize_compressed(&mut prf_key)?;
     let prf_key_32 = sha256(&prf_key);
 
     Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32)))
