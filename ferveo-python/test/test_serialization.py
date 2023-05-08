@@ -3,6 +3,7 @@ from ferveo_py import (
     Validator,
     Dkg,
     DkgPublicParameters,
+    DkgPublicKey
 )
 
 
@@ -76,4 +77,4 @@ def test_keypair_serialization():
 def test_dkg_public_key_serialization():
     dkg_pk = make_dkg_public_key()
     serialized = bytes(dkg_pk)
-    assert len(serialized) == 48
+    assert len(serialized) == DkgPublicKey.serialized_size()

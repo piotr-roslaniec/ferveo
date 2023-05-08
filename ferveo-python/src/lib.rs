@@ -256,13 +256,13 @@ pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
 impl DkgPublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let arr =
+        let bytes =
             GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
                 .ok_or_else(|| {
                     map_py_err("Invalid length of bytes for DkgPublicKey")
                 })?;
         Ok(Self(
-            ferveo::api::DkgPublicKey::from_bytes(arr.as_slice())
+            ferveo::api::DkgPublicKey::from_bytes(bytes.as_slice())
                 .map_err(map_py_err)?,
         ))
     }
@@ -271,6 +271,11 @@ impl DkgPublicKey {
         let bytes = self.0.to_bytes().map_err(map_py_err)?;
         let bytes = GenericArray::<u8, U48>::from_slice(bytes.as_slice());
         as_py_bytes(bytes)
+    }
+
+    #[staticmethod]
+    pub fn serialized_size() -> usize {
+        ferveo::api::DkgPublicKey::serialized_size()
     }
 }
 
