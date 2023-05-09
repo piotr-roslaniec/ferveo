@@ -18,7 +18,7 @@ use tpke::{
     update_share_for_recovery, Ciphertext, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
-use zeroize::{self, Zeroize};
+use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
     batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
@@ -70,7 +70,9 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
     }
 }
 
-pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<E::ScalarField>);
+/// Secret polynomial used in the PVSS protocol
+/// We wrap this in a struct so that we can zeroize it after use
+struct SecretPolynomial<E: Pairing>(DensePolynomial<E::ScalarField>);
 
 impl<E: Pairing> SecretPolynomial<E> {
     pub fn new(
@@ -90,6 +92,14 @@ impl<E: Pairing> Zeroize for SecretPolynomial<E> {
         self.0.coeffs.iter_mut().for_each(|c| c.zeroize());
     }
 }
+
+impl<E: Pairing> Drop for SecretPolynomial<E> {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl<E: Pairing> ZeroizeOnDrop for SecretPolynomial<E> {}
 
 /// Each validator posts a transcript to the chain. Once enough
 /// validators have done this (their total voting power exceeds
@@ -125,7 +135,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         dkg: &PubliclyVerifiableDkg<E>,
         rng: &mut R,
     ) -> Result<Self> {
-        let mut phi = SecretPolynomial::<E>::new(
+        let phi = SecretPolynomial::<E>::new(
             s,
             (dkg.dkg_params.security_threshold - 1) as usize,
             rng,
@@ -153,7 +163,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 dkg.validators.len() as u32,
             ));
         }
-        phi.zeroize();
+
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
         // Sigma is a proof of knowledge of the secret, sigma = h^s
         let sigma = E::G2Affine::generator().mul(*s).into(); //todo hash to curve

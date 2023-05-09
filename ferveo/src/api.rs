@@ -249,7 +249,7 @@ pub fn combine_shares_simple(
     SharedSecret(shared_secret)
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SharedSecret(pub tpke::api::SharedSecret<E>);
 
 #[cfg(test)]

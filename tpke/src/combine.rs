@@ -9,9 +9,12 @@ use itertools::izip;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::SubproductDomain;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[serde_as]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Zeroize, ZeroizeOnDrop,
+)]
 pub struct SharedSecret<E: Pairing>(
     #[serde_as(as = "serialization::SerdeAs")] pub(crate) E::TargetField,
 );

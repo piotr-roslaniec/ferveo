@@ -18,7 +18,7 @@ fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes).map_err(map_py_err)
 }
 
-fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
+fn to_py_bytes<T: ToBytes>(t: &T) -> PyResult<PyObject> {
     let bytes = t.to_bytes().map_err(map_py_err)?;
     Ok(Python::with_gil(|py| -> PyObject {
         PyBytes::new(py, &bytes).into()
@@ -126,7 +126,7 @@ impl DkgPublicParameters {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0.clone())
+        to_py_bytes(&self.0)
     }
 }
 
@@ -142,7 +142,7 @@ impl SharedSecret {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 }
 
@@ -175,7 +175,7 @@ impl Keypair {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 
     pub fn public_key(&self) -> PublicKey {
@@ -197,7 +197,7 @@ impl PublicKey {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
@@ -262,7 +262,7 @@ impl DkgPublicKey {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 }
 
