@@ -5,6 +5,7 @@ pub mod decryption;
 pub mod hash_to_curve;
 pub mod key_share;
 pub mod refresh;
+pub mod secret_box;
 
 // TODO: Only show the public API, tpke::api
 // use ciphertext::*;
@@ -22,6 +23,7 @@ pub use decryption::*;
 pub use hash_to_curve::*;
 pub use key_share::*;
 pub use refresh::*;
+pub use secret_box::*;
 
 #[cfg(feature = "api")]
 pub mod api;

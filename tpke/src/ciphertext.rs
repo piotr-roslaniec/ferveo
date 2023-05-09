@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sha2::{digest::Digest, Sha256};
 
-use crate::{htp_bls12381_g2, Error, Result, SharedSecret};
+use crate::{htp_bls12381_g2, Error, Result, SecretBox, SharedSecret};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +78,7 @@ pub fn encrypt<E: Pairing>(
     let nonce = nonce_from_commitment::<E>(commitment)?;
     let shared_secret = SharedSecret(product);
     let ciphertext = shared_secret_to_chacha::<E>(&shared_secret)?
+        .0
         .encrypt(&nonce, message)
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
@@ -147,6 +148,7 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     let ciphertext = ciphertext.ciphertext.to_vec();
 
     let plaintext = shared_secret_to_chacha::<E>(shared_secret)?
+        .0
         .decrypt(&nonce, ciphertext.as_ref())
         .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
@@ -171,14 +173,19 @@ fn sha256(input: &[u8]) -> Vec<u8> {
     result.to_vec()
 }
 
+pub struct SecretChaCha20Poly1305(pub(crate) ChaCha20Poly1305);
+
 pub fn shared_secret_to_chacha<E: Pairing>(
     shared_secret: &SharedSecret<E>,
-) -> Result<ChaCha20Poly1305> {
-    let mut prf_key = Vec::new();
-    shared_secret.0.serialize_compressed(&mut prf_key)?;
-    let prf_key_32 = sha256(&prf_key);
-
-    Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32)))
+) -> Result<SecretChaCha20Poly1305> {
+    let mut prf_key = SecretBox::new(Vec::new());
+    shared_secret
+        .0
+        .serialize_compressed(&mut prf_key.as_mut_secret())?;
+    let prf_key_32 = SecretBox::new(sha256(prf_key.as_secret()));
+    Ok(SecretChaCha20Poly1305(ChaCha20Poly1305::new(
+        GenericArray::from_slice(prf_key_32.as_secret()),
+    )))
 }
 
 fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Result<Nonce> {
