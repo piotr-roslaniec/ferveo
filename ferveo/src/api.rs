@@ -13,7 +13,7 @@ pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, prepare_combine_simple,
     share_combine_precomputed, share_combine_simple, Ciphertext,
     DecryptionSharePrecomputed, DecryptionShareSimple, Fr, G1Affine,
-    G1Prepared, E,
+    G1Prepared, SecretBox, E,
 };
 
 use crate::{do_verify_aggregation, PVSSMap, Result};
@@ -256,6 +256,7 @@ pub struct SharedSecret(pub tpke::api::SharedSecret<E>);
 mod test_ferveo_api {
     use itertools::izip;
     use rand::{prelude::StdRng, thread_rng, SeedableRng};
+    use tpke::SecretBox;
 
     use crate::{api::*, dkg::test_common::*};
 
@@ -352,10 +353,12 @@ mod test_ferveo_api {
         let dkg_public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &dkg_public_key.0, rng).unwrap();
+        let ciphertext =
+            encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key.0, rng)
+                .unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -424,10 +427,12 @@ mod test_ferveo_api {
         let public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "my-msg".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext = encrypt(msg, aad, &public_key.0, rng).unwrap();
+        let ciphertext =
+            encrypt(SecretBox::new(msg.clone()), aad, &public_key.0, rng)
+                .unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)

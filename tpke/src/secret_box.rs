@@ -7,11 +7,11 @@ Using `Box` is a general recommendation of working with secret data,
 because it prevents the compiler from putting it on stack, thus avoiding possible copies on borrow.
 
 Now, one could use `secrecy::Secret<Box<T>>`.
-The problem here is that `secrecy::Secret` requires its type parameter to implement `Zeroize`.
-This means that for a foreign type `F` (even if it does implement `Zeroize`)
-we need to define `impl Zeroize for Box<F>`.
+The problem here is that `secrecy::Secret` requires its type parameter to implement `Zeroize + Clone`.
+This means that for a foreign type `F` (even if it does implement `Zeroize + Clone`)
+we need to define `impl Zeroize + Clone for Box<F>`.
 But the compiler does not allow impls of foreign traits on foreign types.
-This means that we also need to wrap `F` in a local type, impl `Zeroize` for the wrapper,
+This means that we also need to wrap `F` in a local type, impl `Zeroize + Clone` for the wrapper,
 and then for the box of the wrapper.
 This is too much boilerplate.
 
@@ -37,9 +37,9 @@ use zeroize::Zeroize;
 #[derive(Clone)]
 pub struct SecretBox<T>(Box<T>)
 where
-    T: Zeroize;
+    T: Zeroize + Clone;
 
-impl<T: PartialEq + Zeroize> PartialEq<SecretBox<T>> for SecretBox<T> {
+impl<T: PartialEq + Zeroize + Clone> PartialEq<SecretBox<T>> for SecretBox<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -47,9 +47,9 @@ impl<T: PartialEq + Zeroize> PartialEq<SecretBox<T>> for SecretBox<T> {
 
 impl<T> SecretBox<T>
 where
-    T: Zeroize,
+    T: Zeroize + Clone,
 {
-    pub(crate) fn new(val: T) -> Self {
+    pub fn new(val: T) -> Self {
         Self(Box::new(val))
     }
 
@@ -66,7 +66,7 @@ where
 
 impl<T> Drop for SecretBox<T>
 where
-    T: Zeroize,
+    T: Zeroize + Clone,
 {
     fn drop(&mut self) {
         self.0.zeroize()
@@ -75,7 +75,7 @@ where
 
 impl<T> fmt::Debug for SecretBox<T>
 where
-    T: Zeroize,
+    T: Zeroize + Clone,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SecretBox<REDACTED>")

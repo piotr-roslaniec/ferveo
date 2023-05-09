@@ -61,9 +61,13 @@ pub fn encrypt(
     dkg_public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
-    let ciphertext =
-        ferveo::api::encrypt(message, aad, &dkg_public_key.0 .0, rng)
-            .map_err(map_py_err)?;
+    let ciphertext = ferveo::api::encrypt(
+        ferveo::api::SecretBox::new(message.to_vec()),
+        aad,
+        &dkg_public_key.0 .0,
+        rng,
+    )
+    .map_err(map_py_err)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -559,7 +563,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
 
@@ -640,7 +644,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.final_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
 
