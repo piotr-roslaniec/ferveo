@@ -4,6 +4,7 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::One;
 use ark_std::UniformRand;
 use rand_core::RngCore;
+use zeroize::ZeroizeOnDrop;
 
 #[derive(Debug, Clone)]
 pub struct PublicKeyShare<E: Pairing> {
@@ -57,7 +58,7 @@ impl<E: Pairing> BlindedKeyShare<E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
 pub struct PrivateKeyShare<E: Pairing> {
     pub private_key_share: E::G2Affine,
 }
