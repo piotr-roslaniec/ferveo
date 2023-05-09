@@ -11,15 +11,16 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 pub use tpke::api::{
     decrypt_with_shared_secret, encrypt, prepare_combine_simple,
-    share_combine_precomputed, share_combine_simple, Ciphertext,
-    DecryptionSharePrecomputed, DecryptionShareSimple, Fr, G1Affine,
+    share_combine_precomputed, share_combine_simple, Ciphertext, Fr, G1Affine,
     G1Prepared, SecretBox, E,
 };
 
-use crate::{do_verify_aggregation, PVSSMap, Result};
+use crate::{do_verify_aggregation, Error, PVSSMap, Result};
 pub use crate::{
     EthereumAddress, PubliclyVerifiableSS as Transcript, Validator,
 };
+
+pub type DecryptionSharePrecomputed = tpke::api::DecryptionSharePrecomputed;
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
@@ -98,8 +99,8 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
-    pub fn final_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.final_key())
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key())
     }
 
     pub fn generate_transcript<R: RngCore>(
@@ -129,7 +130,6 @@ impl Dkg {
     pub fn public_params(&self) -> DkgPublicParameters {
         DkgPublicParameters {
             g1_inv: self.0.pvss_params.g_inv(),
-            domain_points: self.0.domain.elements().collect(),
         }
     }
 }
@@ -162,7 +162,7 @@ impl AggregatedTranscript {
 
         let is_valid_optimistic = self.0.verify_optimistic();
         if !is_valid_optimistic {
-            return Err(crate::Error::InvalidTranscriptAggregate);
+            return Err(Error::InvalidTranscriptAggregate);
         }
 
         let pvss_map = make_pvss_map(messages);
@@ -209,14 +209,26 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair<E>,
     ) -> Result<DecryptionShareSimple> {
-        self.0.make_decryption_share_simple(
+        let share = self.0.make_decryption_share_simple(
             ciphertext,
             aad,
             &validator_keypair.decryption_key,
             dkg.0.me.share_index,
             &dkg.0.pvss_params.g_inv(),
-        )
+        )?;
+        Ok(DecryptionShareSimple {
+            share,
+            domain_point: dkg.0.domain.element(dkg.0.me.share_index),
+        })
     }
+}
+
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DecryptionShareSimple {
+    share: tpke::api::DecryptionShareSimple,
+    #[serde_as(as = "serialization::SerdeAs")]
+    domain_point: Fr,
 }
 
 #[serde_as]
@@ -224,8 +236,6 @@ impl AggregatedTranscript {
 pub struct DkgPublicParameters {
     #[serde_as(as = "serialization::SerdeAs")]
     pub g1_inv: G1Prepared,
-    #[serde_as(as = "serialization::SerdeAs")]
-    pub domain_points: Vec<Fr>,
 }
 
 impl DkgPublicParameters {
@@ -238,14 +248,14 @@ impl DkgPublicParameters {
     }
 }
 
-pub fn combine_shares_simple(
-    dkg_public_params: &DkgPublicParameters,
-    shares: &[DecryptionShareSimple],
-) -> SharedSecret {
-    let domain_points = &dkg_public_params.domain_points;
-    let lagrange_coefficients = prepare_combine_simple::<E>(&domain_points[..]);
+pub fn combine_shares_simple(shares: &[DecryptionShareSimple]) -> SharedSecret {
+    // Pick domain points that are corresponding to the shares we have.
+    let domain_points: Vec<_> = shares.iter().map(|s| s.domain_point).collect();
+    let lagrange_coefficients = prepare_combine_simple::<E>(&domain_points);
+
+    let shares: Vec<_> = shares.iter().cloned().map(|s| s.share).collect();
     let shared_secret =
-        share_combine_simple(shares, &lagrange_coefficients[..]);
+        share_combine_simple(&shares, &lagrange_coefficients[..]);
     SharedSecret(shared_secret)
 }
 
@@ -301,29 +311,6 @@ mod test_ferveo_api {
     }
 
     #[test]
-    fn test_dkg_public_key_serialization() {
-        let shares_num = 4;
-        let validator_keypairs = gen_keypairs(shares_num);
-        let validators = validator_keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public(),
-            })
-            .collect::<Vec<_>>();
-
-        let dkg =
-            Dkg::new(1, shares_num, 2, &validators, &validators[0]).unwrap();
-
-        let serialized = dkg.final_key().to_bytes().unwrap();
-        assert_eq!(serialized.len(), DkgPublicKey::serialized_size());
-
-        let deserialized = DkgPublicKey::from_bytes(&serialized).unwrap();
-        assert_eq!(dkg.final_key(), deserialized);
-    }
-
-    #[test]
     fn test_server_api_tdec_precomputed() {
         let rng = &mut StdRng::seed_from_u64(0);
 
@@ -344,13 +331,11 @@ mod test_ferveo_api {
             Dkg::new(tau, shares_num, security_threshold, &validators, &me)
                 .unwrap();
 
-        // Lets say that we've only receives `security_threshold` transcripts
-        let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.final_key();
+        let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg = "my-msg".as_bytes().to_vec();
@@ -389,7 +374,6 @@ mod test_ferveo_api {
         // This part is part of the client API
 
         let shared_secret = share_combine_precomputed(&decryption_shares);
-
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
             aad,
@@ -398,6 +382,20 @@ mod test_ferveo_api {
         )
         .unwrap();
         assert_eq!(plaintext, msg);
+
+        // Since we're using a precomputed variant, we need all the shares to be able to decrypt
+        // So if we remove one share, we should not be able to decrypt
+        let decryption_shares =
+            decryption_shares[..shares_num as usize - 1].to_vec();
+
+        let shared_secret = share_combine_precomputed(&decryption_shares);
+        let result = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret,
+            &dkg.0.pvss_params.g_inv(),
+        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -413,18 +411,20 @@ mod test_ferveo_api {
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
-        let me = validators[0].clone();
-        let mut dkg =
-            Dkg::new(tau, shares_num, security_threshold, &validators, &me)
-                .unwrap();
+        let mut dkg = Dkg::new(
+            tau,
+            shares_num,
+            security_threshold,
+            &validators,
+            &validators[0],
+        )
+        .unwrap();
 
-        // Lets say that we've only receives `security_threshold` transcripts
-        let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg = "my-msg".as_bytes().to_vec();
@@ -462,19 +462,33 @@ mod test_ferveo_api {
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
 
-        let lagrange_coeffs =
-            prepare_combine_simple::<E>(&dkg.public_params().domain_points);
-        let shared_secret =
-            share_combine_simple(&decryption_shares, &lagrange_coeffs);
+        // In simple variant, we only need `security_threshold` shares to be able to decrypt
+        let decryption_shares =
+            decryption_shares[..security_threshold as usize].to_vec();
 
+        let shared_secret = combine_shares_simple(&decryption_shares);
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
             aad,
-            &shared_secret,
+            &shared_secret.0,
             &dkg.public_params().g1_inv,
         )
         .unwrap();
         assert_eq!(plaintext, msg);
+
+        // Let's say that we've only received `security_threshold - 1` shares
+        // In this case, we should not be able to decrypt
+        let decryption_shares =
+            decryption_shares[..security_threshold as usize - 1].to_vec();
+
+        let shared_secret = combine_shares_simple(&decryption_shares);
+        let result = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &shared_secret.0,
+            &dkg.public_params().g1_inv,
+        );
+        assert!(result.is_err());
     }
 
     #[test]

@@ -3,9 +3,7 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
-use chacha20poly1305::{
-    aead::{generic_array::GenericArray, Aead, KeyInit},
-};
+use chacha20poly1305::aead::{generic_array::GenericArray, Aead, KeyInit};
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -186,14 +184,13 @@ impl ChaCha20Poly1305 {
         let mut prf_key = SecretBox::new(Vec::new());
         shared_secret
             .0
-            .serialize_compressed(&mut prf_key.as_mut_secret())?;
+            .serialize_compressed(prf_key.as_mut_secret())?;
         let prf_key_32 = SecretBox::new(sha256(prf_key.as_secret()));
         Ok(Self(chacha20poly1305::ChaCha20Poly1305::new(
             GenericArray::from_slice(prf_key_32.as_secret()),
         )))
     }
 }
-
 
 /// Wrapper around the Nonce implementation from the `chacha20poly1305` crate.
 /// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroed when the
@@ -202,14 +199,17 @@ impl ChaCha20Poly1305 {
 pub struct Nonce(pub(crate) chacha20poly1305::Nonce);
 
 impl Nonce {
-    pub fn from_commitment<E: Pairing>(commitment: E::G1Affine)-> Result<Self> {
+    pub fn from_commitment<E: Pairing>(
+        commitment: E::G1Affine,
+    ) -> Result<Self> {
         let mut commitment_bytes = Vec::new();
         commitment.serialize_compressed(&mut commitment_bytes)?;
         let commitment_hash = sha256(&commitment_bytes);
-        Ok(Nonce(*chacha20poly1305::Nonce::from_slice(&commitment_hash[..12])))
+        Ok(Nonce(*chacha20poly1305::Nonce::from_slice(
+            &commitment_hash[..12],
+        )))
     }
 }
-
 
 fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
     message: &[u8],

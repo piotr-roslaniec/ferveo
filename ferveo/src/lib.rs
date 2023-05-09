@@ -182,7 +182,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext = tpke::encrypt::<E>(
             SecretBox::new(msg.clone()),
             aad,
@@ -215,7 +215,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext = tpke::encrypt::<E>(
             SecretBox::new(msg.clone()),
             aad,
@@ -271,7 +271,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
                 .unwrap();
@@ -331,7 +331,7 @@ mod test_dkg_full {
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = &dkg.final_key();
+        let public_key = &dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(SecretBox::new(msg), aad, public_key, rng)
                 .unwrap();
@@ -453,7 +453,7 @@ mod test_dkg_full {
 
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.final_key();
+        let public_key = dkg.public_key();
         let ciphertext =
             tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
                 .unwrap();

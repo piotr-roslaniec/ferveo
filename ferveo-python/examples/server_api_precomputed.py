@@ -49,9 +49,6 @@ dkg = Dkg(
     me=validators[0],
 )
 
-# Let's say that we've only received `security_threshold` transcripts
-messages = messages[:security_threshold]
-
 # Server can aggregate the transcripts
 server_aggregate = dkg.aggregate_transcripts(messages)
 assert server_aggregate.verify(shares_num, messages)
@@ -63,7 +60,7 @@ assert client_aggregate.verify(shares_num, messages)
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
 aad = "my-aad".encode()
-ciphertext = encrypt(msg, aad, dkg.final_key)
+ciphertext = encrypt(msg, aad, dkg.public_key)
 
 # Having aggregated the transcripts, the validators can now create decryption shares
 decryption_shares = []

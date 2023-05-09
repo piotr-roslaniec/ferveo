@@ -49,9 +49,6 @@ dkg = Dkg(
     me=me,
 )
 
-# Let's say that we've only received `security_threshold` transcripts
-messages = messages[:security_threshold]
-
 # Server can aggregate the transcripts
 server_aggregate = dkg.aggregate_transcripts(messages)
 assert server_aggregate.verify(shares_num, messages)
@@ -63,7 +60,7 @@ assert client_aggregate.verify(shares_num, messages)
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
 aad = "my-aad".encode()
-ciphertext = encrypt(msg, aad, dkg.final_key)
+ciphertext = encrypt(msg, aad, dkg.public_key)
 
 # The client can serialize/deserialize ciphertext for transport
 ciphertext_ser = bytes(ciphertext)
@@ -94,7 +91,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
 # Now, the decryption share can be used to decrypt the ciphertext
 # This part is in the client API
 
-shared_secret = combine_decryption_shares_simple(decryption_shares, dkg.public_params)
+shared_secret = combine_decryption_shares_simple(decryption_shares)
 
 # The client should have access to the public parameters of the DKG
 

@@ -524,15 +524,16 @@ mod tests {
             encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
                 .unwrap();
 
+        // We need at least threshold shares to decrypt
         let decryption_shares: Vec<_> = contexts
             .iter()
             .map(|c| c.create_share(&ciphertext, aad).unwrap())
+            .take(threshold)
             .collect();
-
-        let shared_secret = make_shared_secret(
-            &contexts[0].public_decryption_contexts,
-            &decryption_shares,
-        );
+        let pub_contexts =
+            contexts[0].public_decryption_contexts[..threshold].to_vec();
+        let shared_secret =
+            make_shared_secret(&pub_contexts, &decryption_shares);
 
         test_ciphertext_validation_fails(
             &msg,
@@ -541,6 +542,16 @@ mod tests {
             &shared_secret,
             g_inv,
         );
+
+        // If we use less than threshold shares, we should fail
+        let decryption_shares = decryption_shares[..threshold - 1].to_vec();
+        let pub_contexts = pub_contexts[..threshold - 1].to_vec();
+        let shared_secret =
+            make_shared_secret(&pub_contexts, &decryption_shares);
+
+        let result =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret, g_inv);
+        assert!(result.is_err());
     }
 
     #[test]

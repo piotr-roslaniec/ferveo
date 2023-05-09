@@ -5,6 +5,7 @@ use std::fmt::{self};
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
+use generic_array::{typenum::U48, GenericArray};
 use pyo3::{
     basic::CompareOp,
     exceptions::PyValueError,
@@ -20,8 +21,12 @@ fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
 
 fn to_py_bytes<T: ToBytes>(t: &T) -> PyResult<PyObject> {
     let bytes = t.to_bytes().map_err(map_py_err)?;
+    as_py_bytes(&bytes)
+}
+
+fn as_py_bytes(bytes: &[u8]) -> PyResult<PyObject> {
     Ok(Python::with_gil(|py| -> PyObject {
-        PyBytes::new(py, &bytes).into()
+        PyBytes::new(py, bytes).into()
     }))
 }
 
@@ -74,20 +79,13 @@ pub fn encrypt(
 #[pyfunction]
 pub fn combine_decryption_shares_simple(
     shares: Vec<DecryptionShareSimple>,
-    dkg_public_params: &DkgPublicParameters,
 ) -> SharedSecret {
     let shares = shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
-    let domain_points = &dkg_public_params.0.domain_points;
-    let lagrange_coefficients =
-        ferveo::api::prepare_combine_simple::<E>(&domain_points[..]);
-    let shared_secret = ferveo::api::share_combine_simple(
-        &shares[..],
-        &lagrange_coefficients[..],
-    );
-    SharedSecret(ferveo::api::SharedSecret(shared_secret))
+    let shared_secret = ferveo::api::combine_shares_simple(&shares[..]);
+    SharedSecret(shared_secret)
 }
 
 #[pyfunction]
@@ -262,11 +260,26 @@ pub struct DkgPublicKey(ferveo::api::DkgPublicKey);
 impl DkgPublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
+        let bytes =
+            GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
+                .ok_or_else(|| {
+                    map_py_err("Invalid length of bytes for DkgPublicKey")
+                })?;
+        Ok(Self(
+            ferveo::api::DkgPublicKey::from_bytes(bytes.as_slice())
+                .map_err(map_py_err)?,
+        ))
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
+        let bytes = self.0.to_bytes().map_err(map_py_err)?;
+        let bytes = GenericArray::<u8, U48>::from_slice(bytes.as_slice());
+        as_py_bytes(bytes)
+    }
+
+    #[staticmethod]
+    pub fn serialized_size() -> usize {
+        ferveo::api::DkgPublicKey::serialized_size()
     }
 }
 
@@ -301,8 +314,8 @@ impl Dkg {
     }
 
     #[getter]
-    pub fn final_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.final_key())
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key())
     }
 
     pub fn generate_transcript(&self) -> PyResult<Transcript> {
@@ -560,7 +573,7 @@ mod test_ferveo_python {
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.final_key();
+        let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg: &[u8] = "my-msg".as_bytes();
@@ -641,7 +654,7 @@ mod test_ferveo_python {
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.final_key();
+        let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let msg: &[u8] = "my-msg".as_bytes();
@@ -679,10 +692,7 @@ mod test_ferveo_python {
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
 
-        let shared_secret = combine_decryption_shares_simple(
-            decryption_shares,
-            &dkg.public_params(),
-        );
+        let shared_secret = combine_decryption_shares_simple(decryption_shares);
 
         // TODO: Fails because of a bad shared secret
         let plaintext = decrypt_with_shared_secret(
