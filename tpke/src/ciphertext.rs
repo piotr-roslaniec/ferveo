@@ -5,7 +5,6 @@ use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
 use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
-    Nonce,
 };
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
@@ -76,11 +75,11 @@ pub fn encrypt<E: Pairing>(
     // u
     let commitment = g_gen.mul(rand_element).into();
 
-    let nonce = nonce_from_commitment::<E>(commitment)?;
+    let nonce = Nonce::from_commitment::<E>(commitment)?;
     let shared_secret = SharedSecret(product);
     let ciphertext = ChaCha20Poly1305::from_shared_secret::<E>(&shared_secret)?
         .0
-        .encrypt(&nonce, message.as_secret().as_ref())
+        .encrypt(&nonce.0, message.as_secret().as_ref())
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
     // w
@@ -145,12 +144,12 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     shared_secret: &SharedSecret<E>,
 ) -> Result<Vec<u8>> {
-    let nonce = nonce_from_commitment::<E>(ciphertext.commitment)?;
+    let nonce = Nonce::from_commitment::<E>(ciphertext.commitment)?;
     let ciphertext = ciphertext.ciphertext.to_vec();
 
     let plaintext = ChaCha20Poly1305::from_shared_secret(shared_secret)?
         .0
-        .decrypt(&nonce, ciphertext.as_ref())
+        .decrypt(&nonce.0, ciphertext.as_ref())
         .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
 
@@ -175,7 +174,7 @@ fn sha256(input: &[u8]) -> Vec<u8> {
 }
 
 /// Wrapper around the ChaCha20Poly1305 implementation from the `chacha20poly1305` crate.
-/// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroized when the
+/// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroed when the
 /// `ChaCha20Poly1305` struct is dropped.
 #[derive(ZeroizeOnDrop)]
 pub struct ChaCha20Poly1305(pub(crate) chacha20poly1305::ChaCha20Poly1305);
@@ -195,12 +194,22 @@ impl ChaCha20Poly1305 {
     }
 }
 
-fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Result<Nonce> {
-    let mut commitment_bytes = Vec::new();
-    commitment.serialize_compressed(&mut commitment_bytes)?;
-    let commitment_hash = sha256(&commitment_bytes);
-    Ok(*Nonce::from_slice(&commitment_hash[..12]))
+
+/// Wrapper around the Nonce implementation from the `chacha20poly1305` crate.
+/// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroed when the
+/// `Nonce` struct is dropped.
+#[derive(ZeroizeOnDrop)]
+pub struct Nonce(pub(crate) chacha20poly1305::Nonce);
+
+impl Nonce {
+    pub fn from_commitment<E: Pairing>(commitment: E::G1Affine)-> Result<Self> {
+        let mut commitment_bytes = Vec::new();
+        commitment.serialize_compressed(&mut commitment_bytes)?;
+        let commitment_hash = sha256(&commitment_bytes);
+        Ok(Nonce(*chacha20poly1305::Nonce::from_slice(&commitment_hash[..12])))
+    }
 }
+
 
 fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
     message: &[u8],
