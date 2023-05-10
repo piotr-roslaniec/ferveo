@@ -13,7 +13,6 @@ extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
 
 [dependencies]
-anyhow = "1.0.71"
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
 ferveo = { path = "../ferveo" }
 ferveo-common = { path = "../ferveo-common" }

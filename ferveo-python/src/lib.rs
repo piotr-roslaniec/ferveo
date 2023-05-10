@@ -3,7 +3,6 @@ mod error;
 extern crate alloc;
 extern crate core;
 
-use anyhow::anyhow;
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use generic_array::{typenum::U48, GenericArray};
@@ -164,7 +163,7 @@ impl Keypair {
     #[staticmethod]
     pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
         let keypair = ferveo::api::Keypair::<E>::from_secure_randomness(bytes)
-            .map_err(|err| FerveoPythonError::Other(err.into()))?;
+            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(keypair))
     }
 
@@ -226,7 +225,7 @@ impl Validator {
     #[new]
     pub fn new(address: String, public_key: &PublicKey) -> PyResult<Self> {
         let validator = ferveo::api::Validator::new(address, public_key.0)
-            .map_err(|err| FerveoPythonError::Other(err.into()))?;
+            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(validator))
     }
 
@@ -268,9 +267,9 @@ impl DkgPublicKey {
         let bytes =
             GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
                 .ok_or_else(|| {
-                    FerveoPythonError::Other(anyhow!(
-                        "Invalid length of bytes for DkgPublicKey"
-                    ))
+                    FerveoPythonError::Other(
+                        "Invalid length of bytes for DkgPublicKey".to_string(),
+                    )
                 })?;
         Ok(Self(
             ferveo::api::DkgPublicKey::from_bytes(bytes.as_slice())

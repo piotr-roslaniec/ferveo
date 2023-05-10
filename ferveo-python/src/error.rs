@@ -12,8 +12,8 @@ pub enum FerveoPythonError {
     FerveoError(#[from] ferveo::Error),
 
     /// Any other errors that are too trivial to be put here explicitly.
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<FerveoPythonError> for PyErr {

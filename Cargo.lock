@@ -788,7 +788,6 @@ dependencies = [
 name = "ferveo-python"
 version = "0.1.11"
 dependencies = [
- "anyhow",
  "derive_more",
  "ferveo",
  "ferveo-common",
