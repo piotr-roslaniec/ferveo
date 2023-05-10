@@ -3,7 +3,10 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
-use chacha20poly1305::aead::{generic_array::GenericArray, Aead, KeyInit};
+use chacha20poly1305::{
+    aead::{generic_array::GenericArray, Aead, KeyInit},
+    ChaCha20Poly1305,
+};
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -74,9 +77,8 @@ pub fn encrypt<E: Pairing>(
     let commitment = g_gen.mul(rand_element).into();
 
     let nonce = Nonce::from_commitment::<E>(commitment)?;
-    let shared_secret = SharedSecret(product);
-    let ciphertext = ChaCha20Poly1305::from_shared_secret::<E>(&shared_secret)?
-        .0
+    let shared_secret = SharedSecret::<E>(product);
+    let ciphertext = shared_secret_to_chacha(&shared_secret)?
         .encrypt(&nonce.0, message.as_secret().as_ref())
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
@@ -145,8 +147,7 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     let nonce = Nonce::from_commitment::<E>(ciphertext.commitment)?;
     let ciphertext = ciphertext.ciphertext.to_vec();
 
-    let plaintext = ChaCha20Poly1305::from_shared_secret(shared_secret)?
-        .0
+    let plaintext = shared_secret_to_chacha(shared_secret)?
         .decrypt(&nonce.0, ciphertext.as_ref())
         .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
@@ -171,25 +172,16 @@ fn sha256(input: &[u8]) -> Vec<u8> {
     result.to_vec()
 }
 
-/// Wrapper around the ChaCha20Poly1305 implementation from the `chacha20poly1305` crate.
-/// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroed when the
-/// `ChaCha20Poly1305` struct is dropped.
-#[derive(ZeroizeOnDrop)]
-pub struct ChaCha20Poly1305(pub(crate) chacha20poly1305::ChaCha20Poly1305);
-
-impl ChaCha20Poly1305 {
-    pub fn from_shared_secret<E: Pairing>(
-        shared_secret: &SharedSecret<E>,
-    ) -> Result<Self> {
-        let mut prf_key = SecretBox::new(Vec::new());
-        shared_secret
-            .0
-            .serialize_compressed(prf_key.as_mut_secret())?;
-        let prf_key_32 = SecretBox::new(sha256(prf_key.as_secret()));
-        Ok(Self(chacha20poly1305::ChaCha20Poly1305::new(
-            GenericArray::from_slice(prf_key_32.as_secret()),
-        )))
-    }
+pub fn shared_secret_to_chacha<E: Pairing>(
+    shared_secret: &SharedSecret<E>,
+) -> Result<ChaCha20Poly1305> {
+    let mut prf_key = SecretBox::new(Vec::new());
+    shared_secret
+        .0
+        .serialize_compressed(prf_key.as_mut_secret())?;
+    Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&sha256(
+        prf_key.as_secret(),
+    ))))
 }
 
 /// Wrapper around the Nonce implementation from the `chacha20poly1305` crate.
@@ -235,7 +227,6 @@ fn construct_tag_hash<E: Pairing>(
 
 #[cfg(test)]
 mod tests {
-
     use ark_std::test_rng;
 
     use crate::{test_common::*, *};

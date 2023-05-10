@@ -155,7 +155,7 @@ impl DkgPublicParameters {
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharedSecret(pub(crate) ferveo::api::SharedSecret);
+pub struct SharedSecret(ferveo::api::SharedSecret);
 
 #[wasm_bindgen]
 impl SharedSecret {

@@ -93,6 +93,9 @@ impl<E: Pairing> Zeroize for SecretPolynomial<E> {
     }
 }
 
+// `ZeroizeOnDrop` derivation fails because of missing trait bounds, so we manually introduce
+// required traits
+
 impl<E: Pairing> Drop for SecretPolynomial<E> {
     fn drop(&mut self) {
         self.zeroize();

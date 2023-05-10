@@ -67,6 +67,7 @@ pub fn encrypt(
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
     let ciphertext = ferveo::api::encrypt(
+        // TODO: Avoid double-allocation here. `SecretBox` already allocates for its contents.
         ferveo::api::SecretBox::new(message.to_vec()),
         aad,
         &dkg_public_key.0 .0,
