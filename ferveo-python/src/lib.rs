@@ -3,6 +3,7 @@ mod error;
 extern crate alloc;
 extern crate core;
 
+use anyhow::anyhow;
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use generic_array::{typenum::U48, GenericArray};
@@ -267,16 +268,19 @@ impl DkgPublicKey {
         let bytes =
             GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
                 .ok_or_else(|| {
-                    map_py_err("Invalid length of bytes for DkgPublicKey")
+                    FerveoPythonError::Other(anyhow!(
+                        "Invalid length of bytes for DkgPublicKey"
+                    ))
                 })?;
         Ok(Self(
             ferveo::api::DkgPublicKey::from_bytes(bytes.as_slice())
-                .map_err(map_py_err)?,
+                .map_err(FerveoPythonError::FerveoError)?,
         ))
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let bytes = self.0.to_bytes().map_err(map_py_err)?;
+        let bytes =
+            self.0.to_bytes().map_err(FerveoPythonError::FerveoError)?;
         let bytes = GenericArray::<u8, U48>::from_slice(bytes.as_slice());
         as_py_bytes(bytes)
     }
