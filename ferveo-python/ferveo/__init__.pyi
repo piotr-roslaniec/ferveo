@@ -192,3 +192,75 @@ def decrypt_with_shared_secret(
         dkg_params: DkgPublicParameters,
 ) -> bytes:
     ...
+
+
+class ThresholdEncryptionError(Exception):
+    pass
+
+
+class InvalidShareNumberParameter(Exception):
+    pass
+
+
+class InvalidDkgStateToDeal(Exception):
+    pass
+
+
+class InvalidDkgStateToAggregate(Exception):
+    pass
+
+
+class InvalidDkgStateToVerify(Exception):
+    pass
+
+
+class InvalidDkgStateToIngest(Exception):
+    pass
+
+
+class DealerNotInValidatorSet(Exception):
+    pass
+
+
+class UnknownDealer(Exception):
+    pass
+
+
+class DuplicateDealer(Exception):
+    pass
+
+
+class InvalidPvssTranscript(Exception):
+    pass
+
+
+class InsufficientTranscriptsForAggregate(Exception):
+    pass
+
+
+class InvalidFinalKey(Exception):
+    pass
+
+
+class InsufficientValidators(Exception):
+    pass
+
+
+class InvalidTranscriptAggregate(Exception):
+    pass
+
+
+class ValidatorsNotSorted(Exception):
+    pass
+
+
+class ValidatorPublicKeyMismatch(Exception):
+    pass
+
+
+class BincodeError(Exception):
+    pass
+
+
+class ArkSerializeError(Exception):
+    pass
