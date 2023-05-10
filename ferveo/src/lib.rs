@@ -15,8 +15,7 @@ pub use validator::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Threshold encryption error
-    #[error("Threshold encryption error")]
+    #[error(transparent)]
     ThresholdEncryptionError(#[from] tpke::Error),
 
     /// Number of shares parameter must be a power of two
@@ -73,14 +72,6 @@ pub enum Error {
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
 
-    /// Serialization failed
-    #[error("Serialization failed")]
-    BincodeSerializationError(#[from] bincode::Error),
-
-    /// Serialization failed
-    #[error("Serialization failed")]
-    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
-
     /// DKG validators must be sorted by their Ethereum address
     #[error("DKG validators not sorted")]
     ValidatorsNotSorted,
@@ -88,6 +79,12 @@ pub enum Error {
     /// The validator public key doesn't match the one in the DKG
     #[error("Validator public key mismatch")]
     ValidatorPublicKeyMismatch,
+
+    #[error(transparent)]
+    BincodeError(#[from] bincode::Error),
+
+    #[error(transparent)]
+    ArkSerializeError(#[from] ark_serialize::SerializationError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

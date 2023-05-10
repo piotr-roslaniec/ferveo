@@ -209,8 +209,7 @@ fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
     let point = htp_bls12381_g2(message);
     let mut point_ser: Vec<u8> = Vec::new();
     point.serialize_compressed(&mut point_ser)?;
-    T::deserialize_compressed(&point_ser[..])
-        .map_err(Error::ArkworksSerializationError)
+    T::deserialize_compressed(&point_ser[..]).map_err(Error::ArkSerializeError)
 }
 
 fn construct_tag_hash<E: Pairing>(

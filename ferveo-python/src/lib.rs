@@ -1,26 +1,30 @@
+mod error;
+
 extern crate alloc;
 extern crate core;
-
-use std::fmt::{self};
 
 use ferveo::api::E;
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use generic_array::{typenum::U48, GenericArray};
 use pyo3::{
     basic::CompareOp,
-    exceptions::PyValueError,
     prelude::*,
     types::{PyBytes, PyUnicode},
     PyClass,
 };
 use rand::thread_rng;
 
+use crate::error::*;
+
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
-    T::from_bytes(bytes).map_err(map_py_err)
+    T::from_bytes(bytes)
+        .map_err(|err| FerveoPythonError::FerveoError(err.into()).into())
 }
 
 fn to_py_bytes<T: ToBytes>(t: &T) -> PyResult<PyObject> {
-    let bytes = t.to_bytes().map_err(map_py_err)?;
+    let bytes = t
+        .to_bytes()
+        .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
     as_py_bytes(&bytes)
 }
 
@@ -28,10 +32,6 @@ fn as_py_bytes(bytes: &[u8]) -> PyResult<PyObject> {
     Ok(Python::with_gil(|py| -> PyObject {
         PyBytes::new(py, bytes).into()
     }))
-}
-
-fn map_py_err<T: fmt::Display>(err: T) -> PyErr {
-    PyValueError::new_err(format!("{}", err))
 }
 
 // TODO: Not using generics here since some of the types don't implement AsRef<[u8]>
@@ -73,7 +73,7 @@ pub fn encrypt(
         &dkg_public_key.0 .0,
         rng,
     )
-    .map_err(map_py_err)?;
+    .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -114,7 +114,7 @@ pub fn decrypt_with_shared_secret(
         &shared_secret.0 .0,
         &dkg_params.0.g1_inv,
     )
-    .map_err(map_py_err)
+    .map_err(|err| FerveoPythonError::FerveoError(err.into()).into())
 }
 
 #[pyclass(module = "ferveo")]
@@ -163,7 +163,7 @@ impl Keypair {
     #[staticmethod]
     pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
         let keypair = ferveo::api::Keypair::<E>::from_secure_randomness(bytes)
-            .map_err(map_py_err)?;
+            .map_err(|err| FerveoPythonError::Other(err.into()))?;
         Ok(Self(keypair))
     }
 
@@ -208,7 +208,10 @@ impl PublicKey {
     }
 
     fn __hash__(&self) -> PyResult<isize> {
-        let bytes = self.0.to_bytes().map_err(map_py_err)?;
+        let bytes = self
+            .0
+            .to_bytes()
+            .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
         hash("PublicKey", &bytes)
     }
 }
@@ -222,7 +225,7 @@ impl Validator {
     #[new]
     pub fn new(address: String, public_key: &PublicKey) -> PyResult<Self> {
         let validator = ferveo::api::Validator::new(address, public_key.0)
-            .map_err(map_py_err)?;
+            .map_err(|err| FerveoPythonError::Other(err.into()))?;
         Ok(Self(validator))
     }
 
@@ -310,7 +313,7 @@ impl Dkg {
             &validators,
             &me.0,
         )
-        .map_err(map_py_err)?;
+        .map_err(FerveoPythonError::from)?;
         Ok(Self(dkg))
     }
 
@@ -321,7 +324,10 @@ impl Dkg {
 
     pub fn generate_transcript(&self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
-        let transcript = self.0.generate_transcript(rng).map_err(map_py_err)?;
+        let transcript = self
+            .0
+            .generate_transcript(rng)
+            .map_err(FerveoPythonError::FerveoError)?;
         Ok(Transcript(transcript))
     }
 
@@ -336,7 +342,7 @@ impl Dkg {
         let aggregated_transcript = self
             .0
             .aggregate_transcripts(&messages)
-            .map_err(map_py_err)?;
+            .map_err(FerveoPythonError::FerveoError)?;
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -418,8 +424,10 @@ impl AggregatedTranscript {
             .into_iter()
             .map(|ValidatorMessage(v, t)| (v.0, t.0))
             .collect();
-        let is_valid =
-            self.0.verify(shares_num, &messages).map_err(map_py_err)?;
+        let is_valid = self
+            .0
+            .verify(shares_num, &messages)
+            .map_err(FerveoPythonError::FerveoError)?;
         Ok(is_valid)
     }
 
@@ -438,7 +446,7 @@ impl AggregatedTranscript {
                 aad,
                 &validator_keypair.0,
             )
-            .map_err(map_py_err)?;
+            .map_err(FerveoPythonError::FerveoError)?;
         Ok(DecryptionSharePrecomputed(decryption_share))
     }
 
@@ -457,7 +465,7 @@ impl AggregatedTranscript {
                 aad,
                 &validator_keypair.0,
             )
-            .map_err(map_py_err)?;
+            .map_err(FerveoPythonError::FerveoError)?;
         Ok(DecryptionShareSimple(decryption_share))
     }
 
@@ -473,7 +481,8 @@ impl AggregatedTranscript {
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
+fn ferveo_py(py: Python, m: &PyModule) -> PyResult<()> {
+    // Functions
     m.add_function(wrap_pyfunction!(encrypt, m)?)?;
     m.add_function(wrap_pyfunction!(combine_decryption_shares_simple, m)?)?;
     m.add_function(wrap_pyfunction!(
@@ -481,6 +490,8 @@ fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(decrypt_with_shared_secret, m)?)?;
+
+    // Classes
     m.add_class::<Keypair>()?;
     m.add_class::<PublicKey>()?;
     m.add_class::<Validator>()?;
@@ -493,6 +504,62 @@ fn ferveo_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<DkgPublicKey>()?;
     m.add_class::<DkgPublicParameters>()?;
     m.add_class::<SharedSecret>()?;
+
+    // Exceptions
+    m.add(
+        "ThresholdEncryptionError",
+        py.get_type::<ThresholdEncryptionError>(),
+    )?;
+    m.add(
+        "InvalidShareNumberParameter",
+        py.get_type::<InvalidShareNumberParameter>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToDeal",
+        py.get_type::<InvalidDkgStateToDeal>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToAggregate",
+        py.get_type::<InvalidDkgStateToAggregate>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToVerify",
+        py.get_type::<InvalidDkgStateToVerify>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToIngest",
+        py.get_type::<InvalidDkgStateToIngest>(),
+    )?;
+    m.add(
+        "DealerNotInValidatorSet",
+        py.get_type::<DealerNotInValidatorSet>(),
+    )?;
+    m.add("UnknownDealer", py.get_type::<UnknownDealer>())?;
+    m.add("DuplicateDealer", py.get_type::<DuplicateDealer>())?;
+    m.add(
+        "InvalidPvssTranscript",
+        py.get_type::<InvalidPvssTranscript>(),
+    )?;
+    m.add(
+        "InsufficientTranscriptsForAggregate",
+        py.get_type::<InsufficientTranscriptsForAggregate>(),
+    )?;
+    m.add("InvalidFinalKey", py.get_type::<InvalidFinalKey>())?;
+    m.add(
+        "InsufficientValidators",
+        py.get_type::<InsufficientValidators>(),
+    )?;
+    m.add(
+        "InvalidTranscriptAggregate",
+        py.get_type::<InvalidTranscriptAggregate>(),
+    )?;
+    m.add("ValidatorsNotSorted", py.get_type::<ValidatorsNotSorted>())?;
+    m.add(
+        "ValidatorPublicKeyMismatch",
+        py.get_type::<ValidatorPublicKeyMismatch>(),
+    )?;
+    m.add("BincodeError", py.get_type::<BincodeError>())?;
+    m.add("ArkSerializeError", py.get_type::<ArkSerializeError>())?;
     Ok(())
 }
 
