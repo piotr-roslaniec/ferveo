@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use tpke::api::E;
+use tpke::{api::E, SecretBox};
 pub use utils::into_js_array;
 use utils::*;
 use wasm_bindgen::prelude::*;
@@ -127,9 +127,13 @@ pub fn encrypt(
 ) -> JsResult<Ciphertext> {
     set_panic_hook();
     let rng = &mut thread_rng();
-    let ciphertext =
-        tpke::api::encrypt(message, aad, &dkg_public_key.0 .0, rng)
-            .map_err(map_js_err)?;
+    let ciphertext = tpke::api::encrypt(
+        SecretBox::new(message.to_vec()),
+        aad,
+        &dkg_public_key.0 .0,
+        rng,
+    )
+    .map_err(map_js_err)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -151,7 +155,7 @@ impl DkgPublicParameters {
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharedSecret(tpke::api::SharedSecret);
+pub struct SharedSecret(ferveo::api::SharedSecret);
 
 #[wasm_bindgen]
 impl SharedSecret {

@@ -20,9 +20,9 @@ const MSG_SIZE_CASES: [usize; 7] = [256, 512, 1024, 2048, 4096, 8192, 16384];
 
 type E = Bls12_381;
 type G2Prepared = <E as Pairing>::G2Prepared;
-type TargetField = <E as Pairing>::TargetField;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 struct SetupShared {
     threshold: usize,
     shares_num: usize,
@@ -31,9 +31,10 @@ struct SetupShared {
     pubkey: G1,
     privkey: G2,
     ciphertext: Ciphertext<E>,
-    shared_secret: TargetField,
+    shared_secret: SharedSecret<E>,
 }
 
+#[derive(Clone)]
 struct SetupFast {
     shared: SetupShared,
     contexts: Vec<PrivateDecryptionContextFast<E>>,
@@ -51,7 +52,9 @@ impl SetupFast {
 
         let (pubkey, privkey, contexts) =
             setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
         for context in contexts.iter() {
@@ -88,6 +91,7 @@ impl SetupFast {
     }
 }
 
+#[derive(Clone)]
 struct SetupSimple {
     shared: SetupShared,
     contexts: Vec<PrivateDecryptionContextSimple<E>>,
@@ -107,7 +111,9 @@ impl SetupSimple {
             setup_simple::<E>(threshold, shares_num, rng);
 
         // Ciphertext.commitment is already computed to match U
-        let ciphertext = encrypt::<E>(&msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
 
         // Creating decryption shares
         let decryption_shares: Vec<_> = contexts
@@ -334,9 +340,10 @@ pub fn bench_share_encrypt_decrypt(c: &mut Criterion) {
             let mut rng = rng.clone();
             let setup = SetupFast::new(shares_num, msg_size, &mut rng);
             move || {
+                let setup = setup.clone();
                 black_box(
                     encrypt::<E>(
-                        &setup.shared.msg,
+                        SecretBox::new(setup.shared.msg),
                         &setup.shared.aad,
                         &setup.shared.pubkey,
                         &mut rng,

@@ -19,7 +19,7 @@ fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes).map_err(map_py_err)
 }
 
-fn to_py_bytes<T: ToBytes>(t: T) -> PyResult<PyObject> {
+fn to_py_bytes<T: ToBytes>(t: &T) -> PyResult<PyObject> {
     let bytes = t.to_bytes().map_err(map_py_err)?;
     as_py_bytes(&bytes)
 }
@@ -66,9 +66,14 @@ pub fn encrypt(
     dkg_public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
     let rng = &mut thread_rng();
-    let ciphertext =
-        ferveo::api::encrypt(message, aad, &dkg_public_key.0 .0, rng)
-            .map_err(map_py_err)?;
+    let ciphertext = ferveo::api::encrypt(
+        // TODO: Avoid double-allocation here. `SecretBox` already allocates for its contents.
+        ferveo::api::SecretBox::new(message.to_vec()),
+        aad,
+        &dkg_public_key.0 .0,
+        rng,
+    )
+    .map_err(map_py_err)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -124,7 +129,7 @@ impl DkgPublicParameters {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0.clone())
+        to_py_bytes(&self.0)
     }
 }
 
@@ -140,7 +145,7 @@ impl SharedSecret {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 }
 
@@ -173,7 +178,7 @@ impl Keypair {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 
     pub fn public_key(&self) -> PublicKey {
@@ -195,7 +200,7 @@ impl PublicKey {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(self.0)
+        to_py_bytes(&self.0)
     }
 
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
@@ -572,7 +577,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
 
@@ -653,7 +658,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "abc".as_bytes();
+        let msg: &[u8] = "my-msg".as_bytes();
         let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
 

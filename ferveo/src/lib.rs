@@ -116,6 +116,7 @@ mod test_dkg_full {
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
         Ciphertext, DecryptionSharePrecomputed, DecryptionShareSimple,
+        SecretBox, SharedSecret,
     };
     use itertools::izip;
 
@@ -132,7 +133,7 @@ mod test_dkg_full {
     ) -> (
         PubliclyVerifiableSS<E, Aggregated>,
         Vec<DecryptionShareSimple<E>>,
-        TargetField,
+        SharedSecret<E>,
     ) {
         let pvss_aggregated = aggregate(&dkg.vss);
         assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
@@ -179,11 +180,16 @@ mod test_dkg_full {
         let rng = &mut test_rng();
 
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.public_key();
-        let ciphertext =
-            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
+        let ciphertext = tpke::encrypt::<E>(
+            SecretBox::new(msg.clone()),
+            aad,
+            &public_key,
+            rng,
+        )
+        .unwrap();
 
         let (_, _, shared_secret) = make_shared_secret_simple_tdec(
             &dkg,
@@ -207,11 +213,16 @@ mod test_dkg_full {
         let rng = &mut test_rng();
 
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.public_key();
-        let ciphertext =
-            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
+        let ciphertext = tpke::encrypt::<E>(
+            SecretBox::new(msg.clone()),
+            aad,
+            &public_key,
+            rng,
+        )
+        .unwrap();
 
         let pvss_aggregated = aggregate(&dkg.vss);
         pvss_aggregated.verify_aggregation(&dkg).unwrap();
@@ -258,11 +269,12 @@ mod test_dkg_full {
         let rng = &mut test_rng();
 
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.public_key();
         let ciphertext =
-            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
+            tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
+                .unwrap();
 
         let (pvss_aggregated, decryption_shares, _) =
             make_shared_secret_simple_tdec(
@@ -317,10 +329,12 @@ mod test_dkg_full {
         let rng = &mut test_rng();
 
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.public_key();
-        let ciphertext = tpke::encrypt::<E>(msg, aad, public_key, rng).unwrap();
+        let ciphertext =
+            tpke::encrypt::<E>(SecretBox::new(msg), aad, public_key, rng)
+                .unwrap();
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
@@ -437,11 +451,12 @@ mod test_dkg_full {
         let rng = &mut test_rng();
         let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
 
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.public_key();
         let ciphertext =
-            tpke::encrypt::<E>(msg, aad, &public_key, rng).unwrap();
+            tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
+                .unwrap();
 
         let pvss_aggregated = aggregate(&dkg.vss);
 

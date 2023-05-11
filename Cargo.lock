@@ -766,6 +766,7 @@ dependencies = [
  "serde_with",
  "subproductdomain",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]
@@ -900,6 +901,7 @@ dependencies = [
  "sha2",
  "subproductdomain",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

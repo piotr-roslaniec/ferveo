@@ -30,6 +30,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.2.0"
 subproductdomain = { path = "../subproductdomain" }
 thiserror = "1.0"
+zeroize = { version = "1.6.0", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4
@@ -48,6 +49,7 @@ test-common = []
 [[example]]
 name = "bench_primitives_size"
 path = "examples/bench_primitives_size.rs"
+
 #[[bench]]
 #name = "pvdkg"
 #path = "benches/benchmarks/pvdkg.rs"

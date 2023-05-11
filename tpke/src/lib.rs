@@ -5,6 +5,7 @@ pub mod decryption;
 pub mod hash_to_curve;
 pub mod key_share;
 pub mod refresh;
+pub mod secret_box;
 
 // TODO: Only show the public API, tpke::api
 // use ciphertext::*;
@@ -22,6 +23,7 @@ pub use decryption::*;
 pub use hash_to_curve::*;
 pub use key_share::*;
 pub use refresh::*;
+pub use secret_box::*;
 
 #[cfg(feature = "api")]
 pub mod api;
@@ -300,7 +302,7 @@ mod tests {
         contexts: &[PrivateDecryptionContextSimple<E>],
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
-    ) -> E::TargetField {
+    ) -> SharedSecret<E> {
         let decryption_shares: Vec<_> = contexts
             .iter()
             .map(|c| c.create_share(ciphertext, aad).unwrap())
@@ -316,12 +318,13 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, _) = setup_fast::<E>(threshold, shares_num, rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         let serialized = ciphertext.to_bytes().unwrap();
         let deserialized: Ciphertext<E> =
@@ -334,7 +337,7 @@ mod tests {
         msg: &[u8],
         aad: &[u8],
         ciphertext: &Ciphertext<E>,
-        shared_secret: &E::TargetField,
+        shared_secret: &SharedSecret<E>,
         g_inv: &E::G1Prepared,
     ) {
         // So far, the ciphertext is valid
@@ -416,7 +419,7 @@ mod tests {
     fn make_shared_secret<E: Pairing>(
         pub_contexts: &[PublicDecryptionContextSimple<E>],
         decryption_shares: &[DecryptionShareSimple<E>],
-    ) -> E::TargetField {
+    ) -> SharedSecret<E> {
         let domain = pub_contexts.iter().map(|c| c.domain).collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
         share_combine_simple::<E>(decryption_shares, &lagrange_coeffs)
@@ -427,11 +430,12 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -442,12 +446,13 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
         assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
@@ -458,12 +463,14 @@ mod tests {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_fast::<E>(threshold, shares_num, &mut rng);
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
         let g_inv = &contexts[0].setup_params.g_inv;
 
         let mut decryption_shares: Vec<DecryptionShareFast<E>> = vec![];
@@ -493,7 +500,7 @@ mod tests {
         .unwrap();
 
         test_ciphertext_validation_fails(
-            msg,
+            &msg,
             aad,
             &ciphertext,
             &shared_secret,
@@ -506,14 +513,16 @@ mod tests {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
 
         // We need at least threshold shares to decrypt
         let decryption_shares: Vec<_> = contexts
@@ -527,7 +536,7 @@ mod tests {
             make_shared_secret(&pub_contexts, &decryption_shares);
 
         test_ciphertext_validation_fails(
-            msg,
+            &msg,
             aad,
             &ciphertext,
             &shared_secret,
@@ -549,13 +558,15 @@ mod tests {
     fn tdec_precomputed_variant_e2e() {
         let mut rng = &mut test_rng();
         let shares_num = 16;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_precomputed::<E>(shares_num, &mut rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -567,7 +578,7 @@ mod tests {
         let shared_secret = share_combine_precomputed::<E>(&decryption_shares);
 
         test_ciphertext_validation_fails(
-            msg,
+            &msg,
             aad,
             &ciphertext,
             &shared_secret,
@@ -594,13 +605,14 @@ mod tests {
         let mut rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, &mut rng);
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         let decryption_shares: Vec<_> = contexts
             .iter()
@@ -709,13 +721,14 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =
@@ -788,14 +801,15 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, _, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
         let pub_contexts = contexts[0].public_decryption_contexts.clone();
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         // Create an initial shared secret
         let old_shared_secret =

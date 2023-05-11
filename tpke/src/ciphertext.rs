@@ -5,14 +5,15 @@ use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
 use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit},
-    ChaCha20Poly1305, Nonce,
+    ChaCha20Poly1305,
 };
 use ferveo_common::serialization;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sha2::{digest::Digest, Sha256};
+use zeroize::ZeroizeOnDrop;
 
-use crate::{htp_bls12381_g2, Error, Result};
+use crate::{htp_bls12381_g2, Error, Result, SecretBox, SharedSecret};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,7 +58,7 @@ impl<E: Pairing> Ciphertext<E> {
 }
 
 pub fn encrypt<E: Pairing>(
-    message: &[u8],
+    message: SecretBox<Vec<u8>>,
     aad: &[u8],
     pubkey: &E::G1Affine,
     rng: &mut impl rand::Rng,
@@ -75,9 +76,10 @@ pub fn encrypt<E: Pairing>(
     // u
     let commitment = g_gen.mul(rand_element).into();
 
-    let nonce = nonce_from_commitment::<E>(commitment)?;
-    let ciphertext = shared_secret_to_chacha::<E>(&product)?
-        .encrypt(&nonce, message)
+    let nonce = Nonce::from_commitment::<E>(commitment)?;
+    let shared_secret = SharedSecret::<E>(product);
+    let ciphertext = shared_secret_to_chacha(&shared_secret)?
+        .encrypt(&nonce.0, message.as_secret().as_ref())
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
     // w
@@ -134,18 +136,19 @@ pub fn decrypt_symmetric<E: Pairing>(
         E::G2Prepared::from(*private_key),
     )
     .0;
+    let shared_secret = SharedSecret(shared_secret);
     decrypt_with_shared_secret_unchecked(ciphertext, &shared_secret)
 }
 
 fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     ciphertext: &Ciphertext<E>,
-    shared_secret: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
 ) -> Result<Vec<u8>> {
-    let nonce = nonce_from_commitment::<E>(ciphertext.commitment)?;
+    let nonce = Nonce::from_commitment::<E>(ciphertext.commitment)?;
     let ciphertext = ciphertext.ciphertext.to_vec();
 
-    let plaintext = shared_secret_to_chacha::<E>(shared_secret)?
-        .decrypt(&nonce, ciphertext.as_ref())
+    let plaintext = shared_secret_to_chacha(shared_secret)?
+        .decrypt(&nonce.0, ciphertext.as_ref())
         .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
 
@@ -155,7 +158,7 @@ fn decrypt_with_shared_secret_unchecked<E: Pairing>(
 pub fn decrypt_with_shared_secret<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
-    shared_secret: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
     check_ciphertext_validity(ciphertext, aad, g_inv)?;
@@ -170,20 +173,34 @@ fn sha256(input: &[u8]) -> Vec<u8> {
 }
 
 pub fn shared_secret_to_chacha<E: Pairing>(
-    s: &E::TargetField,
+    shared_secret: &SharedSecret<E>,
 ) -> Result<ChaCha20Poly1305> {
-    let mut prf_key = Vec::new();
-    s.serialize_compressed(&mut prf_key)?;
-    let prf_key_32 = sha256(&prf_key);
-
-    Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&prf_key_32)))
+    let mut prf_key = SecretBox::new(Vec::new());
+    shared_secret
+        .0
+        .serialize_compressed(prf_key.as_mut_secret())?;
+    Ok(ChaCha20Poly1305::new(GenericArray::from_slice(&sha256(
+        prf_key.as_secret(),
+    ))))
 }
 
-fn nonce_from_commitment<E: Pairing>(commitment: E::G1Affine) -> Result<Nonce> {
-    let mut commitment_bytes = Vec::new();
-    commitment.serialize_compressed(&mut commitment_bytes)?;
-    let commitment_hash = sha256(&commitment_bytes);
-    Ok(*Nonce::from_slice(&commitment_hash[..12]))
+/// Wrapper around the Nonce implementation from the `chacha20poly1305` crate.
+/// This wrapper implements `ZeroizeOnDrop` to ensure that the key is zeroed when the
+/// `Nonce` struct is dropped.
+#[derive(ZeroizeOnDrop)]
+pub struct Nonce(pub(crate) chacha20poly1305::Nonce);
+
+impl Nonce {
+    pub fn from_commitment<E: Pairing>(
+        commitment: E::G1Affine,
+    ) -> Result<Self> {
+        let mut commitment_bytes = Vec::new();
+        commitment.serialize_compressed(&mut commitment_bytes)?;
+        let commitment_hash = sha256(&commitment_bytes);
+        Ok(Nonce(*chacha20poly1305::Nonce::from_slice(
+            &commitment_hash[..12],
+        )))
+    }
 }
 
 fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
@@ -210,7 +227,6 @@ fn construct_tag_hash<E: Pairing>(
 
 #[cfg(test)]
 mod tests {
-
     use ark_std::test_rng;
 
     use crate::{test_common::*, *};
@@ -222,14 +238,16 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
 
         let (pubkey, privkey, contexts) =
             setup_fast::<E>(threshold, shares_num, rng);
         let g_inv = &contexts[0].setup_params.g_inv;
 
-        let ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let ciphertext =
+            encrypt::<E>(SecretBox::new(msg.clone()), aad, &pubkey, rng)
+                .unwrap();
 
         let plaintext =
             decrypt_symmetric(&ciphertext, aad, &privkey, g_inv).unwrap();
@@ -242,11 +260,12 @@ mod tests {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg: &[u8] = "abc".as_bytes();
+        let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let (pubkey, _, contexts) = setup_fast::<E>(threshold, shares_num, rng);
         let g_inv = contexts[0].setup_params.g_inv.clone();
-        let mut ciphertext = encrypt::<E>(msg, aad, &pubkey, rng).unwrap();
+        let mut ciphertext =
+            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         // So far, the ciphertext is valid
         assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_ok());
