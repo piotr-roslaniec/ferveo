@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 
 use pyo3::{
     create_exception,
-    exceptions::{PyException, PyRuntimeError},
+    exceptions::{PyException, PyRuntimeError, PyValueError},
     prelude::*,
 };
 
@@ -101,19 +101,19 @@ impl Debug for FerveoPythonError {
 }
 
 create_exception!(exceptions, ThresholdEncryptionError, PyException);
-create_exception!(exceptions, InvalidShareNumberParameter, PyException);
-create_exception!(exceptions, InvalidDkgStateToDeal, PyException);
-create_exception!(exceptions, InvalidDkgStateToAggregate, PyException);
-create_exception!(exceptions, InvalidDkgStateToVerify, PyException);
-create_exception!(exceptions, InvalidDkgStateToIngest, PyException);
-create_exception!(exceptions, DealerNotInValidatorSet, PyException);
-create_exception!(exceptions, UnknownDealer, PyException);
-create_exception!(exceptions, DuplicateDealer, PyException);
-create_exception!(exceptions, InvalidPvssTranscript, PyException);
+create_exception!(exceptions, InvalidShareNumberParameter, PyValueError);
+create_exception!(exceptions, InvalidDkgStateToDeal, PyRuntimeError);
+create_exception!(exceptions, InvalidDkgStateToAggregate, PyRuntimeError);
+create_exception!(exceptions, InvalidDkgStateToVerify, PyRuntimeError);
+create_exception!(exceptions, InvalidDkgStateToIngest, PyRuntimeError);
+create_exception!(exceptions, DealerNotInValidatorSet, PyValueError);
+create_exception!(exceptions, UnknownDealer, PyValueError);
+create_exception!(exceptions, DuplicateDealer, PyValueError);
+create_exception!(exceptions, InvalidPvssTranscript, PyValueError);
 create_exception!(exceptions, InsufficientTranscriptsForAggregate, PyException);
-create_exception!(exceptions, InvalidDkgPublicKey, PyException);
-create_exception!(exceptions, InsufficientValidators, PyException);
-create_exception!(exceptions, InvalidTranscriptAggregate, PyException);
-create_exception!(exceptions, ValidatorsNotSorted, PyException);
-create_exception!(exceptions, ValidatorPublicKeyMismatch, PyException);
-create_exception!(exceptions, SerializationError, PyException);
+create_exception!(exceptions, InvalidDkgPublicKey, PyValueError);
+create_exception!(exceptions, InsufficientValidators, PyValueError);
+create_exception!(exceptions, InvalidTranscriptAggregate, PyValueError);
+create_exception!(exceptions, ValidatorsNotSorted, PyValueError);
+create_exception!(exceptions, ValidatorPublicKeyMismatch, PyValueError);
+create_exception!(exceptions, SerializationError, PyValueError);
