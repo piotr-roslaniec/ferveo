@@ -62,7 +62,7 @@ pub enum Error {
 
     /// Failed to derive a valid final key for the DKG
     #[error("Failed to derive a valid final key for the DKG")]
-    InvalidFinalKey,
+    InvalidDkgPublicKey,
 
     /// Not enough validators to perform the DKG for a given number of shares
     #[error("Not enough validators (expected {0}, got {1})")]

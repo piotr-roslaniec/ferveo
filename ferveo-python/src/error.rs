@@ -60,7 +60,9 @@ impl From<FerveoPythonError> for PyErr {
                     "expected: {}, actual: {}",
                     expected, actual
                 )),
-                ferveo::Error::InvalidFinalKey => InvalidFinalKey::new_err(""),
+                ferveo::Error::InvalidDkgPublicKey => {
+                    InvalidDkgPublicKey::new_err("")
+                }
                 ferveo::Error::InsufficientValidators(expected, actual) => {
                     InsufficientValidators::new_err(format!(
                         "expected: {}, actual: {}",
@@ -109,7 +111,7 @@ create_exception!(exceptions, UnknownDealer, PyException);
 create_exception!(exceptions, DuplicateDealer, PyException);
 create_exception!(exceptions, InvalidPvssTranscript, PyException);
 create_exception!(exceptions, InsufficientTranscriptsForAggregate, PyException);
-create_exception!(exceptions, InvalidFinalKey, PyException);
+create_exception!(exceptions, InvalidDkgPublicKey, PyException);
 create_exception!(exceptions, InsufficientValidators, PyException);
 create_exception!(exceptions, InvalidTranscriptAggregate, PyException);
 create_exception!(exceptions, ValidatorsNotSorted, PyException);

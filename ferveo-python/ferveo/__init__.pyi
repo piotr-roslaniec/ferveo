@@ -238,7 +238,7 @@ class InsufficientTranscriptsForAggregate(Exception):
     pass
 
 
-class InvalidFinalKey(Exception):
+class InvalidDkgPublicKey(Exception):
     pass
 
 

@@ -26,7 +26,7 @@ from .ferveo_py import (
     DuplicateDealer,
     InvalidPvssTranscript,
     InsufficientTranscriptsForAggregate,
-    InvalidFinalKey,
+    InvalidDkgPublicKey,
     InsufficientValidators,
     InvalidTranscriptAggregate,
     ValidatorsNotSorted,

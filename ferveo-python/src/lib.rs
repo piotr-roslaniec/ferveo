@@ -547,7 +547,7 @@ fn ferveo_py(py: Python, m: &PyModule) -> PyResult<()> {
         "InsufficientTranscriptsForAggregate",
         py.get_type::<InsufficientTranscriptsForAggregate>(),
     )?;
-    m.add("InvalidFinalKey", py.get_type::<InvalidFinalKey>())?;
+    m.add("InvalidDkgPublicKey", py.get_type::<InvalidDkgPublicKey>())?;
     m.add(
         "InsufficientValidators",
         py.get_type::<InsufficientValidators>(),
