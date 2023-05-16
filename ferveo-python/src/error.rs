@@ -79,10 +79,10 @@ impl From<FerveoPythonError> for PyErr {
                     ValidatorPublicKeyMismatch::new_err("")
                 }
                 ferveo::Error::BincodeError(err) => {
-                    BincodeError::new_err(err.to_string())
+                    SerializationError::new_err(err.to_string())
                 }
                 ferveo::Error::ArkSerializeError(err) => {
-                    ArkSerializeError::new_err(err.to_string())
+                    SerializationError::new_err(err.to_string())
                 }
             },
             _ => default(),
@@ -116,5 +116,4 @@ create_exception!(exceptions, InsufficientValidators, PyException);
 create_exception!(exceptions, InvalidTranscriptAggregate, PyException);
 create_exception!(exceptions, ValidatorsNotSorted, PyException);
 create_exception!(exceptions, ValidatorPublicKeyMismatch, PyException);
-create_exception!(exceptions, BincodeError, PyException);
-create_exception!(exceptions, ArkSerializeError, PyException);
+create_exception!(exceptions, SerializationError, PyException);

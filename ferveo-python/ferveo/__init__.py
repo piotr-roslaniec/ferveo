@@ -31,6 +31,5 @@ from .ferveo_py import (
     InvalidTranscriptAggregate,
     ValidatorsNotSorted,
     ValidatorPublicKeyMismatch,
-    BincodeError,
-    ArkSerializeError,
+    SerializationError,
 )

@@ -561,8 +561,7 @@ fn ferveo_py(py: Python, m: &PyModule) -> PyResult<()> {
         "ValidatorPublicKeyMismatch",
         py.get_type::<ValidatorPublicKeyMismatch>(),
     )?;
-    m.add("BincodeError", py.get_type::<BincodeError>())?;
-    m.add("ArkSerializeError", py.get_type::<ArkSerializeError>())?;
+    m.add("SerializationError", py.get_type::<SerializationError>())?;
     Ok(())
 }
 
