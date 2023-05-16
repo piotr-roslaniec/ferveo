@@ -258,9 +258,5 @@ class ValidatorPublicKeyMismatch(Exception):
     pass
 
 
-class BincodeError(Exception):
-    pass
-
-
-class ArkSerializeError(Exception):
+class SerializationError(Exception):
     pass
