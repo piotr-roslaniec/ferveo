@@ -319,6 +319,12 @@ impl EthereumAddress {
                 .map_err(map_js_err)?,
         ))
     }
+
+    #[wasm_bindgen(js_name = "toString")]
+    pub fn to_string(&self) -> JsResult<String> {
+        set_panic_hook();
+        Ok(self.0.to_string())
+    }
 }
 
 // Using a separate Validator struct for WASM bindings to avoid issues with serialization of
@@ -357,6 +363,11 @@ impl Validator {
     pub fn public_key(&self) -> PublicKey {
         self.public_key
     }
+
+    #[wasm_bindgen(getter)]
+    pub fn address(&self) -> EthereumAddress {
+        self.address.clone()
+    }
 }
 
 // TODO: Consider removing and replacing with tuple
@@ -379,6 +390,16 @@ impl ValidatorMessage {
         &self,
     ) -> JsResult<(ferveo::api::Validator<E>, ferveo::api::Transcript<E>)> {
         Ok((self.0.to_inner()?, self.1 .0.clone()))
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn validator(&self) -> Validator {
+        self.0.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn transcript(&self) -> Transcript {
+        self.1.clone()
     }
 }
 
