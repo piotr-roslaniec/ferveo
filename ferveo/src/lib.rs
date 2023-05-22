@@ -16,6 +16,8 @@ pub mod primitives;
 pub mod pvss;
 pub mod validator;
 
+mod utils;
+
 pub use dkg::*;
 pub use primitives::*;
 pub use pvss::*;

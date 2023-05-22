@@ -6,7 +6,6 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain,
 };
-use ferveo_common::is_sorted;
 use group_threshold_cryptography as tpke;
 use itertools::Itertools;
 use rand::RngCore;
@@ -21,8 +20,8 @@ use tpke::{
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
-    PubliclyVerifiableDkg, Result, Validator,
+    batch_to_projective_g1, batch_to_projective_g2, utils::is_sorted, Error,
+    PVSSMap, PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -487,11 +486,10 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
-    use ferveo_common::is_sorted;
     use rand::seq::SliceRandom;
 
     use super::*;
-    use crate::dkg::test_common::*;
+    use crate::{dkg::test_common::*, utils::is_sorted};
 
     type ScalarField = <EllipticCurve as Pairing>::ScalarField;
     type G1 = <EllipticCurve as Pairing>::G1Affine;

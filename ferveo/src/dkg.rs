@@ -2,15 +2,17 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_poly::EvaluationDomain;
-use ferveo_common::{is_power_of_2, is_sorted, PublicKey};
+use ferveo_common::PublicKey;
 use measure_time::print_time;
 use rand::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate, AggregatedPvss, Error, EthereumAddress,
-    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result, Validator,
+    aggregate,
+    utils::{is_power_of_2, is_sorted},
+    AggregatedPvss, Error, EthereumAddress, PubliclyVerifiableParams,
+    PubliclyVerifiableSS, Pvss, Result, Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
