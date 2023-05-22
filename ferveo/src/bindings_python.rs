@@ -11,8 +11,9 @@ use pyo3::{
     PyClass,
 };
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 
-use crate::{api, api::E, Error};
+use crate::{api, Error};
 
 #[derive(thiserror::Error)]
 pub enum FerveoPythonError {
@@ -257,25 +258,25 @@ impl SharedSecret {
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
-pub struct Keypair(api::Keypair<E>);
+pub struct Keypair(api::Keypair);
 
 #[pymethods]
 impl Keypair {
     #[staticmethod]
     pub fn random() -> Self {
-        Self(api::Keypair::new(&mut thread_rng()))
+        Self(api::Keypair::random())
     }
 
     #[staticmethod]
     pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
-        let keypair = api::Keypair::<E>::from_secure_randomness(bytes)
+        let keypair = api::Keypair::from_secure_randomness(bytes)
             .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(keypair))
     }
 
     #[staticmethod]
     pub fn secure_randomness_size() -> usize {
-        api::Keypair::<E>::secure_randomness_size()
+        api::Keypair::secure_randomness_size()
     }
 
     #[staticmethod]
@@ -288,7 +289,7 @@ impl Keypair {
     }
 
     pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public())
+        PublicKey(self.0.public_key())
     }
 }
 
@@ -296,7 +297,7 @@ impl Keypair {
 #[derive(
     Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
 )]
-pub struct PublicKey(api::PublicKey<E>);
+pub struct PublicKey(api::PublicKey);
 
 #[pymethods]
 impl PublicKey {
@@ -324,7 +325,7 @@ impl PublicKey {
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct Validator(api::Validator<E>);
+pub struct Validator(api::Validator);
 
 #[pymethods]
 impl Validator {
@@ -348,7 +349,7 @@ impl Validator {
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct Transcript(api::Transcript<E>);
+pub struct Transcript(api::Transcript);
 
 #[pymethods]
 impl Transcript {
@@ -462,7 +463,17 @@ impl Dkg {
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(derive_more::From, derive_more::AsRef)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::AsRef,
+    derive_more::Into,
+)]
 pub struct Ciphertext(api::Ciphertext);
 
 #[pymethods]

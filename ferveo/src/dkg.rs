@@ -350,7 +350,7 @@ pub(crate) mod test_common {
             .enumerate()
             .map(|(i, keypair)| Validator {
                 address: gen_address(i),
-                public_key: keypair.public(),
+                public_key: keypair.public_key(),
             })
             .collect()
     }
@@ -438,7 +438,7 @@ mod test_dkg_init {
         let unknown_keypair = ferveo_common::Keypair::<E>::new(rng);
         let unknown_validator = Validator::<E> {
             address: gen_address((shares_num + 1) as usize),
-            public_key: unknown_keypair.public(),
+            public_key: unknown_keypair.public_key(),
         };
         let err = PubliclyVerifiableDkg::<E>::new(
             &gen_validators(&known_keypairs),
@@ -526,7 +526,7 @@ mod test_dealing {
         let unknown_validator_i = dkg.dkg_params.shares_num + 1;
         let sender = Validator::<E> {
             address: gen_address(unknown_validator_i as usize),
-            public_key: ferveo_common::Keypair::<E>::new(rng).public(),
+            public_key: ferveo_common::Keypair::<E>::new(rng).public_key(),
         };
         // check that verification fails
         assert!(dkg.verify_message(&sender, &pvss).is_err());

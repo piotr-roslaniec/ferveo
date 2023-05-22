@@ -113,7 +113,7 @@ impl<E: Pairing> Ord for Keypair<E> {
 impl<E: Pairing> Keypair<E> {
     /// Returns the public session key for the publicly verifiable DKG participant
     #[inline]
-    pub fn public(&self) -> PublicKey<E> {
+    pub fn public_key(&self) -> PublicKey<E> {
         PublicKey::<E> {
             encryption_key: E::G2Affine::generator()
                 .mul(self.decryption_key)
@@ -142,6 +142,11 @@ impl<E: Pairing> Keypair<E> {
         seed.copy_from_slice(bytes);
         let mut rng = StdRng::from_seed(seed);
         Ok(Self::new(&mut rng))
+    }
+
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        Self::new(&mut rng)
     }
 }
 
@@ -182,7 +187,7 @@ mod tests {
         let mut public_keys = vec![];
         for _ in 0..100 {
             public_keys
-                .push(Keypair::<E>::new(&mut rand::thread_rng()).public());
+                .push(Keypair::<E>::new(&mut rand::thread_rng()).public_key());
         }
         public_keys.sort();
         for i in 0..public_keys.len() - 1 {
@@ -192,7 +197,8 @@ mod tests {
 
     #[test]
     fn test_equal_public_keys() {
-        let public_key1 = Keypair::<E>::new(&mut rand::thread_rng()).public();
+        let public_key1 =
+            Keypair::<E>::new(&mut rand::thread_rng()).public_key();
         let public_key2 = public_key1;
 
         assert_eq!(public_key1, public_key2);
@@ -211,21 +217,21 @@ mod tests {
         let mut keypair2;
         loop {
             keypair2 = Keypair::<E>::new(&mut rand::thread_rng());
-            if keypair1.public().encryption_key.x()
-                != keypair2.public().encryption_key.x()
+            if keypair1.public_key().encryption_key.x()
+                != keypair2.public_key().encryption_key.x()
             {
                 break;
             }
         }
 
-        let result = keypair1.public().cmp(&keypair2.public());
+        let result = keypair1.public_key().cmp(&keypair2.public_key());
         assert_eq!(
             result,
             keypair1
-                .public()
+                .public_key()
                 .encryption_key
                 .x()
-                .cmp(&keypair2.public().encryption_key.x())
+                .cmp(&keypair2.public_key().encryption_key.x())
         );
     }
 }

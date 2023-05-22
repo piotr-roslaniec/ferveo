@@ -4,7 +4,6 @@ use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bincode;
 use ferveo_common::serialization;
-pub use ferveo_common::{Keypair, PublicKey};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -15,9 +14,15 @@ pub use tpke::api::{
     G1Prepared, SecretBox, E,
 };
 
-use crate::{do_verify_aggregation, Error, PVSSMap, Result};
-pub use crate::{
-    EthereumAddress, PubliclyVerifiableSS as Transcript, Validator,
+pub type PublicKey = ferveo_common::PublicKey<E>;
+pub type Keypair = ferveo_common::Keypair<E>;
+pub type Validator = crate::Validator<E>;
+pub type Transcript = PubliclyVerifiableSS<E>;
+pub type ValidatorMessage = (Validator, Transcript);
+
+pub use crate::EthereumAddress;
+use crate::{
+    do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableSS, Result,
 };
 
 pub type DecryptionSharePrecomputed = tpke::api::DecryptionSharePrecomputed;
@@ -73,8 +78,6 @@ impl FieldPoint {
     }
 }
 
-pub type ValidatorMessage = (Validator<E>, Transcript<E>);
-
 #[derive(Clone)]
 pub struct Dkg(crate::PubliclyVerifiableDkg<E>);
 
@@ -83,8 +86,8 @@ impl Dkg {
         tau: u32,
         shares_num: u32,
         security_threshold: u32,
-        validators: &[Validator<E>],
-        me: &Validator<E>,
+        validators: &[Validator],
+        me: &Validator,
     ) -> Result<Self> {
         let dkg_params = crate::DkgParams {
             tau,
@@ -106,7 +109,7 @@ impl Dkg {
     pub fn generate_transcript<R: RngCore>(
         &self,
         rng: &mut R,
-    ) -> Result<Transcript<E>> {
+    ) -> Result<Transcript> {
         self.0.create_share(rng)
     }
 
@@ -143,7 +146,7 @@ fn make_pvss_map(messages: &[ValidatorMessage]) -> PVSSMap<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AggregatedTranscript(Transcript<E, crate::Aggregated>);
+pub struct AggregatedTranscript(PubliclyVerifiableSS<E, crate::Aggregated>);
 
 impl AggregatedTranscript {
     pub fn new(messages: &[ValidatorMessage]) -> Self {
@@ -189,7 +192,7 @@ impl AggregatedTranscript {
         dkg: &Dkg,
         ciphertext: &Ciphertext,
         aad: &[u8],
-        validator_keypair: &Keypair<E>,
+        validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
         let domain_points: Vec<_> = dkg.0.domain.elements().collect();
         self.0.make_decryption_share_simple_precomputed(
@@ -207,7 +210,7 @@ impl AggregatedTranscript {
         dkg: &Dkg,
         ciphertext: &Ciphertext,
         aad: &[u8],
-        validator_keypair: &Keypair<E>,
+        validator_keypair: &Keypair,
     ) -> Result<DecryptionShareSimple> {
         let share = self.0.make_decryption_share_simple(
             ciphertext,
@@ -270,10 +273,7 @@ mod test_ferveo_api {
 
     use crate::{api::*, dkg::test_common::*};
 
-    type E = ark_bls12_381::Bls12_381;
-
-    type TestInputs =
-        (Vec<ValidatorMessage>, Vec<Validator<E>>, Vec<Keypair<E>>);
+    type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
 
     fn make_test_inputs(
         rng: &mut StdRng,
@@ -287,7 +287,7 @@ mod test_ferveo_api {
             .enumerate()
             .map(|(i, keypair)| Validator {
                 address: gen_address(i),
-                public_key: keypair.public(),
+                public_key: keypair.public_key(),
             })
             .collect::<Vec<_>>();
 

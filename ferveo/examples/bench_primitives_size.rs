@@ -69,7 +69,7 @@ fn gen_validators(
     (0..keypairs.len())
         .map(|i| Validator {
             address: gen_address(i),
-            public_key: keypairs[i].public(),
+            public_key: keypairs[i].public_key(),
         })
         .collect()
 }

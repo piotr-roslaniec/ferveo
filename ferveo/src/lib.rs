@@ -152,8 +152,9 @@ mod test_dkg_full {
             validator_keypairs
                 .iter()
                 .map(|validator_keypair| {
-                    let validator =
-                        dkg.get_validator(&validator_keypair.public()).unwrap();
+                    let validator = dkg
+                        .get_validator(&validator_keypair.public_key())
+                        .unwrap();
                     pvss_aggregated
                         .make_decryption_share_simple(
                             ciphertext,
@@ -303,7 +304,7 @@ mod test_dkg_full {
             |(aggregated_share, validator_keypair, decryption_share)| {
                 assert!(decryption_share.verify(
                     aggregated_share,
-                    &validator_keypair.public().encryption_key,
+                    &validator_keypair.public_key().encryption_key,
                     &dkg.pvss_params.h,
                     &ciphertext,
                 ));
@@ -318,7 +319,7 @@ mod test_dkg_full {
         with_bad_decryption_share.decryption_share = TargetField::zero();
         assert!(!with_bad_decryption_share.verify(
             &pvss_aggregated.shares[0],
-            &validator_keypairs[0].public().encryption_key,
+            &validator_keypairs[0].public_key().encryption_key,
             &dkg.pvss_params.h,
             &ciphertext,
         ));
@@ -328,7 +329,7 @@ mod test_dkg_full {
         with_bad_checksum.validator_checksum.checksum = G1Affine::zero();
         assert!(!with_bad_checksum.verify(
             &pvss_aggregated.shares[0],
-            &validator_keypairs[0].public().encryption_key,
+            &validator_keypairs[0].public_key().encryption_key,
             &dkg.pvss_params.h,
             &ciphertext,
         ));
