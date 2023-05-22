@@ -12,30 +12,10 @@ description = "WASM bindings for group-threshold-cryptography crate"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-default = ["console_error_panic_hook"]
-test-common = ["group-threshold-cryptography/test-common"]
-
 [dependencies]
-console_error_panic_hook = { version = "0.1.7", optional = true }
-derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
-ferveo = { path = "../ferveo" }
-ferveo-common = { path = "../ferveo-common" }
-getrandom = { version = "0.2", features = ["js"] }
-group-threshold-cryptography = { path = "../tpke", features = ["test-common", "api"] }
-itertools = "0.10.1"
-js-sys = "0.3.61"
-rand = "0.8.5"
-serde = { version = "1.0", features = ["derive"] }
-wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }
-wasm-bindgen-derive = "0.1.1"
+ferveo = { path = "../ferveo", features = ["bindings-wasm"] }
 
 [dev-dependencies]
-console_error_panic_hook = "0.1.7"
-itertools = "0.10.1"
-rand_core = "0.6"
 wasm-bindgen-test = "0.3.28"
-
-[package.metadata.cargo-machete]
-ignored = ["getrandom"]
+itertools = "0.10.5"
 

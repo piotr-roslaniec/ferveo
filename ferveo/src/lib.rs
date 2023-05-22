@@ -2,6 +2,14 @@ use ark_ec::pairing::Pairing;
 use group_threshold_cryptography as tpke;
 use itertools::zip_eq;
 
+extern crate alloc;
+
+#[cfg(feature = "bindings-python")]
+pub mod bindings_python;
+
+#[cfg(feature = "bindings-wasm")]
+pub mod bindings_wasm;
+
 pub mod api;
 pub mod dkg;
 pub mod primitives;
