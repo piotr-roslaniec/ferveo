@@ -1,9 +1,9 @@
 [package]
 name = "ferveo"
 version = "0.1.1"
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
-repository = "https://gitlab.com/nucypher/ferveo"
+repository = "https://github.com/nucypher/ferveo"
 readme = "README.md"
 description = "An implementation of a DKG protocol for threshold decryption."
 keywords = ["DKG"]

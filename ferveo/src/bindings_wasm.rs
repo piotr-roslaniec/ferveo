@@ -1,5 +1,3 @@
-extern crate alloc;
-
 extern crate group_threshold_cryptography as tpke;
 
 use std::{

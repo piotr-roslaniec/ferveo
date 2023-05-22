@@ -1,6 +1,4 @@
 use std::fmt::{Debug, Formatter};
-extern crate alloc;
-extern crate core;
 
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use generic_array::{typenum::U48, GenericArray};

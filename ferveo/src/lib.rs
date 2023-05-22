@@ -1,3 +1,5 @@
+#![warn(rust_2018_idioms)]
+
 use ark_ec::pairing::Pairing;
 use group_threshold_cryptography as tpke;
 use itertools::zip_eq;
