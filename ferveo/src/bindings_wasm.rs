@@ -188,8 +188,8 @@ impl Ciphertext {
     }
 }
 
-#[wasm_bindgen]
-pub fn encrypt(
+#[wasm_bindgen(js_name = "ferveoEncrypt")]
+pub fn ferveo_encrypt(
     message: &[u8],
     aad: &[u8],
     dkg_public_key: &DkgPublicKey,

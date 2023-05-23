@@ -1,7 +1,7 @@
 import {
   decryptWithSharedSecret,
   Dkg,
-  encrypt,
+  ferveoEncrypt,
   DecryptionShareSimple,
   Keypair,
   Validator,
@@ -60,7 +60,7 @@ function setupTest() {
   // In the meantime, the client creates a ciphertext and decryption request
   const msg = Buffer.from("my-msg");
   const aad = Buffer.from("my-aad");
-  const ciphertext = encrypt(msg, aad, dkg.publicKey());
+  const ciphertext = ferveoEncrypt(msg, aad, dkg.publicKey());
 
   return {
     tau,
