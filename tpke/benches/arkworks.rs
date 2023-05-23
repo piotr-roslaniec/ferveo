@@ -14,7 +14,7 @@ use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::make_random_polynomial_at;
+use group_threshold_cryptography_pre_release::make_random_polynomial_at;
 use itertools::izip;
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};

@@ -269,6 +269,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17febce684fd15d89027105661fec94afb475cb995fbc59d2865198446ba2eea"
 
 [[package]]
+name = "cargo-toml-lint"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25a182b3351aa4b74f8ce165c137f9bdea02e1cf50b9a07101a1f8855eaef25e"
+dependencies = [
+ "clap 3.2.25",
+ "toml",
+]
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,10 +388,28 @@ version = "3.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ea181bf566f71cb9a5d17a59e1871af638180a18fb0035c92ae62b705207123"
 dependencies = [
+ "atty",
  "bitflags",
+ "clap_derive",
  "clap_lex",
  "indexmap",
+ "once_cell",
+ "strsim",
+ "termcolor",
  "textwrap 0.16.0",
+]
+
+[[package]]
+name = "clap_derive"
+version = "3.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae6371b8bdc8b7d3959e9cf7b22d4435ef3e79e138688421ec654acf8c81b008"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -741,8 +769,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferveo"
-version = "0.1.1"
+name = "ferveo-common-pre-release"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-serialize",
+ "ark-std",
+ "bincode",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_with",
+]
+
+[[package]]
+name = "ferveo-pre-release"
+version = "0.1.0-alpha.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -751,14 +794,15 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "bincode",
+ "cargo-toml-lint",
  "console_error_panic_hook",
  "criterion 0.3.6",
  "derive_more",
  "digest",
- "ferveo-common",
+ "ferveo-common-pre-release",
  "generic-array",
  "getrandom 0.2.9",
- "group-threshold-cryptography",
+ "group-threshold-cryptography-pre-release",
  "hex",
  "itertools",
  "js-sys",
@@ -770,7 +814,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "serde_with",
- "subproductdomain",
+ "subproductdomain-pre-release",
  "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-derive",
@@ -778,34 +822,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferveo-common"
-version = "0.1.0"
-dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-serialize",
- "ark-std",
- "bincode",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "serde_with",
-]
-
-[[package]]
 name = "ferveo-python"
-version = "0.1.13"
+version = "0.1.0-alpha.0"
 dependencies = [
- "ferveo",
+ "ferveo-pre-release",
  "pyo3",
  "pyo3-build-config",
 ]
 
 [[package]]
 name = "ferveo-wasm"
-version = "0.1.1"
+version = "0.1.0-alpha.0"
 dependencies = [
- "ferveo",
+ "ferveo-pre-release",
  "itertools",
  "wasm-bindgen-test",
 ]
@@ -869,8 +898,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
 
 [[package]]
-name = "group-threshold-cryptography"
-version = "0.1.0"
+name = "group-threshold-cryptography-pre-release"
+version = "0.1.0-alpha.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -881,7 +910,7 @@ dependencies = [
  "bincode",
  "chacha20poly1305",
  "criterion 0.4.0",
- "ferveo-common",
+ "ferveo-common-pre-release",
  "hex",
  "itertools",
  "miracl_core",
@@ -891,7 +920,7 @@ dependencies = [
  "serde_bytes",
  "serde_with",
  "sha2",
- "subproductdomain",
+ "subproductdomain-pre-release",
  "thiserror",
  "zeroize",
 ]
@@ -916,6 +945,12 @@ checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 dependencies = [
  "ahash 0.8.3",
 ]
+
+[[package]]
+name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
@@ -1367,6 +1402,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1770,8 +1829,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
-name = "subproductdomain"
-version = "0.1.0"
+name = "subproductdomain-pre-release"
+version = "0.1.0-alpha.0"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -1930,6 +1989,16 @@ checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "toml"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
+dependencies = [
+ "indexmap",
+ "serde",
 ]
 
 [[package]]

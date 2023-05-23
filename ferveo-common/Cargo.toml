@@ -1,9 +1,10 @@
 [package]
-name = "ferveo-common"
-version = "0.1.0"
+name = "ferveo-common-pre-release"
+version = "0.1.0-alpha.0"
 edition = "2021"
 license = "GPL-3.0"
-authors = ["Heliax AG <hello@heliax.dev>"]
+authors = ["Heliax AG <hello@heliax.dev>", "Piotr Roslaniec <p.roslaniec@gmail.com>"]
+description = "Common types and traits for Ferveo"
 
 [dependencies]
 ark-ec = "0.4"

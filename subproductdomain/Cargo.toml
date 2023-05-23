@@ -1,9 +1,10 @@
 [package]
-name = "subproductdomain"
-version = "0.1.0"
+name = "subproductdomain-pre-release"
+version = "0.1.0-alpha.0"
 edition = "2021"
 license = "GPL-3.0"
-authors = ["Heliax AG <hello@heliax.dev>"]
+authors = ["Heliax AG <hello@heliax.dev>", "Piotr Roslaniec <p.roslaniec@gmail.com>"]
+description = "Implements subproduct domain algorithm"
 
 [dependencies]
 anyhow = "1.0.47"
