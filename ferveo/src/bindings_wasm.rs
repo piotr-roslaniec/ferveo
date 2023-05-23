@@ -139,12 +139,12 @@ impl DecryptionSharePrecomputed {
 #[derive(
     Clone, Debug, derive_more::AsRef, derive_more::From, derive_more::Into,
 )]
-pub struct PublicKey(api::PublicKey);
+pub struct FerveoPublicKey(api::PublicKey);
 
 #[wasm_bindgen]
-impl PublicKey {
+impl FerveoPublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<PublicKey> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<FerveoPublicKey> {
         api::PublicKey::from_bytes(bytes)
             .map_err(map_js_err)
             .map(Self)
@@ -158,7 +158,7 @@ impl PublicKey {
     }
 
     #[wasm_bindgen]
-    pub fn equals(&self, other: &PublicKey) -> bool {
+    pub fn equals(&self, other: &FerveoPublicKey) -> bool {
         self.0 == other.0
     }
 }
@@ -402,7 +402,7 @@ impl EthereumAddress {
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct Validator {
     address: EthereumAddress,
-    public_key: PublicKey,
+    public_key: FerveoPublicKey,
 }
 
 #[wasm_bindgen]
@@ -410,7 +410,7 @@ impl Validator {
     #[wasm_bindgen(constructor)]
     pub fn new(
         address: &EthereumAddress,
-        public_key: &PublicKey,
+        public_key: &FerveoPublicKey,
     ) -> JsResult<Validator> {
         set_panic_hook();
         Ok(Self {
@@ -428,7 +428,7 @@ impl Validator {
     }
 
     #[wasm_bindgen(getter, js_name = "publicKey")]
-    pub fn public_key(&self) -> PublicKey {
+    pub fn public_key(&self) -> FerveoPublicKey {
         self.public_key.clone()
     }
 
@@ -567,8 +567,8 @@ impl Keypair {
     }
 
     #[wasm_bindgen(getter, js_name = "publicKey")]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key())
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key())
     }
 
     #[wasm_bindgen]
