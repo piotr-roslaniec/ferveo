@@ -2,6 +2,7 @@ use std::io;
 
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::UniformRand;
 use bincode;
 use ferveo_common::serialization;
 use group_threshold_cryptography as tpke;
@@ -69,6 +70,14 @@ impl DkgPublicKey {
 
     pub fn serialized_size() -> usize {
         48
+    }
+
+    /// Generate a random DKG public key.
+    /// Use this for testing only.
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        let g1 = G1Affine::rand(&mut rng);
+        Self(g1)
     }
 }
 
