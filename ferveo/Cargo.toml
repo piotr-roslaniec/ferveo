@@ -45,9 +45,9 @@ generic-array = { version = "0.14.7", optional = true }
 # WASM bindings
 console_error_panic_hook = { version = "0.1.7", optional = true }
 getrandom = { version = "0.2", features = ["js"], optional = true }
-js-sys = { version = "0.3.61", optional = true }
-wasm-bindgen = { version = "0.2.74", optional = true }
-wasm-bindgen-derive = { version = "0.1.1", optional = true }
+js-sys = { version = "0.3.63", optional = true }
+wasm-bindgen = { version = "0.2.86", optional = true }
+wasm-bindgen-derive = { version = "0.2.0", optional = true }
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4
@@ -57,7 +57,7 @@ pprof = { version = "0.6", features = ["flamegraph", "criterion"] }
 # WASM bindings
 console_error_panic_hook = "0.1.7"
 serde = { version = "1.0", features = ["derive"] }
-wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }
+wasm-bindgen = { version = "0.2.86", features = ["serde-serialize"] }
 
 [features]
 bindings-python = ["pyo3", "derive_more", "generic-array"]
