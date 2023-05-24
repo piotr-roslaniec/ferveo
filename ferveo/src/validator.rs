@@ -48,14 +48,12 @@ pub struct Validator<E: Pairing> {
 }
 
 impl<E: Pairing> PartialOrd for Validator<E> {
-    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.address.partial_cmp(&other.address)
     }
 }
 
 impl<E: Pairing> Ord for Validator<E> {
-    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.address.cmp(&other.address)
     }

@@ -54,7 +54,6 @@ impl<E: Pairing> PublicKey<E> {
 }
 
 impl<E: Pairing> PartialOrd for PublicKey<E> {
-    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.encryption_key.x() == other.encryption_key.x() {
             return self
@@ -69,7 +68,6 @@ impl<E: Pairing> PartialOrd for PublicKey<E> {
 }
 
 impl<E: Pairing> Ord for PublicKey<E> {
-    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         if self.encryption_key.x() == other.encryption_key.x() {
             return self.encryption_key.y().cmp(&other.encryption_key.y());
@@ -97,14 +95,12 @@ pub struct Keypair<E: Pairing> {
 }
 
 impl<E: Pairing> PartialOrd for Keypair<E> {
-    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.decryption_key.partial_cmp(&other.decryption_key)
     }
 }
 
 impl<E: Pairing> Ord for Keypair<E> {
-    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.decryption_key.cmp(&other.decryption_key)
     }
@@ -112,7 +108,7 @@ impl<E: Pairing> Ord for Keypair<E> {
 
 impl<E: Pairing> Keypair<E> {
     /// Returns the public session key for the publicly verifiable DKG participant
-    #[inline]
+
     pub fn public_key(&self) -> PublicKey<E> {
         PublicKey::<E> {
             encryption_key: E::G2Affine::generator()
@@ -122,14 +118,13 @@ impl<E: Pairing> Keypair<E> {
     }
 
     /// Creates a new ephemeral session key for participating in the DKG
-    #[inline]
+
     pub fn new<R: RngCore>(rng: &mut R) -> Self {
         Self {
             decryption_key: E::ScalarField::rand(rng),
         }
     }
 
-    #[inline]
     pub fn secure_randomness_size() -> usize {
         32
     }

@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-wasm"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "ferveo-pre-release",
  "itertools",
