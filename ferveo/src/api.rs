@@ -9,7 +9,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 pub use tpke::api::{
-    decrypt_with_shared_secret, encrypt, prepare_combine_simple,
+    decrypt_with_shared_secret, prepare_combine_simple,
     share_combine_precomputed, share_combine_simple, Ciphertext, Fr, G1Affine,
     G1Prepared, SecretBox, E,
 };
@@ -42,10 +42,20 @@ pub fn from_bytes<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T> {
     Ok(item)
 }
 
+pub fn encrypt(
+    message: SecretBox<Vec<u8>>,
+    aad: &[u8],
+    pubkey: &DkgPublicKey,
+) -> Result<Ciphertext> {
+    let mut rng = rand::thread_rng();
+    let ciphertext = tpke::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
+    Ok(ciphertext)
+}
+
 #[serde_as]
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
-    #[serde_as(as = "serialization::SerdeAs")] pub G1Affine,
+    #[serde_as(as = "serialization::SerdeAs")] pub(crate) G1Affine,
 );
 
 impl DkgPublicKey {
@@ -341,9 +351,13 @@ mod test_ferveo_api {
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext =
-            encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key.0, rng)
-                .unwrap();
+        let ciphertext = tpke::api::encrypt(
+            SecretBox::new(msg.clone()),
+            aad,
+            &dkg_public_key.0,
+            rng,
+        )
+        .unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -430,9 +444,13 @@ mod test_ferveo_api {
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let rng = &mut thread_rng();
-        let ciphertext =
-            encrypt(SecretBox::new(msg.clone()), aad, &public_key.0, rng)
-                .unwrap();
+        let ciphertext = tpke::api::encrypt(
+            SecretBox::new(msg.clone()),
+            aad,
+            &public_key.0,
+            rng,
+        )
+        .unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)

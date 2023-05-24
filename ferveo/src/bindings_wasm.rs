@@ -195,14 +195,9 @@ pub fn ferveo_encrypt(
     dkg_public_key: &DkgPublicKey,
 ) -> JsResult<Ciphertext> {
     set_panic_hook();
-    let rng = &mut thread_rng();
-    let ciphertext = api::encrypt(
-        SecretBox::new(message.to_vec()),
-        aad,
-        &dkg_public_key.0 .0,
-        rng,
-    )
-    .map_err(map_js_err)?;
+    let ciphertext =
+        api::encrypt(SecretBox::new(message.to_vec()), aad, &dkg_public_key.0)
+            .map_err(map_js_err)?;
     Ok(Ciphertext(ciphertext))
 }
 

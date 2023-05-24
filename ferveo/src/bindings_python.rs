@@ -172,15 +172,13 @@ pub fn encrypt(
     aad: &[u8],
     dkg_public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
-    let rng = &mut thread_rng();
     let ciphertext = api::encrypt(
         // TODO: Avoid double-allocation here. `SecretBox` already allocates for its contents.
         api::SecretBox::new(message.to_vec()),
         aad,
-        &dkg_public_key.0 .0,
-        rng,
+        &dkg_public_key.0,
     )
-    .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
+    .map_err(FerveoPythonError::FerveoError)?;
     Ok(Ciphertext(ciphertext))
 }
 
