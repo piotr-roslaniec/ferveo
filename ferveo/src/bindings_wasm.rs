@@ -290,6 +290,11 @@ impl DkgPublicKey {
     pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
+
+    #[wasm_bindgen]
+    pub fn random() -> DkgPublicKey {
+        Self(api::DkgPublicKey::random())
+    }
 }
 
 #[wasm_bindgen]

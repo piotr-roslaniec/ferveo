@@ -1,6 +1,6 @@
 [package]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/nucypher/ferveo"

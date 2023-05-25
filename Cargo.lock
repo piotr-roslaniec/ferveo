@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
