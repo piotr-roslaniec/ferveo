@@ -14,7 +14,7 @@ fn ferveo_py(py: Python, m: &PyModule) -> PyResult<()> {
 
     // Classes
     m.add_class::<Keypair>()?;
-    m.add_class::<PublicKey>()?;
+    m.add_class::<FerveoPublicKey>()?;
     m.add_class::<Validator>()?;
     m.add_class::<Transcript>()?;
     m.add_class::<Dkg>()?;

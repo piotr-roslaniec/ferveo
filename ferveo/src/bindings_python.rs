@@ -286,8 +286,8 @@ impl Keypair {
         to_py_bytes(&self.0)
     }
 
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key())
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key())
     }
 }
 
@@ -295,10 +295,10 @@ impl Keypair {
 #[derive(
     Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
 )]
-pub struct PublicKey(api::PublicKey);
+pub struct FerveoPublicKey(api::PublicKey);
 
 #[pymethods]
-impl PublicKey {
+impl FerveoPublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
@@ -317,7 +317,7 @@ impl PublicKey {
             .0
             .to_bytes()
             .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
-        hash("PublicKey", &bytes)
+        hash("FerveoPublicKey", &bytes)
     }
 }
 
@@ -328,7 +328,10 @@ pub struct Validator(api::Validator);
 #[pymethods]
 impl Validator {
     #[new]
-    pub fn new(address: String, public_key: &PublicKey) -> PyResult<Self> {
+    pub fn new(
+        address: String,
+        public_key: &FerveoPublicKey,
+    ) -> PyResult<Self> {
         let validator = api::Validator::new(address, public_key.0)
             .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(validator))
@@ -340,8 +343,8 @@ impl Validator {
     }
 
     #[getter]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key)
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key)
     }
 }
 
