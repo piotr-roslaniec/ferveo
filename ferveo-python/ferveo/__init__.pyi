@@ -11,7 +11,7 @@ class Keypair:
         ...
 
     @staticmethod
-    def secure_randomness_size(data: bytes) -> int:
+    def secure_randomness_size() -> int:
         ...
 
     @staticmethod
@@ -174,7 +174,6 @@ def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphert
 
 def combine_decryption_shares_simple(
         decryption_shares: Sequence[DecryptionShareSimple],
-        dkg_public_params: DkgPublicParameters,
 ) -> bytes:
     ...
 
