@@ -8,7 +8,7 @@ use ark_ff::Zero;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography::{
+use group_threshold_cryptography_pre_release::{
     test_common::{setup_fast, setup_simple},
     *,
 };

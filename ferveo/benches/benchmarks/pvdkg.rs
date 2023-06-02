@@ -50,7 +50,7 @@ pub fn gen_validators(
     (0..keypairs.len())
         .map(|i| ExternalValidator {
             address: format!("validator_{}", i),
-            public_key: keypairs[i].public(),
+            public_key: keypairs[i].public_key(),
         })
         .collect()
 }

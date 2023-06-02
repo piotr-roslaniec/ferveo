@@ -10,7 +10,7 @@ use ferveo_common::{FromBytes, ToBytes};
 use js_sys::Error;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use tpke::{api::E, SecretBox};
+use tpke::SecretBox;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_derive::TryFromJsValue;
 
@@ -90,7 +90,7 @@ extern "C" {
 
 fn unwrap_messages_js(
     messages: &ValidatorMessageArray,
-) -> JsResult<Vec<(api::Validator<E>, api::Transcript<E>)>> {
+) -> JsResult<Vec<(api::Validator, api::Transcript)>> {
     let messages = try_from_js_array::<ValidatorMessage>(messages)?;
     let messages = messages
         .iter()
@@ -136,13 +136,15 @@ impl DecryptionSharePrecomputed {
 }
 
 #[wasm_bindgen]
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct PublicKey(pub(crate) api::PublicKey<E>);
+#[derive(
+    Clone, Debug, derive_more::AsRef, derive_more::From, derive_more::Into,
+)]
+pub struct FerveoPublicKey(api::PublicKey);
 
 #[wasm_bindgen]
-impl PublicKey {
+impl FerveoPublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<PublicKey> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<FerveoPublicKey> {
         api::PublicKey::from_bytes(bytes)
             .map_err(map_js_err)
             .map(Self)
@@ -156,13 +158,21 @@ impl PublicKey {
     }
 
     #[wasm_bindgen]
-    pub fn equals(&self, other: &PublicKey) -> bool {
+    pub fn equals(&self, other: &FerveoPublicKey) -> bool {
         self.0 == other.0
     }
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    derive_more::From,
+    derive_more::AsRef,
+    derive_more::Into,
+)]
 pub struct Ciphertext(api::Ciphertext);
 
 #[wasm_bindgen]
@@ -178,21 +188,16 @@ impl Ciphertext {
     }
 }
 
-#[wasm_bindgen]
-pub fn encrypt(
+#[wasm_bindgen(js_name = "ferveoEncrypt")]
+pub fn ferveo_encrypt(
     message: &[u8],
     aad: &[u8],
     dkg_public_key: &DkgPublicKey,
 ) -> JsResult<Ciphertext> {
     set_panic_hook();
-    let rng = &mut thread_rng();
-    let ciphertext = api::encrypt(
-        SecretBox::new(message.to_vec()),
-        aad,
-        &dkg_public_key.0 .0,
-        rng,
-    )
-    .map_err(map_js_err)?;
+    let ciphertext =
+        api::encrypt(SecretBox::new(message.to_vec()), aad, &dkg_public_key.0)
+            .map_err(map_js_err)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -285,6 +290,11 @@ impl DkgPublicKey {
     pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
         to_js_bytes(&self.0)
     }
+
+    #[wasm_bindgen]
+    pub fn random() -> DkgPublicKey {
+        Self(api::DkgPublicKey::random())
+    }
 }
 
 #[wasm_bindgen]
@@ -349,7 +359,7 @@ impl Dkg {
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Transcript(pub(crate) api::Transcript<E>);
+pub struct Transcript(pub(crate) api::Transcript);
 
 #[wasm_bindgen]
 impl Transcript {
@@ -392,7 +402,7 @@ impl EthereumAddress {
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct Validator {
     address: EthereumAddress,
-    public_key: PublicKey,
+    public_key: FerveoPublicKey,
 }
 
 #[wasm_bindgen]
@@ -400,16 +410,16 @@ impl Validator {
     #[wasm_bindgen(constructor)]
     pub fn new(
         address: &EthereumAddress,
-        public_key: &PublicKey,
+        public_key: &FerveoPublicKey,
     ) -> JsResult<Validator> {
         set_panic_hook();
         Ok(Self {
             address: address.clone(),
-            public_key: *public_key,
+            public_key: public_key.clone(),
         })
     }
 
-    pub(crate) fn to_inner(&self) -> JsResult<api::Validator<E>> {
+    pub(crate) fn to_inner(&self) -> JsResult<api::Validator> {
         set_panic_hook();
         Ok(api::Validator {
             address: self.address.0.clone(),
@@ -418,8 +428,8 @@ impl Validator {
     }
 
     #[wasm_bindgen(getter, js_name = "publicKey")]
-    pub fn public_key(&self) -> PublicKey {
-        self.public_key
+    pub fn public_key(&self) -> FerveoPublicKey {
+        self.public_key.clone()
     }
 
     #[wasm_bindgen(getter)]
@@ -446,7 +456,7 @@ impl ValidatorMessage {
 
     pub(crate) fn to_inner(
         &self,
-    ) -> JsResult<(api::Validator<E>, api::Transcript<E>)> {
+    ) -> JsResult<(api::Validator, api::Transcript)> {
         Ok((self.0.to_inner()?, self.1 .0.clone()))
     }
 
@@ -547,18 +557,18 @@ impl AggregatedTranscript {
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize)]
-pub struct Keypair(api::Keypair<E>);
+pub struct Keypair(api::Keypair);
 
 #[wasm_bindgen]
 impl Keypair {
     #[wasm_bindgen(getter, js_name = "secureRandomnessSize")]
     pub fn secure_randomness_size() -> usize {
-        api::Keypair::<E>::secure_randomness_size()
+        api::Keypair::secure_randomness_size()
     }
 
     #[wasm_bindgen(getter, js_name = "publicKey")]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public())
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key())
     }
 
     #[wasm_bindgen]
@@ -569,8 +579,8 @@ impl Keypair {
     #[wasm_bindgen(js_name = "fromSecureRandomness")]
     pub fn from_secure_randomness(bytes: &[u8]) -> JsResult<Keypair> {
         set_panic_hook();
-        let keypair = api::Keypair::<E>::from_secure_randomness(bytes)
-            .map_err(map_js_err)?;
+        let keypair =
+            api::Keypair::from_secure_randomness(bytes).map_err(map_js_err)?;
         Ok(Self(keypair))
     }
 

@@ -1,19 +1,20 @@
 [package]
 name = "ferveo-wasm"
-version = "0.1.1"
+version = "0.1.0-alpha.1"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0-only"
 readme = "README.md"
 categories = ["cryptography", "no-std"]
 repository = "https://github.com/nucypher/ferveo"
-description = "WASM bindings for group-threshold-cryptography crate"
+description = "WASM bindings for ferveo crate"
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-ferveo = { path = "../ferveo", features = ["bindings-wasm"] }
+ferveo = { package = "ferveo-pre-release", path = "../ferveo", features = ["bindings-wasm"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.28"

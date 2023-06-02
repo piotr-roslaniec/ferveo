@@ -7,7 +7,7 @@ use std::{
 };
 
 use ark_bls12_381::Bls12_381 as EllipticCurve;
-use ferveo::*;
+use ferveo_pre_release::*;
 use itertools::iproduct;
 use rand::prelude::StdRng;
 use rand_core::SeedableRng;
@@ -69,7 +69,7 @@ fn gen_validators(
     (0..keypairs.len())
         .map(|i| Validator {
             address: gen_address(i),
-            public_key: keypairs[i].public(),
+            public_key: keypairs[i].public_key(),
         })
         .collect()
 }

@@ -7,7 +7,7 @@ use ark_bls12_381::Bls12_381;
 pub use ark_bls12_381::Bls12_381 as EllipticCurve;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
 use digest::crypto_common::rand_core::SeedableRng;
-use ferveo::*;
+use ferveo_pre_release::*;
 use rand::prelude::StdRng;
 
 const NUM_SHARES_CASES: [usize; 5] = [4, 8, 16, 32, 64];
@@ -31,7 +31,7 @@ fn gen_validators(
     (0..keypairs.len())
         .map(|i| Validator {
             address: gen_address(i),
-            public_key: keypairs[i].public(),
+            public_key: keypairs[i].public_key(),
         })
         .collect()
 }
