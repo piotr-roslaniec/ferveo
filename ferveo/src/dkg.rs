@@ -228,7 +228,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 } else if &self.public_key() == public_key {
                     Ok(())
                 } else {
-                    Err(Error::InvalidFinalKey)
+                    Err(Error::InvalidDkgPublicKey)
                 }
             }
             _ => Err(Error::InvalidDkgStateToVerify),

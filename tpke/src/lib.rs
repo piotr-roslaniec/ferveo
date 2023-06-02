@@ -40,17 +40,15 @@ pub enum Error {
     #[error("Decryption share verification failed")]
     DecryptionShareVerificationFailed,
 
-    /// Serialization failed
-    #[error("Bytes serialization failed")]
-    BytesSerializationError(#[from] bincode::Error),
-
     /// Symmetric encryption failed"
     #[error("Symmetric encryption failed")]
     SymmetricEncryptionError(chacha20poly1305::aead::Error),
 
-    /// Serialization failed
-    #[error("Arkworks serialization failed")]
-    ArkworksSerializationError(#[from] ark_serialize::SerializationError),
+    #[error(transparent)]
+    BincodeError(#[from] bincode::Error),
+
+    #[error(transparent)]
+    ArkSerializeError(#[from] ark_serialize::SerializationError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

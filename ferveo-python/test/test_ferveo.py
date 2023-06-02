@@ -9,7 +9,8 @@ from ferveo_py import (
     Validator,
     Dkg,
     AggregatedTranscript,
-    DkgPublicKey
+    DkgPublicKey,
+    ThresholdEncryptionError
 )
 
 
@@ -97,12 +98,12 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
     shared_secret = combine_shares_for_variant(variant, decryption_shares)
 
     if variant == "simple" and len(decryption_shares) < threshold:
-        with pytest.raises(ValueError):
+        with pytest.raises(ThresholdEncryptionError):
             decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
         return
 
     if variant == "precomputed" and len(decryption_shares) < shares_num:
-        with pytest.raises(ValueError):
+        with pytest.raises(ThresholdEncryptionError):
             decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
         return
 

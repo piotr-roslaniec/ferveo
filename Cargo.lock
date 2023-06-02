@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-python"
-version = "0.1.11"
+version = "0.1.13"
 dependencies = [
  "derive_more",
  "ferveo",
@@ -796,6 +796,7 @@ dependencies = [
  "pyo3",
  "pyo3-build-config",
  "rand 0.8.5",
+ "thiserror",
 ]
 
 [[package]]

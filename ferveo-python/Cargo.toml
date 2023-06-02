@@ -1,7 +1,7 @@
 [package]
 name = "ferveo-python"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
-version = "0.1.11"
+version = "0.1.13"
 edition = "2018"
 
 [lib]
@@ -20,6 +20,7 @@ generic-array = "0.14.7"
 itertools = "0.10.5"
 pyo3 = { version = "0.18.2", features = ["macros"] }
 rand = "0.8"
+thiserror = "1.0.40"
 
 # We avoid declaring "pyo3/extension-module" in `dependencies` since it causes compile-time issues:
 # https://github.com/PyO3/pyo3/issues/340
