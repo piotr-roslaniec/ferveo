@@ -1,6 +1,5 @@
 //! Test suite for the Nodejs.
 
-extern crate group_threshold_cryptography as tpke;
 extern crate wasm_bindgen_test;
 
 use ferveo_wasm::{test_common::*, *};

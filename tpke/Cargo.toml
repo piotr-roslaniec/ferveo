@@ -1,7 +1,7 @@
 [package]
 name = "group-threshold-cryptography"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["Heliax AG <hello@heliax.dev>"]
 license = "GPL-3.0"
 description = "Threshold signature and encryption using group secret key"

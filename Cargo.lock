@@ -751,14 +751,20 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "bincode",
+ "console_error_panic_hook",
  "criterion 0.3.6",
+ "derive_more",
  "digest",
  "ferveo-common",
+ "generic-array",
+ "getrandom 0.2.9",
  "group-threshold-cryptography",
  "hex",
  "itertools",
+ "js-sys",
  "measure_time",
  "pprof",
+ "pyo3",
  "rand 0.7.3",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -766,6 +772,8 @@ dependencies = [
  "serde_with",
  "subproductdomain",
  "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-derive",
  "zeroize",
 ]
 
@@ -788,34 +796,17 @@ dependencies = [
 name = "ferveo-python"
 version = "0.1.13"
 dependencies = [
- "derive_more",
  "ferveo",
- "ferveo-common",
- "generic-array",
- "itertools",
  "pyo3",
  "pyo3-build-config",
- "rand 0.8.5",
- "thiserror",
 ]
 
 [[package]]
 name = "ferveo-wasm"
 version = "0.1.1"
 dependencies = [
- "console_error_panic_hook",
- "derive_more",
  "ferveo",
- "ferveo-common",
- "getrandom 0.2.9",
- "group-threshold-cryptography",
  "itertools",
- "js-sys",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "wasm-bindgen",
- "wasm-bindgen-derive",
  "wasm-bindgen-test",
 ]
 

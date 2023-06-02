@@ -2,7 +2,7 @@
 name = "ferveo-python"
 authors = ["Piotr Roslaniec <p.roslaniec@gmail.com>"]
 version = "0.1.13"
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
@@ -13,14 +13,8 @@ extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
 
 [dependencies]
-derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref"] }
-ferveo = { path = "../ferveo" }
-ferveo-common = { path = "../ferveo-common" }
-generic-array = "0.14.7"
-itertools = "0.10.5"
-pyo3 = { version = "0.18.2", features = ["macros"] }
-rand = "0.8"
-thiserror = "1.0.40"
+ferveo = { path = "../ferveo", features = ["bindings-python"] }
+pyo3 = "0.18.2"
 
 # We avoid declaring "pyo3/extension-module" in `dependencies` since it causes compile-time issues:
 # https://github.com/PyO3/pyo3/issues/340

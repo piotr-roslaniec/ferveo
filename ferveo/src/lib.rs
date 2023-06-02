@@ -1,12 +1,25 @@
+#![warn(rust_2018_idioms)]
+
+#[cfg(feature = "bindings-wasm")]
+extern crate alloc;
+
 use ark_ec::pairing::Pairing;
 use group_threshold_cryptography as tpke;
 use itertools::zip_eq;
+
+#[cfg(feature = "bindings-python")]
+pub mod bindings_python;
+
+#[cfg(feature = "bindings-wasm")]
+pub mod bindings_wasm;
 
 pub mod api;
 pub mod dkg;
 pub mod primitives;
 pub mod pvss;
 pub mod validator;
+
+mod utils;
 
 pub use dkg::*;
 pub use primitives::*;
