@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Tuple
 
 
 class Keypair:
@@ -21,13 +21,13 @@ class Keypair:
     def __bytes__(self) -> bytes:
         ...
 
-    def public_key(self) -> PublicKey:
+    def public_key(self) -> FerveoPublicKey:
         ...
 
 
-class PublicKey:
+class FerveoPublicKey:
     @staticmethod
-    def from_bytes(data: bytes) -> PublicKey:
+    def from_bytes(data: bytes) -> FerveoPublicKey:
         ...
 
     def __bytes__(self) -> bytes:
@@ -39,12 +39,12 @@ class PublicKey:
 
 class Validator:
 
-    def __init__(self, address: str, public_key: PublicKey):
+    def __init__(self, address: str, public_key: FerveoPublicKey):
         ...
 
     address: str
 
-    public_key: PublicKey
+    public_key: FerveoPublicKey
 
 
 class Transcript:
@@ -84,7 +84,7 @@ class Dkg:
     def generate_transcript(self) -> Transcript:
         ...
 
-    def aggregate_transcripts(self, messages: Sequence[(Validator, Transcript)]) -> AggregatedTranscript:
+    def aggregate_transcripts(self, messages: Sequence[Tuple[Validator, Transcript]]) -> AggregatedTranscript:
         ...
 
 
@@ -126,10 +126,10 @@ class DkgPublicParameters:
 
 class AggregatedTranscript:
 
-    def __init__(self, messages: Sequence[(Validator, Transcript)]):
+    def __init__(self, messages: Sequence[Tuple[Validator, Transcript]]):
         ...
 
-    def verify(self, shares_num: int, messages: Sequence[(Validator, Transcript)]) -> bool:
+    def verify(self, shares_num: int, messages: Sequence[Tuple[Validator, Transcript]]) -> bool:
         ...
 
     def create_decryption_share_simple(
@@ -174,7 +174,6 @@ def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphert
 
 def combine_decryption_shares_simple(
         decryption_shares: Sequence[DecryptionShareSimple],
-        dkg_public_params: DkgPublicParameters,
 ) -> bytes:
     ...
 

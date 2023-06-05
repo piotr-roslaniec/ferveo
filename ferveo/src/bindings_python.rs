@@ -286,8 +286,8 @@ impl Keypair {
         to_py_bytes(&self.0)
     }
 
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key())
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key())
     }
 }
 
@@ -295,10 +295,10 @@ impl Keypair {
 #[derive(
     Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
 )]
-pub struct PublicKey(api::PublicKey);
+pub struct FerveoPublicKey(api::PublicKey);
 
 #[pymethods]
-impl PublicKey {
+impl FerveoPublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         from_py_bytes(bytes).map(Self)
@@ -317,7 +317,7 @@ impl PublicKey {
             .0
             .to_bytes()
             .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
-        hash("PublicKey", &bytes)
+        hash("FerveoPublicKey", &bytes)
     }
 }
 
@@ -328,7 +328,10 @@ pub struct Validator(api::Validator);
 #[pymethods]
 impl Validator {
     #[new]
-    pub fn new(address: String, public_key: &PublicKey) -> PyResult<Self> {
+    pub fn new(
+        address: String,
+        public_key: &FerveoPublicKey,
+    ) -> PyResult<Self> {
         let validator = api::Validator::new(address, public_key.0)
             .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(validator))
@@ -340,8 +343,8 @@ impl Validator {
     }
 
     #[getter]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key)
+    pub fn public_key(&self) -> FerveoPublicKey {
+        FerveoPublicKey(self.0.public_key)
     }
 }
 
@@ -595,6 +598,108 @@ impl AggregatedTranscript {
     fn __bytes__(&self) -> PyResult<PyObject> {
         to_py_bytes(&self.0)
     }
+}
+
+// Since adding functions in pyo3 requires a two-step process
+// (`#[pyfunction]` + `wrap_pyfunction!`), and `wrap_pyfunction`
+// needs `#[pyfunction]` in the same module, we need these trampolines
+// to build modules externally.
+
+pub fn register_decrypt_with_shared_secret(m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(decrypt_with_shared_secret, m)?)
+}
+
+pub fn register_combine_decryption_shares_precomputed(
+    m: &PyModule,
+) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(combine_decryption_shares_precomputed, m)?)
+}
+
+pub fn register_combine_decryption_shares_simple(m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(combine_decryption_shares_simple, m)?)
+}
+
+pub fn register_encrypt(m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(encrypt, m)?)
+}
+
+pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    // Functions
+    register_encrypt(m)?;
+    register_combine_decryption_shares_simple(m)?;
+    register_combine_decryption_shares_precomputed(m)?;
+    register_decrypt_with_shared_secret(m)?;
+
+    // Classes
+    m.add_class::<Keypair>()?;
+    m.add_class::<FerveoPublicKey>()?;
+    m.add_class::<Validator>()?;
+    m.add_class::<Transcript>()?;
+    m.add_class::<Dkg>()?;
+    m.add_class::<Ciphertext>()?;
+    m.add_class::<DecryptionShareSimple>()?;
+    m.add_class::<DecryptionSharePrecomputed>()?;
+    m.add_class::<AggregatedTranscript>()?;
+    m.add_class::<DkgPublicKey>()?;
+    m.add_class::<DkgPublicParameters>()?;
+    m.add_class::<SharedSecret>()?;
+
+    // Exceptions
+    m.add(
+        "ThresholdEncryptionError",
+        py.get_type::<ThresholdEncryptionError>(),
+    )?;
+    m.add(
+        "InvalidShareNumberParameter",
+        py.get_type::<InvalidShareNumberParameter>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToDeal",
+        py.get_type::<InvalidDkgStateToDeal>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToAggregate",
+        py.get_type::<InvalidDkgStateToAggregate>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToVerify",
+        py.get_type::<InvalidDkgStateToVerify>(),
+    )?;
+    m.add(
+        "InvalidDkgStateToIngest",
+        py.get_type::<InvalidDkgStateToIngest>(),
+    )?;
+    m.add(
+        "DealerNotInValidatorSet",
+        py.get_type::<DealerNotInValidatorSet>(),
+    )?;
+    m.add("UnknownDealer", py.get_type::<UnknownDealer>())?;
+    m.add("DuplicateDealer", py.get_type::<DuplicateDealer>())?;
+    m.add(
+        "InvalidPvssTranscript",
+        py.get_type::<InvalidPvssTranscript>(),
+    )?;
+    m.add(
+        "InsufficientTranscriptsForAggregate",
+        py.get_type::<InsufficientTranscriptsForAggregate>(),
+    )?;
+    m.add("InvalidDkgPublicKey", py.get_type::<InvalidDkgPublicKey>())?;
+    m.add(
+        "InsufficientValidators",
+        py.get_type::<InsufficientValidators>(),
+    )?;
+    m.add(
+        "InvalidTranscriptAggregate",
+        py.get_type::<InvalidTranscriptAggregate>(),
+    )?;
+    m.add("ValidatorsNotSorted", py.get_type::<ValidatorsNotSorted>())?;
+    m.add(
+        "ValidatorPublicKeyMismatch",
+        py.get_type::<ValidatorPublicKeyMismatch>(),
+    )?;
+    m.add("SerializationError", py.get_type::<SerializationError>())?;
+
+    Ok(())
 }
 
 // TODO: Consider adding remaining ferveo/api.rs tests here
