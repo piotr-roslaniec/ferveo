@@ -2029,15 +2029,24 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-derive"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3451353ff163a0d7053a2b0e1e2b698a466317791b027c50142bb0d3387fb90"
+checksum = "c1ab6c8bffb3f89584781211283fb57337d6902faab6eaee38f336977bdf177d"
 dependencies = [
  "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-derive-macro",
+]
+
+[[package]]
+name = "wasm-bindgen-derive-macro"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b87c28b31d27616bc69a891700ef0445d2cbaa0340fdacb145145256d5f5fcbb"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
- "wasm-bindgen",
 ]
 
 [[package]]
