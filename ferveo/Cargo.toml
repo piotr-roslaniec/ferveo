@@ -1,6 +1,6 @@
 [package]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/nucypher/ferveo"
@@ -39,7 +39,7 @@ zeroize = { version = "1.6.0", default-features = false, features = ["derive"] }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref", "into"], optional = true }
 
 # Python bindings
-pyo3 = { version = "0.18.2", features = ["macros"], optional = true }
+pyo3 = { version = "0.18.2", features = ["macros", "multiple-pymethods"], optional = true }
 generic-array = { version = "0.14.7", optional = true }
 
 # WASM bindings
@@ -47,7 +47,7 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 getrandom = { version = "0.2", features = ["js"], optional = true }
 js-sys = { version = "0.3.63", optional = true }
 wasm-bindgen = { version = "0.2.86", optional = true }
-wasm-bindgen-derive = { version = "0.2.0", optional = true }
+wasm-bindgen-derive = { version = "0.2.1", optional = true }
 
 [dev-dependencies]
 criterion = "0.3" # supports pprof, # TODO: Figure out if/how we can update to 0.4

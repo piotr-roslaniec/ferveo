@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -860,6 +860,17 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "ghost"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77ac7b51b8e6313251737fcef4b1c01a2ea102bde68415b62c0ee9268fec357"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.15",
 ]
 
 [[package]]
@@ -1031,6 +1042,15 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0539b5de9241582ce6bd6b0ba7399313560151e58c9aaf8b74b711b1bdce644"
+dependencies = [
+ "ghost",
 ]
 
 [[package]]
@@ -1383,6 +1403,7 @@ checksum = "e3b1ac5b3731ba34fdaa9785f8d74d17448cd18f30cf19e0c7e7b1fdb5272109"
 dependencies = [
  "cfg-if",
  "indoc",
+ "inventory",
  "libc",
  "memoffset 0.8.0",
  "parking_lot",
@@ -2029,15 +2050,24 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-derive"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3451353ff163a0d7053a2b0e1e2b698a466317791b027c50142bb0d3387fb90"
+checksum = "c1ab6c8bffb3f89584781211283fb57337d6902faab6eaee38f336977bdf177d"
 dependencies = [
  "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-derive-macro",
+]
+
+[[package]]
+name = "wasm-bindgen-derive-macro"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b87c28b31d27616bc69a891700ef0445d2cbaa0340fdacb145145256d5f5fcbb"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
- "wasm-bindgen",
 ]
 
 [[package]]

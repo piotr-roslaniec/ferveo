@@ -99,41 +99,41 @@ fn unwrap_messages_js(
     Ok(messages)
 }
 
+macro_rules! generate_common_methods {
+    ($struct_name:ident) => {
+        #[wasm_bindgen]
+        impl $struct_name {
+            #[wasm_bindgen(js_name = "fromBytes")]
+            pub fn from_bytes(bytes: &[u8]) -> JsResult<$struct_name> {
+                from_js_bytes(bytes).map(Self)
+            }
+
+            #[wasm_bindgen(js_name = "toBytes")]
+            pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
+                to_js_bytes(&self.0)
+            }
+
+            #[wasm_bindgen]
+            pub fn equals(&self, other: &$struct_name) -> bool {
+                self.0 == other.0
+            }
+        }
+    };
+}
+
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionShareSimple(api::DecryptionShareSimple);
 
-#[wasm_bindgen]
-impl DecryptionShareSimple {
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<DecryptionShareSimple> {
-        from_js_bytes(bytes).map(Self)
-    }
-}
+generate_common_methods!(DecryptionShareSimple);
 
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(tpke::api::DecryptionSharePrecomputed);
 
-#[wasm_bindgen]
-impl DecryptionSharePrecomputed {
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<DecryptionSharePrecomputed> {
-        from_js_bytes(bytes).map(Self)
-    }
-}
+generate_common_methods!(DecryptionSharePrecomputed);
 
 #[wasm_bindgen]
 #[derive(
@@ -141,27 +141,7 @@ impl DecryptionSharePrecomputed {
 )]
 pub struct FerveoPublicKey(api::PublicKey);
 
-#[wasm_bindgen]
-impl FerveoPublicKey {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<FerveoPublicKey> {
-        api::PublicKey::from_bytes(bytes)
-            .map_err(map_js_err)
-            .map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Box<[u8]>> {
-        let bytes = self.0.to_bytes().map_err(map_js_err)?;
-        let bytes: &[u8] = bytes.as_ref();
-        Ok(bytes.into())
-    }
-
-    #[wasm_bindgen]
-    pub fn equals(&self, other: &FerveoPublicKey) -> bool {
-        self.0 == other.0
-    }
-}
+generate_common_methods!(FerveoPublicKey);
 
 #[wasm_bindgen]
 #[derive(
@@ -175,18 +155,7 @@ impl FerveoPublicKey {
 )]
 pub struct Ciphertext(api::Ciphertext);
 
-#[wasm_bindgen]
-impl Ciphertext {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<Ciphertext> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-}
+generate_common_methods!(Ciphertext);
 
 #[wasm_bindgen(js_name = "ferveoEncrypt")]
 pub fn ferveo_encrypt(
@@ -204,35 +173,13 @@ pub fn ferveo_encrypt(
 #[wasm_bindgen]
 pub struct DkgPublicParameters(api::DkgPublicParameters);
 
-#[wasm_bindgen]
-impl DkgPublicParameters {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicParameters> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-}
+generate_common_methods!(DkgPublicParameters);
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharedSecret(api::SharedSecret);
 
-#[wasm_bindgen]
-impl SharedSecret {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<SharedSecret> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-}
+generate_common_methods!(SharedSecret);
 
 #[wasm_bindgen(js_name = "combineDecryptionSharesSimple")]
 pub fn combine_decryption_shares_simple(
@@ -279,18 +226,10 @@ pub fn decrypt_with_shared_secret(
 #[wasm_bindgen]
 pub struct DkgPublicKey(api::DkgPublicKey);
 
+generate_common_methods!(DkgPublicKey);
+
 #[wasm_bindgen]
 impl DkgPublicKey {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicKey> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-
     #[wasm_bindgen]
     pub fn random() -> DkgPublicKey {
         Self(api::DkgPublicKey::random())
@@ -361,18 +300,7 @@ impl Dkg {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Transcript(pub(crate) api::Transcript);
 
-#[wasm_bindgen]
-impl Transcript {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<Transcript> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-}
+generate_common_methods!(Transcript);
 
 #[wasm_bindgen(js_name = EthereumAddress)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -475,6 +403,8 @@ impl ValidatorMessage {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregatedTranscript(api::AggregatedTranscript);
 
+generate_common_methods!(AggregatedTranscript);
+
 #[wasm_bindgen]
 impl AggregatedTranscript {
     #[wasm_bindgen(constructor)]
@@ -543,21 +473,13 @@ impl AggregatedTranscript {
             .map_err(map_js_err)?;
         Ok(DecryptionShareSimple(decryption_share))
     }
-
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<AggregatedTranscript> {
-        from_js_bytes(bytes).map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
 }
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize)]
 pub struct Keypair(api::Keypair);
+
+generate_common_methods!(Keypair);
 
 #[wasm_bindgen]
 impl Keypair {
@@ -582,16 +504,6 @@ impl Keypair {
         let keypair =
             api::Keypair::from_secure_randomness(bytes).map_err(map_js_err)?;
         Ok(Self(keypair))
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
-        to_js_bytes(&self.0)
-    }
-
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<Keypair> {
-        from_js_bytes(bytes).map(Self)
     }
 }
 
