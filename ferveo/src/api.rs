@@ -10,9 +10,8 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 pub use tpke::api::{
-    decrypt_with_shared_secret, prepare_combine_simple,
-    share_combine_precomputed, share_combine_simple, Ciphertext, Fr, G1Affine,
-    G1Prepared, SecretBox, E,
+    prepare_combine_simple, share_combine_precomputed, share_combine_simple,
+    Ciphertext, Fr, G1Affine, G1Prepared, SecretBox, E,
 };
 
 pub type PublicKey = ferveo_common::PublicKey<E>;
@@ -23,7 +22,8 @@ pub type ValidatorMessage = (Validator, Transcript);
 
 pub use crate::EthereumAddress;
 use crate::{
-    do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableSS, Result,
+    do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableParams,
+    PubliclyVerifiableSS, Result,
 };
 
 pub type DecryptionSharePrecomputed = tpke::api::DecryptionSharePrecomputed;
@@ -51,6 +51,21 @@ pub fn encrypt(
     let mut rng = rand::thread_rng();
     let ciphertext = tpke::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
     Ok(ciphertext)
+}
+
+pub fn decrypt_with_shared_secret(
+    ciphertext: &Ciphertext,
+    aad: &[u8],
+    shared_secret: &SharedSecret,
+) -> Result<Vec<u8>> {
+    let dkg_public_params = DkgPublicParameters::default();
+    tpke::api::decrypt_with_shared_secret(
+        ciphertext,
+        aad,
+        &shared_secret.0,
+        &dkg_public_params.g1_inv,
+    )
+    .map_err(Error::from)
 }
 
 #[serde_as]
@@ -257,7 +272,15 @@ pub struct DecryptionShareSimple {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicParameters {
     #[serde_as(as = "serialization::SerdeAs")]
-    pub g1_inv: G1Prepared,
+    pub(crate) g1_inv: G1Prepared,
+}
+
+impl Default for DkgPublicParameters {
+    fn default() -> Self {
+        DkgPublicParameters {
+            g1_inv: PubliclyVerifiableParams::<E>::default().g_inv(),
+        }
+    }
 }
 
 impl DkgPublicParameters {
@@ -400,8 +423,7 @@ mod test_ferveo_api {
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
             aad,
-            &shared_secret,
-            &dkg.0.pvss_params.g_inv(),
+            &SharedSecret(shared_secret),
         )
         .unwrap();
         assert_eq!(plaintext, msg);
@@ -415,8 +437,7 @@ mod test_ferveo_api {
         let result = decrypt_with_shared_secret(
             &ciphertext,
             aad,
-            &shared_secret,
-            &dkg.0.pvss_params.g_inv(),
+            &SharedSecret(shared_secret),
         );
         assert!(result.is_err());
     }
@@ -494,13 +515,9 @@ mod test_ferveo_api {
             decryption_shares[..security_threshold as usize].to_vec();
 
         let shared_secret = combine_shares_simple(&decryption_shares);
-        let plaintext = decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret.0,
-            &dkg.public_params().g1_inv,
-        )
-        .unwrap();
+        let plaintext =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
         assert_eq!(plaintext, msg);
 
         // Let's say that we've only received `security_threshold - 1` shares
@@ -509,12 +526,8 @@ mod test_ferveo_api {
             decryption_shares[..security_threshold as usize - 1].to_vec();
 
         let shared_secret = combine_shares_simple(&decryption_shares);
-        let result = decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret.0,
-            &dkg.public_params().g1_inv,
-        );
+        let result =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
         assert!(result.is_err());
     }
 

@@ -2,7 +2,6 @@ from ferveo_py import (
     Keypair,
     Validator,
     Dkg,
-    DkgPublicParameters,
     DkgPublicKey
 )
 
@@ -22,18 +21,6 @@ validators = [
 validators.sort(key=lambda v: v.address)
 
 
-def make_dkg_public_params():
-    me = validators[0]
-    dkg = Dkg(
-        tau=tau,
-        shares_num=shares_num,
-        security_threshold=security_threshold,
-        validators=validators,
-        me=me,
-    )
-    return dkg.public_params
-
-
 def make_dkg_public_key():
     me = validators[0]
     dkg = Dkg(
@@ -49,14 +36,6 @@ def make_dkg_public_key():
 def make_shared_secret():
     # TODO: implement this
     pass
-
-
-def test_dkg_public_parameters_serialization():
-    dkg_public_params = make_dkg_public_params()
-    serialized = bytes(dkg_public_params)
-    deserialized = DkgPublicParameters.from_bytes(serialized)
-    # TODO: Implement comparison
-    # assert dkg_public_params == deserialized
 
 
 # def test_shared_secret_serialization():

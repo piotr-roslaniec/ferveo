@@ -171,11 +171,6 @@ pub fn ferveo_encrypt(
 }
 
 #[wasm_bindgen]
-pub struct DkgPublicParameters(api::DkgPublicParameters);
-
-generate_common_methods!(DkgPublicParameters);
-
-#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharedSecret(api::SharedSecret);
 
@@ -211,16 +206,10 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
-    dkg_public_params: &DkgPublicParameters,
 ) -> JsResult<Vec<u8>> {
     set_panic_hook();
-    api::decrypt_with_shared_secret(
-        &ciphertext.0,
-        aad,
-        &shared_secret.0 .0,
-        &dkg_public_params.0.g1_inv,
-    )
-    .map_err(map_js_err)
+    api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
+        .map_err(map_js_err)
 }
 
 #[wasm_bindgen]
@@ -288,11 +277,6 @@ impl Dkg {
             .aggregate_transcripts(&messages)
             .map_err(map_js_err)?;
         Ok(AggregatedTranscript(aggregated_transcript))
-    }
-
-    #[wasm_bindgen(js_name = "publicParams")]
-    pub fn public_params(&self) -> DkgPublicParameters {
-        DkgPublicParameters(self.0.public_params())
     }
 }
 
