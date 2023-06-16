@@ -98,6 +98,9 @@ pub enum Error {
 
     #[error(transparent)]
     ArkSerializeError(#[from] ark_serialize::SerializationError),
+
+    #[error("Invalid byte length. Expected {0}, got {1}")]
+    InvalidByteLength(usize, usize),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

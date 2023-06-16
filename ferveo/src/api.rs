@@ -5,6 +5,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use bincode;
 use ferveo_common::serialization;
+use generic_array::{typenum::U48, GenericArray};
 use group_threshold_cryptography as tpke;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -75,12 +76,16 @@ pub struct DkgPublicKey(
 );
 
 impl DkgPublicKey {
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        to_bytes(&self.0)
+    pub fn to_bytes(&self) -> Result<GenericArray<u8, U48>> {
+        let as_bytes = to_bytes(&self.0)?;
+        Ok(GenericArray::<u8, U48>::from_slice(&as_bytes).to_owned())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
-        from_bytes(bytes).map(DkgPublicKey)
+        let bytes =
+            GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
+                .ok_or(Error::InvalidByteLength(48, bytes.len()))?;
+        from_bytes(&bytes).map(DkgPublicKey)
     }
 
     pub fn serialized_size() -> usize {
