@@ -39,7 +39,7 @@ zeroize = { version = "1.6.0", default-features = false, features = ["derive"] }
 derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref", "into"], optional = true }
 
 # Python bindings
-pyo3 = { version = "0.18.2", features = ["macros"], optional = true }
+pyo3 = { version = "0.18.2", features = ["macros", "multiple-pymethods"], optional = true }
 generic-array = { version = "0.14.7", optional = true }
 
 # WASM bindings

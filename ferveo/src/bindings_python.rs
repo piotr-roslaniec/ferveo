@@ -166,6 +166,33 @@ where
     }
 }
 
+macro_rules! generate_common_methods {
+    ($struct_name:ident) => {
+        #[pymethods]
+        impl $struct_name {
+            #[staticmethod]
+            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+                from_py_bytes(bytes).map(Self)
+            }
+
+            fn __bytes__(&self) -> PyResult<PyObject> {
+                to_py_bytes(&self.0)
+            }
+
+            // TODO: Consider implementing this for all structs - Requires PartialOrd and other traits
+
+            // fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+            //     richcmp(self, other, op)
+            // }
+
+            // fn __hash__(&self) -> PyResult<isize> {
+            //     let bytes = self.0.to_bytes()?;
+            //     hash(stringify!($struct_name), &bytes)
+            // }
+        }
+    };
+}
+
 #[pyfunction]
 pub fn encrypt(
     message: &[u8],
@@ -226,37 +253,19 @@ pub fn decrypt_with_shared_secret(
 #[derive(derive_more::AsRef)]
 pub struct DkgPublicParameters(api::DkgPublicParameters);
 
-#[pymethods]
-impl DkgPublicParameters {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(DkgPublicParameters);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::AsRef)]
 pub struct SharedSecret(api::SharedSecret);
 
-#[pymethods]
-impl SharedSecret {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(SharedSecret);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct Keypair(api::Keypair);
+
+generate_common_methods!(Keypair);
 
 #[pymethods]
 impl Keypair {
@@ -277,15 +286,6 @@ impl Keypair {
         api::Keypair::secure_randomness_size()
     }
 
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-
     pub fn public_key(&self) -> FerveoPublicKey {
         FerveoPublicKey(self.0.public_key())
     }
@@ -297,17 +297,10 @@ impl Keypair {
 )]
 pub struct FerveoPublicKey(api::PublicKey);
 
+generate_common_methods!(FerveoPublicKey);
+
 #[pymethods]
 impl FerveoPublicKey {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
         richcmp(self, other, op)
     }
@@ -352,17 +345,7 @@ impl Validator {
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
 pub struct Transcript(api::Transcript);
 
-#[pymethods]
-impl Transcript {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(Transcript);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
@@ -477,53 +460,25 @@ impl Dkg {
 )]
 pub struct Ciphertext(api::Ciphertext);
 
-#[pymethods]
-impl Ciphertext {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(Ciphertext);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionShareSimple(api::DecryptionShareSimple);
 
-#[pymethods]
-impl DecryptionShareSimple {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(DecryptionShareSimple);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(api::DecryptionSharePrecomputed);
 
-#[pymethods]
-impl DecryptionSharePrecomputed {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
-    }
-}
+generate_common_methods!(DecryptionSharePrecomputed);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct AggregatedTranscript(api::AggregatedTranscript);
+
+generate_common_methods!(AggregatedTranscript);
 
 #[pymethods]
 impl AggregatedTranscript {
@@ -588,15 +543,6 @@ impl AggregatedTranscript {
             )
             .map_err(FerveoPythonError::FerveoError)?;
         Ok(DecryptionShareSimple(decryption_share))
-    }
-
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        from_py_bytes(bytes).map(Self)
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        to_py_bytes(&self.0)
     }
 }
 
