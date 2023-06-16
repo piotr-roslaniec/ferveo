@@ -215,8 +215,6 @@ pub fn decrypt_with_shared_secret(
 #[wasm_bindgen]
 pub struct DkgPublicKey(api::DkgPublicKey);
 
-generate_common_methods!(DkgPublicKey);
-
 #[wasm_bindgen]
 impl DkgPublicKey {
     #[wasm_bindgen(js_name = "fromBytes")]
