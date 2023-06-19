@@ -238,22 +238,10 @@ pub fn decrypt_with_shared_secret(
     ciphertext: &Ciphertext,
     aad: &[u8],
     shared_secret: &SharedSecret,
-    dkg_params: &DkgPublicParameters,
 ) -> PyResult<Vec<u8>> {
-    api::decrypt_with_shared_secret(
-        &ciphertext.0,
-        aad,
-        &shared_secret.0 .0,
-        &dkg_params.0.g1_inv,
-    )
-    .map_err(|err| FerveoPythonError::FerveoError(err.into()).into())
+    api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
+        .map_err(|err| FerveoPythonError::FerveoError(err).into())
 }
-
-#[pyclass(module = "ferveo")]
-#[derive(derive_more::AsRef)]
-pub struct DkgPublicParameters(api::DkgPublicParameters);
-
-generate_common_methods!(DkgPublicParameters);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::AsRef)]
@@ -439,11 +427,6 @@ impl Dkg {
             .map_err(FerveoPythonError::FerveoError)?;
         Ok(AggregatedTranscript(aggregated_transcript))
     }
-
-    #[getter]
-    pub fn public_params(&self) -> DkgPublicParameters {
-        DkgPublicParameters(self.0.public_params())
-    }
 }
 
 #[pyclass(module = "ferveo")]
@@ -587,7 +570,6 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<DecryptionSharePrecomputed>()?;
     m.add_class::<AggregatedTranscript>()?;
     m.add_class::<DkgPublicKey>()?;
-    m.add_class::<DkgPublicParameters>()?;
     m.add_class::<SharedSecret>()?;
 
     // Exceptions
@@ -767,13 +749,9 @@ mod test_ferveo_python {
         let shared_secret =
             combine_decryption_shares_precomputed(decryption_shares);
 
-        let plaintext = decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-            &dkg.public_params(),
-        )
-        .unwrap();
+        let plaintext =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
         assert_eq!(plaintext, msg);
     }
 
@@ -848,13 +826,9 @@ mod test_ferveo_python {
         let shared_secret = combine_decryption_shares_simple(decryption_shares);
 
         // TODO: Fails because of a bad shared secret
-        let plaintext = decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-            &dkg.public_params(),
-        )
-        .unwrap();
+        let plaintext =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
         assert_eq!(plaintext, msg);
     }
 }

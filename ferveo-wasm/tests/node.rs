@@ -13,7 +13,6 @@ type TestSetup = (
     Vec<Keypair>,
     Vec<Validator>,
     ValidatorArray,
-    Dkg,
     ValidatorMessageArray,
     Vec<u8>,
     Vec<u8>,
@@ -86,7 +85,6 @@ fn setup_dkg() -> TestSetup {
         validator_keypairs,
         validators,
         validators_js,
-        dkg,
         messages_js,
         msg,
         aad,
@@ -103,7 +101,6 @@ fn tdec_simple() {
         validator_keypairs,
         validators,
         validators_js,
-        dkg,
         messages_js,
         msg,
         aad,
@@ -144,13 +141,8 @@ fn tdec_simple() {
         combine_decryption_shares_simple(&decryption_shares_js).unwrap();
 
     // The client should have access to the public parameters of the DKG
-    let plaintext = decrypt_with_shared_secret(
-        &ciphertext,
-        &aad,
-        &shared_secret,
-        &dkg.public_params(),
-    )
-    .unwrap();
+    let plaintext =
+        decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret).unwrap();
     assert_eq!(msg, plaintext);
 }
 
@@ -163,7 +155,6 @@ fn tdec_precomputed() {
         validator_keypairs,
         validators,
         validators_js,
-        dkg,
         messages_js,
         msg,
         aad,
@@ -204,12 +195,7 @@ fn tdec_precomputed() {
         combine_decryption_shares_precomputed(&decryption_shares_js).unwrap();
 
     // The client should have access to the public parameters of the DKG
-    let plaintext = decrypt_with_shared_secret(
-        &ciphertext,
-        &aad,
-        &shared_secret,
-        &dkg.public_params(),
-    )
-    .unwrap();
+    let plaintext =
+        decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret).unwrap();
     assert_eq!(msg, plaintext);
 }

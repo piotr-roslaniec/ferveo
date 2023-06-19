@@ -99,15 +99,15 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
 
     if variant == "simple" and len(decryption_shares) < threshold:
         with pytest.raises(ThresholdEncryptionError):
-            decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
+            decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
 
     if variant == "precomputed" and len(decryption_shares) < shares_num:
         with pytest.raises(ThresholdEncryptionError):
-            decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
+            decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
 
-    plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
+    plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret)
     assert bytes(plaintext) == msg
 
 

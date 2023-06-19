@@ -66,7 +66,7 @@ function setupTest() {
     tau,
     sharesNum,
     threshold,
-    validator_keypairs,
+    validatorKeypairs: validator_keypairs,
     validators,
     dkg,
     messages,
@@ -83,9 +83,8 @@ describe("ferveo-wasm", () => {
       tau,
       sharesNum,
       threshold,
-      validator_keypairs,
+      validatorKeypairs,
       validators,
-      dkg,
       messages,
       msg,
       aad,
@@ -94,7 +93,7 @@ describe("ferveo-wasm", () => {
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     const decryptionShares: DecryptionShareSimple[] = [];
-    zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
+    zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
       expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
@@ -124,7 +123,6 @@ describe("ferveo-wasm", () => {
       ciphertext,
       aad,
       sharedSecret,
-      dkg.publicParams()
     );
     expect(Buffer.from(plaintext)).toEqual(msg);
   });
@@ -134,9 +132,8 @@ describe("ferveo-wasm", () => {
       tau,
       sharesNum,
       threshold,
-      validator_keypairs,
+      validatorKeypairs,
       validators,
-      dkg,
       messages,
       msg,
       aad,
@@ -145,7 +142,7 @@ describe("ferveo-wasm", () => {
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     const decryptionShares: DecryptionSharePrecomputed[] = [];
-    zip(validators, validator_keypairs).forEach(([validator, keypair]) => {
+    zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
       const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
       const aggregate = dkg.aggregateTranscript(messages);
       const isValid = aggregate.verify(sharesNum, messages);
@@ -171,7 +168,6 @@ describe("ferveo-wasm", () => {
       ciphertext,
       aad,
       sharedSecret,
-      dkg.publicParams()
     );
     expect(Buffer.from(plaintext)).toEqual(msg);
   });

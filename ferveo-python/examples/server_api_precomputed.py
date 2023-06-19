@@ -92,7 +92,7 @@ shared_secret = combine_decryption_shares_precomputed(decryption_shares)
 
 # The client should have access to the public parameters of the DKG
 
-plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret, dkg.public_params)
+plaintext = decrypt_with_shared_secret(ciphertext, aad, shared_secret)
 assert bytes(plaintext) == msg
 
 print("Success!")
