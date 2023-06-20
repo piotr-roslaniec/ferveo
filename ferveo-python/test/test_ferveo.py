@@ -7,6 +7,7 @@ from ferveo_py import (
     decrypt_with_shared_secret,
     Keypair,
     Validator,
+    ValidatorMessage,
     Dkg,
     AggregatedTranscript,
     DkgPublicKey,
@@ -57,7 +58,7 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
             validators=validators,
             me=sender,
         )
-        messages.append((sender, dkg.generate_transcript()))
+        messages.append(ValidatorMessage(sender, dkg.generate_transcript()))
 
     dkg = Dkg(
         tau=tau,
@@ -143,7 +144,6 @@ TEST_CASES_WITH_THRESHOLD_RANGE = []
 for (shares_num, variant) in PARAMS:
     for threshold in range(1, shares_num):
         TEST_CASES_WITH_THRESHOLD_RANGE.append((variant, shares_num, threshold))
-
 
 # Avoid running this test case as it takes a long time
 # @pytest.mark.parametrize("variant, shares_num, threshold", TEST_CASES_WITH_THRESHOLD_RANGE)
