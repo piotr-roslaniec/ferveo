@@ -241,6 +241,7 @@ impl DkgPublicKey {
         api::DkgPublicKey::serialized_size()
     }
 
+    #[wasm_bindgen]
     pub fn equals(&self, other: &DkgPublicKey) -> bool {
         self.0 == other.0
     }
