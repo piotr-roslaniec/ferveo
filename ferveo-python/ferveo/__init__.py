@@ -13,7 +13,6 @@ from .ferveo_py import (
     DecryptionSharePrecomputed,
     AggregatedTranscript,
     DkgPublicKey,
-    DkgPublicParameters,
     SharedSecret,
     ValidatorMessage,
     ThresholdEncryptionError,
