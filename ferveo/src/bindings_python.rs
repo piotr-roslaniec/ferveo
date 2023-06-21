@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
 use ferveo_common::serialization::{FromBytes, ToBytes};
-use generic_array::{typenum::U48, GenericArray};
 use pyo3::{
     basic::CompareOp,
     create_exception,
@@ -89,6 +88,12 @@ impl From<FerveoPythonError> for PyErr {
                 Error::ArkSerializeError(err) => {
                     SerializationError::new_err(err.to_string())
                 }
+                Error::InvalidByteLength(expected, actual) => {
+                    InvalidByteLength::new_err(format!(
+                        "expected: {}, actual: {}",
+                        expected, actual
+                    ))
+                }
             },
             _ => default(),
         }
@@ -122,6 +127,7 @@ create_exception!(exceptions, InvalidTranscriptAggregate, PyValueError);
 create_exception!(exceptions, ValidatorsNotSorted, PyValueError);
 create_exception!(exceptions, ValidatorPublicKeyMismatch, PyValueError);
 create_exception!(exceptions, SerializationError, PyValueError);
+create_exception!(exceptions, InvalidByteLength, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -343,15 +349,8 @@ pub struct DkgPublicKey(api::DkgPublicKey);
 impl DkgPublicKey {
     #[staticmethod]
     pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        let bytes =
-            GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
-                .ok_or_else(|| {
-                    FerveoPythonError::Other(
-                        "Invalid length of bytes for DkgPublicKey".to_string(),
-                    )
-                })?;
         Ok(Self(
-            api::DkgPublicKey::from_bytes(bytes.as_slice())
+            api::DkgPublicKey::from_bytes(bytes)
                 .map_err(FerveoPythonError::FerveoError)?,
         ))
     }
@@ -359,8 +358,7 @@ impl DkgPublicKey {
     fn __bytes__(&self) -> PyResult<PyObject> {
         let bytes =
             self.0.to_bytes().map_err(FerveoPythonError::FerveoError)?;
-        let bytes = GenericArray::<u8, U48>::from_slice(bytes.as_slice());
-        as_py_bytes(bytes)
+        as_py_bytes(&bytes)
     }
 
     #[staticmethod]

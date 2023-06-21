@@ -215,13 +215,35 @@ pub fn decrypt_with_shared_secret(
 #[wasm_bindgen]
 pub struct DkgPublicKey(api::DkgPublicKey);
 
-generate_common_methods!(DkgPublicKey);
-
 #[wasm_bindgen]
 impl DkgPublicKey {
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicKey> {
+        api::DkgPublicKey::from_bytes(bytes)
+            .map_err(map_js_err)
+            .map(Self)
+    }
+
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> JsResult<Box<[u8]>> {
+        let bytes = self.0.to_bytes().map_err(map_js_err)?;
+        let bytes: Box<[u8]> = bytes.as_slice().into();
+        Ok(bytes)
+    }
+
     #[wasm_bindgen]
     pub fn random() -> DkgPublicKey {
         Self(api::DkgPublicKey::random())
+    }
+
+    #[wasm_bindgen(js_name = "serializedSize")]
+    pub fn serialized_size() -> usize {
+        api::DkgPublicKey::serialized_size()
+    }
+
+    #[wasm_bindgen]
+    pub fn equals(&self, other: &DkgPublicKey) -> bool {
+        self.0 == other.0
     }
 }
 
