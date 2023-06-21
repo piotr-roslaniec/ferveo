@@ -236,7 +236,7 @@ impl DkgPublicKey {
         Self(api::DkgPublicKey::random())
     }
 
-    #[wasm_bindgen]
+    #[wasm_bindgen(js_name = "serializedSize")]
     pub fn serialized_size() -> usize {
         api::DkgPublicKey::serialized_size()
     }
