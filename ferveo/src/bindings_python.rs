@@ -367,9 +367,33 @@ impl DkgPublicKey {
     }
 }
 
-// TODO: Consider using a `pyclass` instead
-#[derive(FromPyObject, Clone)]
-pub struct ValidatorMessage(Validator, Transcript);
+#[pyclass(module = "ferveo")]
+#[derive(derive_more::From, derive_more::AsRef, Clone)]
+pub struct ValidatorMessage(api::ValidatorMessage);
+
+#[pymethods]
+impl ValidatorMessage {
+    #[new]
+    pub fn new(validator: &Validator, transcript: &Transcript) -> Self {
+        Self((validator.0.clone(), transcript.0.clone()))
+    }
+
+    #[getter]
+    pub fn validator(&self) -> Validator {
+        Validator(self.0 .0.clone())
+    }
+
+    #[getter]
+    pub fn transcript(&self) -> Transcript {
+        Transcript(self.0 .1.clone())
+    }
+}
+
+impl ValidatorMessage {
+    pub(crate) fn to_inner(&self) -> api::ValidatorMessage {
+        self.0.clone()
+    }
+}
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
@@ -415,10 +439,7 @@ impl Dkg {
         &mut self,
         messages: Vec<ValidatorMessage>,
     ) -> PyResult<AggregatedTranscript> {
-        let messages: Vec<_> = messages
-            .iter()
-            .map(|m| ((m.0).0.clone(), (m.1).0.clone()))
-            .collect();
+        let messages: Vec<_> = messages.iter().map(|m| m.to_inner()).collect();
         let aggregated_transcript = self
             .0
             .aggregate_transcripts(&messages)
@@ -465,10 +486,8 @@ generate_common_methods!(AggregatedTranscript);
 impl AggregatedTranscript {
     #[new]
     pub fn new(messages: Vec<ValidatorMessage>) -> Self {
-        let messages: Vec<_> = messages
-            .into_iter()
-            .map(|ValidatorMessage(v, t)| (v.0, t.0))
-            .collect();
+        let messages: Vec<_> =
+            messages.into_iter().map(|vm| vm.to_inner()).collect();
         Self(api::AggregatedTranscript::new(&messages))
     }
 
@@ -477,10 +496,8 @@ impl AggregatedTranscript {
         shares_num: u32,
         messages: Vec<ValidatorMessage>,
     ) -> PyResult<bool> {
-        let messages: Vec<_> = messages
-            .into_iter()
-            .map(|ValidatorMessage(v, t)| (v.0, t.0))
-            .collect();
+        let messages: Vec<_> =
+            messages.into_iter().map(|vm| vm.to_inner()).collect();
         let is_valid = self
             .0
             .verify(shares_num, &messages)
@@ -569,6 +586,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<AggregatedTranscript>()?;
     m.add_class::<DkgPublicKey>()?;
     m.add_class::<SharedSecret>()?;
+    m.add_class::<ValidatorMessage>()?;
 
     // Exceptions
     m.add(
@@ -668,7 +686,10 @@ mod test_ferveo_python {
                     &sender,
                 )
                 .unwrap();
-                ValidatorMessage(sender, dkg.generate_transcript().unwrap())
+                ValidatorMessage::new(
+                    &sender,
+                    &dkg.generate_transcript().unwrap(),
+                )
             })
             .collect();
         (messages, validators, validator_keypairs)
