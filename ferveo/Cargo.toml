@@ -1,6 +1,6 @@
 [package]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.10"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/nucypher/ferveo"
@@ -34,13 +34,11 @@ serde_with = "2.2.0"
 subproductdomain = { package = "subproductdomain-pre-release", path = "../subproductdomain", version = "0.1.0-alpha.0" }
 thiserror = "1.0"
 zeroize = { version = "1.6.0", default-features = false, features = ["derive"] }
-
-# Shared by Python and WASM bindings
-derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref", "into"], optional = true }
+generic-array = "0.14.7"
+derive_more = { version = "0.99", default-features = false, features = ["from", "as_ref", "into"] }
 
 # Python bindings
 pyo3 = { version = "0.18.2", features = ["macros", "multiple-pymethods"], optional = true }
-generic-array = { version = "0.14.7", optional = true }
 
 # WASM bindings
 console_error_panic_hook = { version = "0.1.7", optional = true }
@@ -60,8 +58,8 @@ serde = { version = "1.0", features = ["derive"] }
 wasm-bindgen = { version = "0.2.86", features = ["serde-serialize"] }
 
 [features]
-bindings-python = ["pyo3", "derive_more", "generic-array"]
-bindings-wasm = ["console_error_panic_hook", "derive_more", "getrandom", "js-sys", "wasm-bindgen", "wasm-bindgen-derive"]
+bindings-python = ["pyo3"]
+bindings-wasm = ["console_error_panic_hook", "getrandom", "js-sys", "wasm-bindgen", "wasm-bindgen-derive"]
 
 [[example]]
 name = "bench_primitives_size"

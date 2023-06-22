@@ -4,6 +4,7 @@ from ferveo_py import (
     decrypt_with_shared_secret,
     Keypair,
     Validator,
+    ValidatorMessage,
     Dkg,
     AggregatedTranscript,
 )
@@ -36,7 +37,7 @@ for sender in validators:
         validators=validators,
         me=sender,
     )
-    messages.append((sender, dkg.generate_transcript()))
+    messages.append(ValidatorMessage(sender, dkg.generate_transcript()))
 
 # Now that every validator holds a dkg instance and a transcript for every other validator,
 # every validator can aggregate the transcripts
