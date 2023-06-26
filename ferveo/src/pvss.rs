@@ -71,7 +71,7 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
 
 /// Secret polynomial used in the PVSS protocol
 /// We wrap this in a struct so that we can zeroize it after use
-struct SecretPolynomial<E: Pairing>(DensePolynomial<E::ScalarField>);
+pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<E::ScalarField>);
 
 impl<E: Pairing> SecretPolynomial<E> {
     pub fn new(
