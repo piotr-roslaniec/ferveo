@@ -31,10 +31,6 @@ pub enum Error {
     #[error(transparent)]
     ThresholdEncryptionError(#[from] tpke::Error),
 
-    /// Number of shares parameter must be a power of two
-    #[error("Number of shares parameter must be a power of two. Got {0}")]
-    InvalidShareNumberParameter(u32),
-
     /// DKG is not in a valid state to deal PVSS shares
     #[error("Invalid DKG state to deal PVSS shares")]
     InvalidDkgStateToDeal,

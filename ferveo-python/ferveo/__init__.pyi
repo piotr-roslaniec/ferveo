@@ -201,10 +201,6 @@ class ThresholdEncryptionError(Exception):
     pass
 
 
-class InvalidShareNumberParameter(Exception):
-    pass
-
-
 class InvalidDkgStateToDeal(Exception):
     pass
 

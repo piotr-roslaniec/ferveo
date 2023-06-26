@@ -16,7 +16,6 @@ from .ferveo_py import (
     SharedSecret,
     ValidatorMessage,
     ThresholdEncryptionError,
-    InvalidShareNumberParameter,
     InvalidDkgStateToDeal,
     InvalidDkgStateToAggregate,
     InvalidDkgStateToVerify,

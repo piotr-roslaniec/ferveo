@@ -34,9 +34,6 @@ impl From<FerveoPythonError> for PyErr {
                 Error::ThresholdEncryptionError(err) => {
                     ThresholdEncryptionError::new_err(err.to_string())
                 }
-                Error::InvalidShareNumberParameter(actual) => {
-                    InvalidShareNumberParameter::new_err(actual.to_string())
-                }
                 Error::InvalidDkgStateToDeal => {
                     InvalidDkgStateToDeal::new_err("")
                 }
@@ -111,7 +108,6 @@ impl Debug for FerveoPythonError {
 }
 
 create_exception!(exceptions, ThresholdEncryptionError, PyException);
-create_exception!(exceptions, InvalidShareNumberParameter, PyValueError);
 create_exception!(exceptions, InvalidDkgStateToDeal, PyRuntimeError);
 create_exception!(exceptions, InvalidDkgStateToAggregate, PyRuntimeError);
 create_exception!(exceptions, InvalidDkgStateToVerify, PyRuntimeError);
@@ -595,10 +591,6 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add(
         "ThresholdEncryptionError",
         py.get_type::<ThresholdEncryptionError>(),
-    )?;
-    m.add(
-        "InvalidShareNumberParameter",
-        py.get_type::<InvalidShareNumberParameter>(),
     )?;
     m.add(
         "InvalidDkgStateToDeal",

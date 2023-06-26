@@ -9,10 +9,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate,
-    utils::{is_power_of_2, is_sorted},
-    AggregatedPvss, Error, EthereumAddress, PubliclyVerifiableParams,
-    PubliclyVerifiableSS, Pvss, Result, Validator,
+    aggregate, utils::is_sorted, AggregatedPvss, Error, EthereumAddress,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result, Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -78,12 +76,6 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         dkg_params: &DkgParams,
         me: &Validator<E>,
     ) -> Result<Self> {
-        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
-        if !is_power_of_2(dkg_params.shares_num) {
-            return Err(Error::InvalidShareNumberParameter(
-                dkg_params.shares_num,
-            ));
-        }
         let domain =
             ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
                 dkg_params.shares_num as usize,
