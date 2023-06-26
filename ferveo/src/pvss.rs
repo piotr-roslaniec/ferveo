@@ -224,7 +224,7 @@ pub fn do_verify_full<E: Pairing>(
     pvss_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
-    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    domain: &ark_poly::MixedRadixEvaluationDomain<E::ScalarField>,
 ) -> bool {
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
     domain.fft_in_place(&mut commitment);
@@ -256,7 +256,7 @@ pub fn do_verify_aggregation<E: Pairing>(
     pvss_agg_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
-    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    domain: &ark_poly::MixedRadixEvaluationDomain<E::ScalarField>,
     vss: &PVSSMap<E>,
 ) -> Result<bool> {
     let is_valid = do_verify_full(

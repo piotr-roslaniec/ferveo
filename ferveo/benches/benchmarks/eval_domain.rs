@@ -21,7 +21,7 @@ pub fn bench_eval_domain(c: &mut Criterion) {
     for shares_num in NUM_SHARES_CASES {
         let eval_radix2_eval_domain = {
             let domain =
-                ark_poly::Radix2EvaluationDomain::new(shares_num).unwrap();
+                ark_poly::MixedRadixEvaluationDomain::new(shares_num).unwrap();
             let phi = SecretPolynomial::<ark_bls12_381::Bls12_381>::new(
                 &s, shares_num, rng,
             );

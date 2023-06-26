@@ -61,7 +61,7 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub pvss_params: PubliclyVerifiableParams<E>,
     pub validators: ValidatorsMap<E>,
     pub vss: PVSSMap<E>,
-    pub domain: ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    pub domain: ark_poly::MixedRadixEvaluationDomain<E::ScalarField>,
     pub me: DkgValidator<E>,
     pub state: DkgState<E>,
 }
@@ -84,10 +84,11 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 dkg_params.shares_num,
             ));
         }
-        let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
-            dkg_params.shares_num as usize,
-        )
-        .expect("unable to construct domain");
+        let domain =
+            ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
+                dkg_params.shares_num as usize,
+            )
+            .expect("unable to construct domain");
 
         // Sort the validators to verify a global ordering
         if !is_sorted(validators) {

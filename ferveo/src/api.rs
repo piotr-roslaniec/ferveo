@@ -1,6 +1,6 @@
 use std::io;
 
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{EvaluationDomain, MixedRadixEvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use bincode;
@@ -204,7 +204,7 @@ impl AggregatedTranscript {
         messages: &[ValidatorMessage],
     ) -> Result<bool> {
         let pvss_params = PubliclyVerifiableParams::<E>::default();
-        let domain = Radix2EvaluationDomain::<Fr>::new(shares_num as usize)
+        let domain = MixedRadixEvaluationDomain::<Fr>::new(shares_num as usize)
             .expect("Unable to construct an evaluation domain");
 
         let is_valid_optimistic = self.0.verify_optimistic();
