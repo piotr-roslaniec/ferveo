@@ -84,7 +84,12 @@ impl DkgPublicKey {
     pub fn from_bytes(bytes: &[u8]) -> Result<DkgPublicKey> {
         let bytes =
             GenericArray::<u8, U48>::from_exact_iter(bytes.iter().cloned())
-                .ok_or(Error::InvalidByteLength(48, bytes.len()))?;
+                .ok_or_else(|| {
+                    Error::InvalidByteLength(
+                        Self::serialized_size(),
+                        bytes.len(),
+                    )
+                })?;
         from_bytes(&bytes).map(DkgPublicKey)
     }
 
@@ -198,7 +203,7 @@ impl AggregatedTranscript {
         shares_num: u32,
         messages: &[ValidatorMessage],
     ) -> Result<bool> {
-        let pvss_params = crate::pvss::PubliclyVerifiableParams::<E>::default();
+        let pvss_params = PubliclyVerifiableParams::<E>::default();
         let domain = Radix2EvaluationDomain::<Fr>::new(shares_num as usize)
             .expect("Unable to construct an evaluation domain");
 

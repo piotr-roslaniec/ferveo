@@ -2,7 +2,8 @@ from ferveo_py import (
     Keypair,
     Validator,
     Dkg,
-    DkgPublicKey
+    DkgPublicKey,
+    FerveoPublicKey,
 )
 
 
@@ -38,6 +39,10 @@ def make_shared_secret():
     pass
 
 
+def make_pk():
+    return Keypair.random().public_key()
+
+
 # def test_shared_secret_serialization():
 #     shared_secret = create_shared_secret_instance()
 #     serialized = bytes(shared_secret)
@@ -57,3 +62,9 @@ def test_dkg_public_key_serialization():
     dkg_pk = make_dkg_public_key()
     serialized = bytes(dkg_pk)
     assert len(serialized) == DkgPublicKey.serialized_size()
+
+
+def test_dkg_public_key_serialization():
+    pk = make_pk()
+    serialized = bytes(pk)
+    assert len(serialized) == FerveoPublicKey.serialized_size()

@@ -172,7 +172,18 @@ where
     }
 }
 
-macro_rules! generate_common_methods {
+// TODO: Consider implementing macros to generate following methods
+
+// fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+//     richcmp(self, other, op)
+// }
+
+// fn __hash__(&self) -> PyResult<isize> {
+//     let bytes = self.0.to_bytes()?;
+//     hash(stringify!($struct_name), &bytes)
+// }
+
+macro_rules! generate_bytes_serialization {
     ($struct_name:ident) => {
         #[pymethods]
         impl $struct_name {
@@ -184,17 +195,35 @@ macro_rules! generate_common_methods {
             fn __bytes__(&self) -> PyResult<PyObject> {
                 to_py_bytes(&self.0)
             }
+        }
+    };
+}
 
-            // TODO: Consider implementing this for all structs - Requires PartialOrd and other traits
+macro_rules! generate_boxed_bytes_serialization {
+    ($struct_name:ident, $inner_struct_name:ident) => {
+        #[pymethods]
+        impl $struct_name {
+            #[staticmethod]
+            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+                Ok($struct_name(
+                    $inner_struct_name::from_bytes(bytes).map_err(|err| {
+                        FerveoPythonError::Other(err.to_string())
+                    })?,
+                ))
+            }
 
-            // fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-            //     richcmp(self, other, op)
-            // }
+            fn __bytes__(&self) -> PyResult<PyObject> {
+                let bytes = self
+                    .0
+                    .to_bytes()
+                    .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
+                as_py_bytes(&bytes)
+            }
 
-            // fn __hash__(&self) -> PyResult<isize> {
-            //     let bytes = self.0.to_bytes()?;
-            //     hash(stringify!($struct_name), &bytes)
-            // }
+            #[staticmethod]
+            pub fn serialized_size() -> usize {
+                $inner_struct_name::serialized_size()
+            }
         }
     };
 }
@@ -253,13 +282,13 @@ pub fn decrypt_with_shared_secret(
 #[derive(derive_more::AsRef)]
 pub struct SharedSecret(api::SharedSecret);
 
-generate_common_methods!(SharedSecret);
+generate_bytes_serialization!(SharedSecret);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct Keypair(api::Keypair);
 
-generate_common_methods!(Keypair);
+generate_bytes_serialization!(Keypair);
 
 #[pymethods]
 impl Keypair {
@@ -285,13 +314,15 @@ impl Keypair {
     }
 }
 
+type InnerPublicKey = api::PublicKey;
+
 #[pyclass(module = "ferveo")]
 #[derive(
     Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
 )]
-pub struct FerveoPublicKey(api::PublicKey);
+pub struct FerveoPublicKey(InnerPublicKey);
 
-generate_common_methods!(FerveoPublicKey);
+generate_boxed_bytes_serialization!(FerveoPublicKey, InnerPublicKey);
 
 #[pymethods]
 impl FerveoPublicKey {
@@ -303,7 +334,7 @@ impl FerveoPublicKey {
         let bytes = self
             .0
             .to_bytes()
-            .map_err(|err| FerveoPythonError::FerveoError(err.into()))?;
+            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         hash("FerveoPublicKey", &bytes)
     }
 }
@@ -339,33 +370,15 @@ impl Validator {
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
 pub struct Transcript(api::Transcript);
 
-generate_common_methods!(Transcript);
+generate_bytes_serialization!(Transcript);
+
+type InnerDkgPublicKey = api::DkgPublicKey;
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::From, derive_more::AsRef)]
-pub struct DkgPublicKey(api::DkgPublicKey);
+pub struct DkgPublicKey(InnerDkgPublicKey);
 
-#[pymethods]
-impl DkgPublicKey {
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        Ok(Self(
-            api::DkgPublicKey::from_bytes(bytes)
-                .map_err(FerveoPythonError::FerveoError)?,
-        ))
-    }
-
-    fn __bytes__(&self) -> PyResult<PyObject> {
-        let bytes =
-            self.0.to_bytes().map_err(FerveoPythonError::FerveoError)?;
-        as_py_bytes(&bytes)
-    }
-
-    #[staticmethod]
-    pub fn serialized_size() -> usize {
-        api::DkgPublicKey::serialized_size()
-    }
-}
+generate_boxed_bytes_serialization!(DkgPublicKey, InnerDkgPublicKey);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef, Clone)]
@@ -462,25 +475,25 @@ impl Dkg {
 )]
 pub struct Ciphertext(api::Ciphertext);
 
-generate_common_methods!(Ciphertext);
+generate_bytes_serialization!(Ciphertext);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionShareSimple(api::DecryptionShareSimple);
 
-generate_common_methods!(DecryptionShareSimple);
+generate_bytes_serialization!(DecryptionShareSimple);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(api::DecryptionSharePrecomputed);
 
-generate_common_methods!(DecryptionSharePrecomputed);
+generate_bytes_serialization!(DecryptionSharePrecomputed);
 
 #[pyclass(module = "ferveo")]
 #[derive(derive_more::From, derive_more::AsRef)]
 pub struct AggregatedTranscript(api::AggregatedTranscript);
 
-generate_common_methods!(AggregatedTranscript);
+generate_bytes_serialization!(AggregatedTranscript);
 
 #[pymethods]
 impl AggregatedTranscript {
