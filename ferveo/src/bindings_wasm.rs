@@ -161,6 +161,22 @@ macro_rules! generate_common_methods {
     };
 }
 
+#[wasm_bindgen]
+pub struct FerveoVariant {}
+
+#[wasm_bindgen]
+impl FerveoVariant {
+    #[wasm_bindgen(js_name = "precomputed", getter)]
+    pub fn precomputed() -> String {
+        api::FerveoVariant::Precomputed.as_str().to_string()
+    }
+
+    #[wasm_bindgen(js_name = "simple", getter)]
+    pub fn simple() -> String {
+        api::FerveoVariant::Simple.as_str().to_string()
+    }
+}
+
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]

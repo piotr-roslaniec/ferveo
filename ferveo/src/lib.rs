@@ -101,6 +101,9 @@ pub enum Error {
 
     #[error("Invalid byte length. Expected {0}, got {1}")]
     InvalidByteLength(usize, usize),
+
+    #[error("Invalid variant: {0}")]
+    InvalidVariant(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
