@@ -64,7 +64,7 @@ def test_dkg_public_key_serialization():
     assert len(serialized) == DkgPublicKey.serialized_size()
 
 
-def test_dkg_public_key_serialization():
+def test_public_key_serialization():
     pk = make_pk()
     serialized = bytes(pk)
     assert len(serialized) == FerveoPublicKey.serialized_size()
