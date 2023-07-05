@@ -94,6 +94,9 @@ impl From<FerveoPythonError> for PyErr {
                         expected, actual
                     ))
                 }
+                Error::InvalidVariant(variant) => {
+                    InvalidVariant::new_err(variant.to_string())
+                }
             },
             _ => default(),
         }
@@ -128,6 +131,7 @@ create_exception!(exceptions, ValidatorsNotSorted, PyValueError);
 create_exception!(exceptions, ValidatorPublicKeyMismatch, PyValueError);
 create_exception!(exceptions, SerializationError, PyValueError);
 create_exception!(exceptions, InvalidByteLength, PyValueError);
+create_exception!(exceptions, InvalidVariant, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -265,6 +269,22 @@ pub fn decrypt_with_shared_secret(
 ) -> PyResult<Vec<u8>> {
     api::decrypt_with_shared_secret(&ciphertext.0, aad, &shared_secret.0)
         .map_err(|err| FerveoPythonError::FerveoError(err).into())
+}
+
+#[pyclass(module = "ferveo")]
+struct FerveoVariant {}
+
+#[pymethods]
+impl FerveoVariant {
+    #[staticmethod]
+    fn precomputed() -> &'static str {
+        api::FerveoVariant::Precomputed.as_str()
+    }
+
+    #[staticmethod]
+    fn simple() -> &'static str {
+        api::FerveoVariant::Simple.as_str()
+    }
 }
 
 #[pyclass(module = "ferveo")]
@@ -590,6 +610,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<DkgPublicKey>()?;
     m.add_class::<SharedSecret>()?;
     m.add_class::<ValidatorMessage>()?;
+    m.add_class::<FerveoVariant>()?;
 
     // Exceptions
     m.add(
@@ -645,6 +666,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
         py.get_type::<ValidatorPublicKeyMismatch>(),
     )?;
     m.add("SerializationError", py.get_type::<SerializationError>())?;
+    m.add("InvalidVariant", py.get_type::<InvalidVariant>())?;
 
     Ok(())
 }

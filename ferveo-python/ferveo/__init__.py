@@ -15,6 +15,7 @@ from .ferveo_py import (
     DkgPublicKey,
     SharedSecret,
     ValidatorMessage,
+    FerveoVariant,
     ThresholdEncryptionError,
     InvalidShareNumberParameter,
     InvalidDkgStateToDeal,
@@ -32,4 +33,5 @@ from .ferveo_py import (
     ValidatorsNotSorted,
     ValidatorPublicKeyMismatch,
     SerializationError,
+    InvalidVariant,
 )

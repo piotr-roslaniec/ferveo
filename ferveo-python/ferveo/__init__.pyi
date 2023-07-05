@@ -173,6 +173,14 @@ class SharedSecret:
         ...
 
 
+class FerveoVariant:
+    @staticmethod
+    def simple() -> str: ...
+
+    @staticmethod
+    def precomputed() -> str: ...
+
+
 def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
     ...
 
@@ -262,4 +270,8 @@ class ValidatorPublicKeyMismatch(Exception):
 
 
 class SerializationError(Exception):
+    pass
+
+
+class InvalidVariant(Exception):
     pass
