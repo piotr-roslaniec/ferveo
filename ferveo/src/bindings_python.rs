@@ -172,17 +172,6 @@ where
     }
 }
 
-// TODO: Consider implementing macros to generate following methods
-
-// fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-//     richcmp(self, other, op)
-// }
-
-// fn __hash__(&self) -> PyResult<isize> {
-//     let bytes = self.0.to_bytes()?;
-//     hash(stringify!($struct_name), &bytes)
-// }
-
 macro_rules! generate_bytes_serialization {
     ($struct_name:ident) => {
         #[pymethods]
@@ -326,6 +315,7 @@ generate_boxed_bytes_serialization!(FerveoPublicKey, InnerPublicKey);
 
 #[pymethods]
 impl FerveoPublicKey {
+    // We implement `__richcmp__` because FerveoPublicKeys must be sortable in some cases
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
         richcmp(self, other, op)
     }
@@ -857,7 +847,6 @@ mod test_ferveo_python {
 
         let shared_secret = combine_decryption_shares_simple(decryption_shares);
 
-        // TODO: Fails because of a bad shared secret
         let plaintext =
             decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
                 .unwrap();

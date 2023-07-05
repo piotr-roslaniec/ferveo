@@ -363,6 +363,14 @@ mod test_ferveo_api {
     }
 
     #[test]
+    fn test_dkg_pk_serialization() {
+        let dkg_pk = DkgPublicKey::random();
+        let serialized = dkg_pk.to_bytes().unwrap();
+        let deserialized = DkgPublicKey::from_bytes(&serialized).unwrap();
+        assert_eq!(dkg_pk, deserialized);
+    }
+
+    #[test]
     fn test_server_api_tdec_precomputed() {
         let rng = &mut StdRng::seed_from_u64(0);
 

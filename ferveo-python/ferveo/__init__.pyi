@@ -36,6 +36,9 @@ class FerveoPublicKey:
     def __hash__(self) -> int:
         ...
 
+    def __richcmp__(self, other: FerveoPublicKey, op: int) -> bool:
+        ...
+
 
 class Validator:
 

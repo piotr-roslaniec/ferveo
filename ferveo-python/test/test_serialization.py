@@ -4,6 +4,7 @@ from ferveo_py import (
     Dkg,
     DkgPublicKey,
     FerveoPublicKey,
+    SharedSecret,
 )
 
 
@@ -35,7 +36,8 @@ def make_dkg_public_key():
 
 
 def make_shared_secret():
-    # TODO: implement this
+    # TODO: Implement this
+    # SharedSecret.from_bytes(os.urandom(584))
     pass
 
 
@@ -44,27 +46,34 @@ def make_pk():
 
 
 # def test_shared_secret_serialization():
-#     shared_secret = create_shared_secret_instance()
+#     shared_secret = make_shared_secret()
 #     serialized = bytes(shared_secret)
 #     deserialized = SharedSecret.from_bytes(serialized)
-#     TODO: Implement comparison
-#     assert shared_secret == deserialized
+#     # TODO: Implement __richcmp__
+#     # assert shared_secret == deserialized
+#     assert serialized == bytes(deserialized)
 
 def test_keypair_serialization():
     keypair = Keypair.random()
     serialized = bytes(keypair)
     deserialized = Keypair.from_bytes(serialized)
-    # TODO: Implement comparison
-    # assert keypair == deserialized
+    # TODO: Implement __richcmp__
+    # assert serialized == deserialized
+    assert serialized == bytes(deserialized)
 
 
 def test_dkg_public_key_serialization():
     dkg_pk = make_dkg_public_key()
     serialized = bytes(dkg_pk)
+    deserialized = DkgPublicKey.from_bytes(serialized)
+    # TODO: Implement __richcmp__
+    assert serialized == bytes(deserialized)
     assert len(serialized) == DkgPublicKey.serialized_size()
 
 
 def test_public_key_serialization():
     pk = make_pk()
     serialized = bytes(pk)
+    deserialized = FerveoPublicKey.from_bytes(serialized)
+    assert pk == deserialized
     assert len(serialized) == FerveoPublicKey.serialized_size()
