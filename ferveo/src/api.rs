@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt, io};
 
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -67,6 +67,38 @@ pub fn decrypt_with_shared_secret(
         &dkg_public_params.g1_inv,
     )
     .map_err(Error::from)
+}
+
+/// The ferveo variant to use for the decryption share derivation.
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Copy, Clone)]
+pub enum FerveoVariant {
+    /// The simple variant requires m of n shares to decrypt
+    Simple,
+    /// The precomputed variant requires n of n shares to decrypt
+    Precomputed,
+}
+
+impl fmt::Display for FerveoVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl FerveoVariant {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FerveoVariant::Simple => "FerveoVariant::Simple",
+            FerveoVariant::Precomputed => "FerveoVariant::Precomputed",
+        }
+    }
+
+    pub fn from_string(s: &str) -> Result<Self> {
+        match s {
+            "FerveoVariant::Simple" => Ok(FerveoVariant::Simple),
+            "FerveoVariant::Precomputed" => Ok(FerveoVariant::Precomputed),
+            _ => Err(Error::InvalidVariant(s.to_string())),
+        }
+    }
 }
 
 #[serde_as]

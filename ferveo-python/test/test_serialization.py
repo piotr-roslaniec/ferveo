@@ -4,6 +4,7 @@ from ferveo_py import (
     Dkg,
     DkgPublicKey,
     FerveoPublicKey,
+    FerveoVariant,
     SharedSecret,
 )
 
@@ -77,3 +78,8 @@ def test_public_key_serialization():
     deserialized = FerveoPublicKey.from_bytes(serialized)
     assert pk == deserialized
     assert len(serialized) == FerveoPublicKey.serialized_size()
+
+
+def test_ferveo_variant_serialization():
+    assert FerveoVariant.precomputed() == "FerveoVariant::Precomputed"
+    assert FerveoVariant.simple() == "FerveoVariant::Simple"
