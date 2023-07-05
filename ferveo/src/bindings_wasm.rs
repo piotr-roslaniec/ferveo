@@ -99,7 +99,19 @@ fn unwrap_messages_js(
     Ok(messages)
 }
 
-macro_rules! generate_common_methods {
+macro_rules! generate_equals {
+    ($struct_name:ident) => {
+        #[wasm_bindgen]
+        impl $struct_name {
+            #[wasm_bindgen]
+            pub fn equals(&self, other: &$struct_name) -> bool {
+                self.0 == other.0
+            }
+        }
+    };
+}
+
+macro_rules! generate_bytes_serialization {
     ($struct_name:ident) => {
         #[wasm_bindgen]
         impl $struct_name {
@@ -112,12 +124,40 @@ macro_rules! generate_common_methods {
             pub fn to_bytes(&self) -> JsResult<Vec<u8>> {
                 to_js_bytes(&self.0)
             }
+        }
+    };
+}
 
-            #[wasm_bindgen]
-            pub fn equals(&self, other: &$struct_name) -> bool {
-                self.0 == other.0
+macro_rules! generate_boxed_bytes_serialization {
+    ($struct_name:ident, $inner_struct_name:ident) => {
+        #[wasm_bindgen]
+        impl $struct_name {
+            #[wasm_bindgen(js_name = "fromBytes")]
+            pub fn from_bytes(bytes: &[u8]) -> JsResult<$struct_name> {
+                $inner_struct_name::from_bytes(bytes)
+                    .map_err(map_js_err)
+                    .map(Self)
+            }
+
+            #[wasm_bindgen(js_name = "toBytes")]
+            pub fn to_bytes(&self) -> JsResult<Box<[u8]>> {
+                let bytes = self.0.to_bytes().map_err(map_js_err)?;
+                let bytes: Box<[u8]> = bytes.as_slice().into();
+                Ok(bytes)
+            }
+
+            #[wasm_bindgen(js_name = "serializedSize")]
+            pub fn serialized_size() -> usize {
+                $inner_struct_name::serialized_size()
             }
         }
+    };
+}
+
+macro_rules! generate_common_methods {
+    ($struct_name:ident) => {
+        generate_equals!($struct_name);
+        generate_bytes_serialization!($struct_name);
     };
 }
 
@@ -135,13 +175,16 @@ pub struct DecryptionSharePrecomputed(tpke::api::DecryptionSharePrecomputed);
 
 generate_common_methods!(DecryptionSharePrecomputed);
 
+type InnerPublicKey = api::PublicKey;
+
 #[wasm_bindgen]
 #[derive(
     Clone, Debug, derive_more::AsRef, derive_more::From, derive_more::Into,
 )]
-pub struct FerveoPublicKey(api::PublicKey);
+pub struct FerveoPublicKey(InnerPublicKey);
 
-generate_common_methods!(FerveoPublicKey);
+generate_equals!(FerveoPublicKey);
+generate_boxed_bytes_serialization!(FerveoPublicKey, InnerPublicKey);
 
 #[wasm_bindgen]
 #[derive(
@@ -212,38 +255,19 @@ pub fn decrypt_with_shared_secret(
         .map_err(map_js_err)
 }
 
+type InnerDkgPublicKey = api::DkgPublicKey;
+
 #[wasm_bindgen]
-pub struct DkgPublicKey(api::DkgPublicKey);
+pub struct DkgPublicKey(InnerDkgPublicKey);
+
+generate_equals!(DkgPublicKey);
+generate_boxed_bytes_serialization!(DkgPublicKey, InnerDkgPublicKey);
 
 #[wasm_bindgen]
 impl DkgPublicKey {
-    #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<DkgPublicKey> {
-        api::DkgPublicKey::from_bytes(bytes)
-            .map_err(map_js_err)
-            .map(Self)
-    }
-
-    #[wasm_bindgen(js_name = "toBytes")]
-    pub fn to_bytes(&self) -> JsResult<Box<[u8]>> {
-        let bytes = self.0.to_bytes().map_err(map_js_err)?;
-        let bytes: Box<[u8]> = bytes.as_slice().into();
-        Ok(bytes)
-    }
-
     #[wasm_bindgen]
     pub fn random() -> DkgPublicKey {
         Self(api::DkgPublicKey::random())
-    }
-
-    #[wasm_bindgen(js_name = "serializedSize")]
-    pub fn serialized_size() -> usize {
-        api::DkgPublicKey::serialized_size()
-    }
-
-    #[wasm_bindgen]
-    pub fn equals(&self, other: &DkgPublicKey) -> bool {
-        self.0 == other.0
     }
 }
 
