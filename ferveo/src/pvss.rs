@@ -71,7 +71,7 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
 
 /// Secret polynomial used in the PVSS protocol
 /// We wrap this in a struct so that we can zeroize it after use
-struct SecretPolynomial<E: Pairing>(DensePolynomial<E::ScalarField>);
+pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<E::ScalarField>);
 
 impl<E: Pairing> SecretPolynomial<E> {
     pub fn new(
@@ -224,7 +224,7 @@ pub fn do_verify_full<E: Pairing>(
     pvss_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
-    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    domain: &ark_poly::GeneralEvaluationDomain<E::ScalarField>,
 ) -> bool {
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
     domain.fft_in_place(&mut commitment);
@@ -256,7 +256,7 @@ pub fn do_verify_aggregation<E: Pairing>(
     pvss_agg_encrypted_shares: &[E::G2Affine],
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
-    domain: &ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    domain: &ark_poly::GeneralEvaluationDomain<E::ScalarField>,
     vss: &PVSSMap<E>,
 ) -> Result<bool> {
     let is_valid = do_verify_full(
@@ -346,6 +346,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         )
         .map_err(|e| e.into())
     }
+
     pub fn make_decryption_share_simple_precomputed(
         &self,
         ciphertext: &Ciphertext<E>,
@@ -358,6 +359,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         let private_key_share = self
             .decrypt_private_key_share(validator_decryption_key, share_index);
 
+        // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
 
         DecryptionSharePrecomputed::new(

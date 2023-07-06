@@ -9,10 +9,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate,
-    utils::{is_power_of_2, is_sorted},
-    AggregatedPvss, Error, EthereumAddress, PubliclyVerifiableParams,
-    PubliclyVerifiableSS, Pvss, Result, Validator,
+    aggregate, utils::is_sorted, AggregatedPvss, Error, EthereumAddress,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result, Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -61,7 +59,7 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub pvss_params: PubliclyVerifiableParams<E>,
     pub validators: ValidatorsMap<E>,
     pub vss: PVSSMap<E>,
-    pub domain: ark_poly::Radix2EvaluationDomain<E::ScalarField>,
+    pub domain: ark_poly::GeneralEvaluationDomain<E::ScalarField>,
     pub me: DkgValidator<E>,
     pub state: DkgState<E>,
 }
@@ -78,13 +76,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         dkg_params: &DkgParams,
         me: &Validator<E>,
     ) -> Result<Self> {
-        // Make sure that the number of shares is a power of 2 for the FFT to work (Radix-2 FFT domain is being used)
-        if !is_power_of_2(dkg_params.shares_num) {
-            return Err(Error::InvalidShareNumberParameter(
-                dkg_params.shares_num,
-            ));
-        }
-        let domain = ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(
+        let domain = ark_poly::GeneralEvaluationDomain::<E::ScalarField>::new(
             dkg_params.shares_num as usize,
         )
         .expect("unable to construct domain");

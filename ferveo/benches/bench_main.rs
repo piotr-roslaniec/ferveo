@@ -7,4 +7,5 @@ criterion_main! {
     // bench_batch_inverse,
     // benchmarks::pairing::ec,
     benchmarks::validity_checks::validity_checks,
+    benchmarks::eval_domain::eval_domain,
 }
