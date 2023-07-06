@@ -9,7 +9,7 @@ use ark_ec::{
 use ark_ff::{FftField, Field, Zero};
 use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
-    MixedRadixEvaluationDomain, Polynomial,
+    GeneralEvaluationDomain, Polynomial,
 };
 
 /// Compute a fast multiexp of many scalars times the same base
@@ -342,7 +342,7 @@ pub fn toeplitz_mul<E: Pairing, const NORMALIZE: bool>(
     let m = polynomial.coeffs.len() - 1;
     let size = ark_std::cmp::max(size, m);
 
-    let domain = MixedRadixEvaluationDomain::<E::ScalarField>::new(2 * size)
+    let domain = GeneralEvaluationDomain::<E::ScalarField>::new(2 * size)
         .ok_or_else(|| {
             anyhow::anyhow!("toeplitz multiplication on too large a domain")
         })?;

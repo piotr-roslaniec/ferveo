@@ -94,7 +94,7 @@ pub mod test_common {
             DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
+            ark_poly::GeneralEvaluationDomain::<E::ScalarField>::new(
                 shares_num,
             )
             .unwrap();
@@ -123,9 +123,9 @@ pub mod test_common {
 
         for _ in 0..shares_num {
             domain_points.push(point); // 1, t, t^2, t^3, ...; where t is a scalar generator fft_domain.group_gen
-            point *= fft_domain.group_gen;
+            point *= fft_domain.group_gen();
             domain_points_inv.push(point_inv);
-            point_inv *= fft_domain.group_gen_inv;
+            point_inv *= fft_domain.group_gen_inv();
         }
 
         let mut private_contexts = vec![];
@@ -195,7 +195,7 @@ pub mod test_common {
             DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
+            ark_poly::GeneralEvaluationDomain::<E::ScalarField>::new(
                 shares_num,
             )
             .unwrap();

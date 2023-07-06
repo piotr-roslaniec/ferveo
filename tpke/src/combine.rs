@@ -161,14 +161,13 @@ mod tests {
         use ark_poly::EvaluationDomain;
         use ark_std::One;
         let fft_domain =
-            ark_poly::MixedRadixEvaluationDomain::<ScalarField>::new(500)
-                .unwrap();
+            ark_poly::GeneralEvaluationDomain::<ScalarField>::new(500).unwrap();
 
         let mut domain = Vec::with_capacity(500);
         let mut point = ScalarField::one();
         for _ in 0..500 {
             domain.push(point);
-            point *= fft_domain.group_gen;
+            point *= fft_domain.group_gen();
         }
 
         let mut lagrange_n_0 = domain.iter().product::<ScalarField>();
