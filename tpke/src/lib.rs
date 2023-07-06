@@ -94,8 +94,10 @@ pub mod test_common {
             DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(shares_num)
-                .unwrap();
+            ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
+                shares_num,
+            )
+            .unwrap();
         // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
         let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 
@@ -193,8 +195,10 @@ pub mod test_common {
             DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
         // Domain, or omega Ω
         let fft_domain =
-            ark_poly::Radix2EvaluationDomain::<E::ScalarField>::new(shares_num)
-                .unwrap();
+            ark_poly::MixedRadixEvaluationDomain::<E::ScalarField>::new(
+                shares_num,
+            )
+            .unwrap();
         // `evals` are evaluations of the polynomial f over the domain, omega: f(ω_j) for ω_j in Ω
         let evals = threshold_poly.evaluate_over_domain_by_ref(fft_domain);
 

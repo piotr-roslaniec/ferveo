@@ -346,6 +346,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         )
         .map_err(|e| e.into())
     }
+
     pub fn make_decryption_share_simple_precomputed(
         &self,
         ciphertext: &Ciphertext<E>,
@@ -358,6 +359,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         let private_key_share = self
             .decrypt_private_key_share(validator_decryption_key, share_index);
 
+        // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
 
         DecryptionSharePrecomputed::new(

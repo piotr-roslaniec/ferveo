@@ -166,7 +166,6 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
         check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
-
         Self::create_unchecked(
             validator_index,
             validator_decryption_key,

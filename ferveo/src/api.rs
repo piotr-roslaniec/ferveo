@@ -238,7 +238,12 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
-        let domain_points: Vec<_> = dkg.0.domain.elements().collect();
+        let domain_points: Vec<_> = dkg
+            .0
+            .domain
+            .elements()
+            .take(dkg.0.dkg_params.shares_num as usize)
+            .collect();
         self.0.make_decryption_share_simple_precomputed(
             ciphertext,
             aad,
@@ -428,6 +433,8 @@ mod test_ferveo_api {
                         assert!(pvss_aggregated
                             .verify(shares_num, &messages)
                             .unwrap());
+
+                        // And then each validator creates their own decryption share
                         aggregate
                             .create_decryption_share_precomputed(
                                 &dkg,

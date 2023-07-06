@@ -161,7 +161,8 @@ mod tests {
         use ark_poly::EvaluationDomain;
         use ark_std::One;
         let fft_domain =
-            ark_poly::Radix2EvaluationDomain::<ScalarField>::new(500).unwrap();
+            ark_poly::MixedRadixEvaluationDomain::<ScalarField>::new(500)
+                .unwrap();
 
         let mut domain = Vec::with_capacity(500);
         let mut point = ScalarField::one();
