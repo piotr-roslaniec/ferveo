@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.1.0 (2023-07-07)
 
+### Chore
+
+ - <csr-id-ca43921af214903e2d1345bb05b5f9c6e1987919/> adjust changelogs for cargo-smart-release
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 28 commits contributed to the release over the course of 570 calendar days.
- - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 29 commits contributed to the release over the course of 570 calendar days.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#72](https://github.com/nucypher/ferveo/issues/72)
 
 ### Commit Details
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#72](https://github.com/nucypher/ferveo/issues/72)**
     - Refactor subproductdomain ([`2d8026b`](https://github.com/nucypher/ferveo/commit/2d8026b2299fd9b67c77fb3b4e565ff9f4e6505b))
  * **Uncategorized**
+    - Adjust changelogs for cargo-smart-release ([`ca43921`](https://github.com/nucypher/ferveo/commit/ca43921af214903e2d1345bb05b5f9c6e1987919))
     - Release 0.1.0 crate versions ([`c02e305`](https://github.com/nucypher/ferveo/commit/c02e3050b7a9dcf0260a5eb4e42ff74f3788c3bf))
     - Merge pull request #134 from piotr-roslaniec/remove-ftt-opt ([`2338213`](https://github.com/nucypher/ferveo/commit/23382139265bc043769d41f4da9e0998f9ba9757))
     - Use general evaluation domain ([`2c20efb`](https://github.com/nucypher/ferveo/commit/2c20efb59d7d1075d6b1413b2ae7fbb55c422143))
