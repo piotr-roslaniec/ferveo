@@ -7,18 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.1.0 (2023-07-07)
 
+<csr-id-ab6701666e3b05bd783ce0309025e842fa83e4c1/>
+<csr-id-d786fae33b01cd0863f29b70810dfcc847f2542b/>
+<csr-id-ec58fe1828d0560525c80cd1dc4013915b0ac54e/>
+
 ### Other
 
  - <csr-id-ab6701666e3b05bd783ce0309025e842fa83e4c1/> Made ferveo-common wasm compatible (a tiny change). Fixes a world of pain upstream in Anoma
  - <csr-id-d786fae33b01cd0863f29b70810dfcc847f2542b/> Formatting
  - <csr-id-ec58fe1828d0560525c80cd1dc4013915b0ac54e/> Removed the announce phase from the dkg
 
+### Chore
+
+ - <csr-id-0eb5bd48b598709dd0fc54adb424f5f41ce52e92/> adjust changelogs for cargo-smart-release
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 81 commits contributed to the release over the course of 652 calendar days.
- - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 82 commits contributed to the release over the course of 652 calendar days.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 4 unique issues were worked on: [#68](https://github.com/nucypher/ferveo/issues/68), [#70](https://github.com/nucypher/ferveo/issues/70), [#71](https://github.com/nucypher/ferveo/issues/71), [#72](https://github.com/nucypher/ferveo/issues/72)
 
 ### Commit Details
@@ -36,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#72](https://github.com/nucypher/ferveo/issues/72)**
     - Refactor subproductdomain ([`2d8026b`](https://github.com/nucypher/ferveo/commit/2d8026b2299fd9b67c77fb3b4e565ff9f4e6505b))
  * **Uncategorized**
+    - Adjust changelogs for cargo-smart-release ([`0eb5bd4`](https://github.com/nucypher/ferveo/commit/0eb5bd48b598709dd0fc54adb424f5f41ce52e92))
     - Release 0.1.0 crate versions ([`c02e305`](https://github.com/nucypher/ferveo/commit/c02e3050b7a9dcf0260a5eb4e42ff74f3788c3bf))
     - Release ferveo-common-pre-release@0.1.0-alpha.1 ([`2725ba4`](https://github.com/nucypher/ferveo/commit/2725ba455e2ae169af5be64c5f2261ec0c5ea648))
     - Merge pull request #136 from nucypher/pk-static-bytes ([`2b64c2e`](https://github.com/nucypher/ferveo/commit/2b64c2e8e5e594acffde734b65d212fde3df99e9))

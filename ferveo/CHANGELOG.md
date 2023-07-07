@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.2.0 (2023-07-07)
 
+<csr-id-caef6ef73dd43a9952d783fcf18abb893b36635f/>
+<csr-id-159475028209948eb40388458a24b0a086afc311/>
+<csr-id-d3fb002e52774cd14bff0d1187a2634fad6eea51/>
+<csr-id-d786fae33b01cd0863f29b70810dfcc847f2542b/>
+<csr-id-09f26b39ddc71d9a4b1f226e2dafbdb4c51a7caa/>
+<csr-id-ec58fe1828d0560525c80cd1dc4013915b0ac54e/>
+
 ### New Features
 
  - <csr-id-e8d05981ee2cc983966c037babeebe5ba0134ffc/> expose ferveo variant in bindings
@@ -25,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-09f26b39ddc71d9a4b1f226e2dafbdb4c51a7caa/> Added retry logic to the dkg
  - <csr-id-ec58fe1828d0560525c80cd1dc4013915b0ac54e/> Removed the announce phase from the dkg
 
+### Chore
+
+ - <csr-id-0eb5bd48b598709dd0fc54adb424f5f41ce52e92/> adjust changelogs for cargo-smart-release
+
 ### New Features (BREAKING)
 
  - <csr-id-8b6e6f5834d7b736a1d7baf3ddbfa7c60837b9bb/> hide dkg public params from bindings
@@ -37,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 260 commits contributed to the release over the course of 652 calendar days.
- - 11 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 261 commits contributed to the release over the course of 652 calendar days.
+ - 12 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 4 unique issues were worked on: [#68](https://github.com/nucypher/ferveo/issues/68), [#70](https://github.com/nucypher/ferveo/issues/70), [#71](https://github.com/nucypher/ferveo/issues/71), [#72](https://github.com/nucypher/ferveo/issues/72)
 
 ### Commit Details
@@ -56,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#72](https://github.com/nucypher/ferveo/issues/72)**
     - Refactor subproductdomain ([`2d8026b`](https://github.com/nucypher/ferveo/commit/2d8026b2299fd9b67c77fb3b4e565ff9f4e6505b))
  * **Uncategorized**
+    - Adjust changelogs for cargo-smart-release ([`0eb5bd4`](https://github.com/nucypher/ferveo/commit/0eb5bd48b598709dd0fc54adb424f5f41ce52e92))
     - Adjusting changelogs prior to release of ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`0ccba13`](https://github.com/nucypher/ferveo/commit/0ccba13b0608e2023d8792ac9b0402af5ebaad0b))
     - Release 0.1.0 crate versions ([`c02e305`](https://github.com/nucypher/ferveo/commit/c02e3050b7a9dcf0260a5eb4e42ff74f3788c3bf))
     - Release ferveo-common-pre-release@0.1.0-alpha.1 ([`2725ba4`](https://github.com/nucypher/ferveo/commit/2725ba455e2ae169af5be64c5f2261ec0c5ea648))
