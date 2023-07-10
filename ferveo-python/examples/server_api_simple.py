@@ -1,4 +1,4 @@
-from ferveo_py import (
+from ferveo import (
     encrypt,
     combine_decryption_shares_simple,
     decrypt_with_shared_secret,

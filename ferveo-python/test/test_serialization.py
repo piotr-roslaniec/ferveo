@@ -1,4 +1,4 @@
-from ferveo_py import (
+from ferveo import (
     Keypair,
     Validator,
     Dkg,

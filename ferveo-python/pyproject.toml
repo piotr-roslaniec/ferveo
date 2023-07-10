@@ -1,14 +1,18 @@
-[build-system]
-requires = ["maturin>=0.14,<0.15"]
-build-backend = "maturin"
+#[build-system]
+#requires = ["maturin>=0.14,<0.15"]
+#build-backend = "maturin"
+#
+#[project]
+#name = "ferveo"
+#requires-python = ">=3.7"
+#classifiers = [
+#    "Programming Language :: Rust",
+#    "Programming Language :: Python :: Implementation :: CPython",
+#    "Programming Language :: Python :: Implementation :: PyPy",
+#]
+#
 
-[project]
-name = "ferveo"
-requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
-]
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-rust"]
 
 

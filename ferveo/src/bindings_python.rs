@@ -193,6 +193,7 @@ macro_rules! generate_boxed_bytes_serialization {
         #[pymethods]
         impl $struct_name {
             #[staticmethod]
+            #[pyo3(signature = (bytes))]
             pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
                 Ok($struct_name(
                     $inner_struct_name::from_bytes(bytes).map_err(|err| {

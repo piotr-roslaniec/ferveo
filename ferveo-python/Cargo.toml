@@ -8,7 +8,6 @@ publish = false
 
 [lib]
 crate-type = ["cdylib"]
-name = "ferveo_py"
 
 [features]
 extension-module = ["pyo3/extension-module"]

@@ -175,11 +175,15 @@ jobs:
         run: python examples/server_api_simple.py
         working-directory: ferveo-python
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install pip dependencies
+        run: pip install pytest mypy
 
       - name: Run pytest
         run: pytest
+        working-directory: ferveo-python
+
+      - name: Run mypy.stubtest
+        run: python -m mypy.stubtest ferveo
         working-directory: ferveo-python
 
   codecov:

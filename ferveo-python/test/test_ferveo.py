@@ -1,6 +1,6 @@
 import pytest
 
-from ferveo_py import (
+from ferveo import (
     encrypt,
     combine_decryption_shares_simple,
     combine_decryption_shares_precomputed,
