@@ -742,22 +742,22 @@ dependencies = [
 
 [[package]]
 name = "ferveo-common-pre-release"
-version = "0.1.0-alpha.0"
+version = "0.1.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
  "ark-serialize",
  "ark-std",
  "bincode",
+ "generic-array",
  "rand 0.8.5",
- "rand_core 0.6.4",
  "serde",
  "serde_with",
 ]
 
 [[package]]
 name = "ferveo-pre-release"
-version = "0.1.0-alpha.10"
+version = "0.2.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-python"
-version = "0.1.0-alpha.0"
+version = "0.1.0"
 dependencies = [
  "ferveo-pre-release",
  "pyo3",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-wasm"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "ferveo-pre-release",
  "itertools",
@@ -881,7 +881,7 @@ checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
 
 [[package]]
 name = "group-threshold-cryptography-pre-release"
-version = "0.1.0-alpha.0"
+version = "0.1.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -1792,7 +1792,7 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "subproductdomain-pre-release"
-version = "0.1.0-alpha.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "ark-bls12-381",

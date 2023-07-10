@@ -6,28 +6,26 @@ use ark_std::{
     rand::{prelude::StdRng, RngCore, SeedableRng},
     UniformRand,
 };
-use rand_core::Error;
+use generic_array::{typenum::U96, GenericArray};
 use serde::*;
 use serde_with::serde_as;
 
-use crate::serialization;
+use crate::{serialization, Error, Result};
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
 // and Fr types. So instead, we're using this shared utility function:
-pub fn to_bytes<T: CanonicalSerialize>(
-    item: &T,
-) -> Result<Vec<u8>, ark_serialize::SerializationError> {
+pub fn to_bytes<T: CanonicalSerialize>(item: &T) -> Result<Vec<u8>> {
     let mut writer = Vec::new();
-    item.serialize_compressed(&mut writer)?;
+    item.serialize_compressed(&mut writer)
+        .map_err(Error::SerializationError)?;
     Ok(writer)
 }
 
-pub fn from_bytes<T: CanonicalDeserialize>(
-    bytes: &[u8],
-) -> Result<T, ark_serialize::SerializationError> {
+pub fn from_bytes<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T> {
     let mut reader = io::Cursor::new(bytes);
-    let item = T::deserialize_compressed(&mut reader)?;
+    let item = T::deserialize_compressed(&mut reader)
+        .map_err(Error::SerializationError)?;
     Ok(item)
 }
 
@@ -39,17 +37,25 @@ pub struct PublicKey<E: Pairing> {
 }
 
 impl<E: Pairing> PublicKey<E> {
-    pub fn to_bytes(
-        &self,
-    ) -> Result<Vec<u8>, ark_serialize::SerializationError> {
-        to_bytes(&self.encryption_key)
+    pub fn to_bytes(&self) -> Result<GenericArray<u8, U96>> {
+        let as_bytes = to_bytes(&self.encryption_key)?;
+        Ok(GenericArray::<u8, U96>::from_slice(&as_bytes).to_owned())
     }
 
-    pub fn from_bytes(
-        bytes: &[u8],
-    ) -> Result<Self, ark_serialize::SerializationError> {
-        let encryption_key = from_bytes(bytes)?;
-        Ok(PublicKey::<E> { encryption_key })
+    pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey<E>> {
+        let bytes =
+            GenericArray::<u8, U96>::from_exact_iter(bytes.iter().cloned())
+                .ok_or_else(|| {
+                    Error::InvalidByteLength(
+                        Self::serialized_size(),
+                        bytes.len(),
+                    )
+                })?;
+        from_bytes(&bytes).map(|encryption_key| PublicKey { encryption_key })
+    }
+
+    pub fn serialized_size() -> usize {
+        96
     }
 }
 
@@ -129,9 +135,9 @@ impl<E: Pairing> Keypair<E> {
         32
     }
 
-    pub fn from_secure_randomness(bytes: &[u8]) -> Result<Self, Error> {
+    pub fn from_secure_randomness(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != Self::secure_randomness_size() {
-            return Err(Error::new("Invalid seed length"));
+            return Err(Error::InvalidSeedLength(bytes.len()));
         }
         let mut seed = [0; 32];
         seed.copy_from_slice(bytes);

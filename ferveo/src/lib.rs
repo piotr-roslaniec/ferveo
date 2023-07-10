@@ -31,10 +31,6 @@ pub enum Error {
     #[error(transparent)]
     ThresholdEncryptionError(#[from] tpke::Error),
 
-    /// Number of shares parameter must be a power of two
-    #[error("Number of shares parameter must be a power of two. Got {0}")]
-    InvalidShareNumberParameter(u32),
-
     /// DKG is not in a valid state to deal PVSS shares
     #[error("Invalid DKG state to deal PVSS shares")]
     InvalidDkgStateToDeal,
@@ -101,6 +97,9 @@ pub enum Error {
 
     #[error("Invalid byte length. Expected {0}, got {1}")]
     InvalidByteLength(usize, usize),
+
+    #[error("Invalid variant: {0}")]
+    InvalidVariant(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -170,17 +169,17 @@ mod test_dkg_full {
                 })
                 .collect();
 
-        let domain = &dkg
+        let domain_points = &dkg
             .domain
             .elements()
             .take(decryption_shares.len())
             .collect::<Vec<_>>();
-        assert_eq!(domain.len(), decryption_shares.len());
+        assert_eq!(domain_points.len(), decryption_shares.len());
 
         // TODO: Consider refactor this part into tpke::combine_simple and expose it
         //  as a public API in tpke::api
 
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(domain);
+        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(domain_points);
         let shared_secret = tpke::share_combine_simple::<E>(
             &decryption_shares,
             &lagrange_coeffs,
@@ -193,89 +192,103 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec() {
         let rng = &mut test_rng();
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.public_key();
-        let ciphertext = tpke::encrypt::<E>(
-            SecretBox::new(msg.clone()),
-            aad,
-            &public_key,
-            rng,
-        )
-        .unwrap();
+        // Works for both power of 2 and non-power of 2
+        for shares_num in [4, 7] {
+            let threshold = shares_num / 2 + 1;
+            let (dkg, validator_keypairs) =
+                setup_dealt_dkg_with_n_validators(threshold, shares_num);
+            let msg = "my-msg".as_bytes().to_vec();
+            let aad: &[u8] = "my-aad".as_bytes();
+            let public_key = dkg.public_key();
+            let ciphertext = tpke::encrypt::<E>(
+                SecretBox::new(msg.clone()),
+                aad,
+                &public_key,
+                rng,
+            )
+            .unwrap();
 
-        let (_, _, shared_secret) = make_shared_secret_simple_tdec(
-            &dkg,
-            aad,
-            &ciphertext,
-            &validator_keypairs,
-        );
+            let (_, _, shared_secret) = make_shared_secret_simple_tdec(
+                &dkg,
+                aad,
+                &ciphertext,
+                &validator_keypairs,
+            );
 
-        let plaintext = tpke::decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-            &dkg.pvss_params.g_inv(),
-        )
-        .unwrap();
-        assert_eq!(plaintext, msg);
+            let plaintext = tpke::decrypt_with_shared_secret(
+                &ciphertext,
+                aad,
+                &shared_secret,
+                &dkg.pvss_params.g_inv(),
+            )
+            .unwrap();
+            assert_eq!(plaintext, msg);
+        }
     }
 
     #[test]
     fn test_dkg_simple_tdec_precomputed() {
         let rng = &mut test_rng();
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.public_key();
-        let ciphertext = tpke::encrypt::<E>(
-            SecretBox::new(msg.clone()),
-            aad,
-            &public_key,
-            rng,
-        )
-        .unwrap();
+        // Works for both power of 2 and non-power of 2
+        for shares_num in [4, 7] {
+            // In precomputed variant, threshold must be equal to shares_num
+            let threshold = shares_num;
+            let (dkg, validator_keypairs) =
+                setup_dealt_dkg_with_n_validators(threshold, shares_num);
+            let msg = "my-msg".as_bytes().to_vec();
+            let aad: &[u8] = "my-aad".as_bytes();
+            let public_key = dkg.public_key();
+            let ciphertext = tpke::encrypt::<E>(
+                SecretBox::new(msg.clone()),
+                aad,
+                &public_key,
+                rng,
+            )
+            .unwrap();
 
-        let pvss_aggregated = aggregate(&dkg.vss);
-        pvss_aggregated.verify_aggregation(&dkg).unwrap();
-        let domain_points = dkg
-            .domain
-            .elements()
-            .take(validator_keypairs.len())
-            .collect::<Vec<_>>();
+            let pvss_aggregated = aggregate(&dkg.vss);
+            pvss_aggregated.verify_aggregation(&dkg).unwrap();
+            let domain_points = dkg
+                .domain
+                .elements()
+                .take(validator_keypairs.len())
+                .collect::<Vec<_>>();
 
-        let decryption_shares: Vec<DecryptionSharePrecomputed<E>> =
-            validator_keypairs
-                .iter()
-                .enumerate()
-                .map(|(validator_address, validator_keypair)| {
-                    pvss_aggregated
-                        .make_decryption_share_simple_precomputed(
-                            &ciphertext,
-                            aad,
-                            &validator_keypair.decryption_key,
-                            validator_address,
-                            &domain_points,
-                            &dkg.pvss_params.g_inv(),
-                        )
-                        .unwrap()
-                })
-                .collect();
+            let decryption_shares: Vec<DecryptionSharePrecomputed<E>> =
+                validator_keypairs
+                    .iter()
+                    .map(|validator_keypair| {
+                        let validator = dkg
+                            .get_validator(&validator_keypair.public_key())
+                            .unwrap();
+                        pvss_aggregated
+                            .make_decryption_share_simple_precomputed(
+                                &ciphertext,
+                                aad,
+                                &validator_keypair.decryption_key,
+                                validator.share_index,
+                                &domain_points,
+                                &dkg.pvss_params.g_inv(),
+                            )
+                            .unwrap()
+                    })
+                    .collect();
+            assert_eq!(domain_points.len(), decryption_shares.len());
 
-        let shared_secret =
-            tpke::share_combine_precomputed::<E>(&decryption_shares);
+            let shared_secret =
+                tpke::share_combine_precomputed::<E>(&decryption_shares);
 
-        // Combination works, let's decrypt
-        let plaintext = tpke::decrypt_with_shared_secret(
-            &ciphertext,
-            aad,
-            &shared_secret,
-            &dkg.pvss_params.g_inv(),
-        )
-        .unwrap();
-        assert_eq!(plaintext, msg);
+            // Combination works, let's decrypt
+            let plaintext = tpke::decrypt_with_shared_secret(
+                &ciphertext,
+                aad,
+                &shared_secret,
+                &dkg.pvss_params.g_inv(),
+            )
+            .unwrap();
+            assert_eq!(plaintext, msg);
+        }
     }
 
     #[test]

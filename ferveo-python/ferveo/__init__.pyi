@@ -36,6 +36,9 @@ class FerveoPublicKey:
     def __hash__(self) -> int:
         ...
 
+    def __richcmp__(self, other: FerveoPublicKey, op: int) -> bool:
+        ...
+
 
 class Validator:
 
@@ -170,6 +173,14 @@ class SharedSecret:
         ...
 
 
+class FerveoVariant:
+    @staticmethod
+    def simple() -> str: ...
+
+    @staticmethod
+    def precomputed() -> str: ...
+
+
 def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
     ...
 
@@ -195,10 +206,6 @@ def decrypt_with_shared_secret(
 
 
 class ThresholdEncryptionError(Exception):
-    pass
-
-
-class InvalidShareNumberParameter(Exception):
     pass
 
 
@@ -259,4 +266,8 @@ class ValidatorPublicKeyMismatch(Exception):
 
 
 class SerializationError(Exception):
+    pass
+
+
+class InvalidVariant(Exception):
     pass
