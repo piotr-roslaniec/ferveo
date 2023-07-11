@@ -177,8 +177,9 @@ macro_rules! generate_bytes_serialization {
         #[pymethods]
         impl $struct_name {
             #[staticmethod]
-            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-                from_py_bytes(bytes).map(Self)
+            #[pyo3(signature = (data))]
+            pub fn from_bytes(data: &[u8]) -> PyResult<Self> {
+                from_py_bytes(data).map(Self)
             }
 
             fn __bytes__(&self) -> PyResult<PyObject> {
@@ -193,13 +194,11 @@ macro_rules! generate_boxed_bytes_serialization {
         #[pymethods]
         impl $struct_name {
             #[staticmethod]
-            #[pyo3(signature = (bytes))]
-            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-                Ok($struct_name(
-                    $inner_struct_name::from_bytes(bytes).map_err(|err| {
-                        FerveoPythonError::Other(err.to_string())
-                    })?,
-                ))
+            #[pyo3(signature = (data))]
+            pub fn from_bytes(data: &[u8]) -> PyResult<Self> {
+                Ok($struct_name($inner_struct_name::from_bytes(data).map_err(
+                    |err| FerveoPythonError::Other(err.to_string()),
+                )?))
             }
 
             fn __bytes__(&self) -> PyResult<PyObject> {
@@ -304,9 +303,10 @@ impl Keypair {
     }
 
     #[staticmethod]
-    pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
-        let keypair = api::Keypair::from_secure_randomness(bytes)
-            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
+    pub fn from_secure_randomness(secure_randomness: &[u8]) -> PyResult<Self> {
+        let keypair =
+            api::Keypair::from_secure_randomness(secure_randomness)
+                .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(keypair))
     }
 

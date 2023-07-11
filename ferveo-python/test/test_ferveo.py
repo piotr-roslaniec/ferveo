@@ -131,14 +131,15 @@ def test_precomputed_tdec_doesnt_have_enough_messages():
 
 PARAMS = [
     (1, FerveoVariant.simple),
+    (3, FerveoVariant.simple),
     (4, FerveoVariant.simple),
+    (7, FerveoVariant.simple),
     (8, FerveoVariant.simple),
-    (32, FerveoVariant.simple),
     (1, FerveoVariant.precomputed),
+    (3, FerveoVariant.precomputed),
     (4, FerveoVariant.precomputed),
+    (7, FerveoVariant.precomputed),
     (8, FerveoVariant.precomputed),
-    (32, FerveoVariant.precomputed),
-
 ]
 
 TEST_CASES_WITH_THRESHOLD_RANGE = []
