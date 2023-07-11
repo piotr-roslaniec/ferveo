@@ -268,7 +268,7 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[pyclass(module = "ferveo")]
-struct FerveoVariant {}
+pub struct FerveoVariant {}
 
 #[pymethods]
 impl FerveoVariant {
@@ -280,6 +280,13 @@ impl FerveoVariant {
     #[classattr]
     fn simple() -> &'static str {
         api::FerveoVariant::Simple.as_str()
+    }
+}
+
+impl FerveoVariant {
+    pub fn inner_form_string(variant: &str) -> PyResult<api::FerveoVariant> {
+        api::FerveoVariant::from_string(variant)
+            .map_err(|err| FerveoPythonError::FerveoError(err).into())
     }
 }
 
