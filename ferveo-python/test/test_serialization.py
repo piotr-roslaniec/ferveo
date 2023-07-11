@@ -81,5 +81,5 @@ def test_public_key_serialization():
 
 
 def test_ferveo_variant_serialization():
-    assert FerveoVariant.precomputed() == "FerveoVariant::Precomputed"
-    assert FerveoVariant.simple() == "FerveoVariant::Simple"
+    assert FerveoVariant.precomputed == "FerveoVariant::Precomputed"
+    assert FerveoVariant.simple == "FerveoVariant::Simple"

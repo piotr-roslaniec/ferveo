@@ -273,12 +273,12 @@ struct FerveoVariant {}
 
 #[pymethods]
 impl FerveoVariant {
-    #[staticmethod]
+    #[classattr]
     fn precomputed() -> &'static str {
         api::FerveoVariant::Precomputed.as_str()
     }
 
-    #[staticmethod]
+    #[classattr]
     fn simple() -> &'static str {
         api::FerveoVariant::Simple.as_str()
     }

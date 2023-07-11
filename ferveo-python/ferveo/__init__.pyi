@@ -179,11 +179,8 @@ class SharedSecret:
 
 @final
 class FerveoVariant:
-    @staticmethod
-    def simple() -> str: ...
-
-    @staticmethod
-    def precomputed() -> str: ...
+    simple: str
+    precomputed: str
 
 
 def encrypt(message: bytes, aad: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
