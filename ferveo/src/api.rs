@@ -21,6 +21,8 @@ pub type Validator = crate::Validator<E>;
 pub type Transcript = PubliclyVerifiableSS<E>;
 pub type ValidatorMessage = (Validator, Transcript);
 
+#[cfg(feature = "bindings-python")]
+use crate::bindings_python;
 pub use crate::EthereumAddress;
 use crate::{
     do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableParams,
@@ -98,6 +100,13 @@ impl FerveoVariant {
             "FerveoVariant::Precomputed" => Ok(FerveoVariant::Precomputed),
             _ => Err(Error::InvalidVariant(s.to_string())),
         }
+    }
+}
+
+#[cfg(feature = "bindings-python")]
+impl From<bindings_python::FerveoVariant> for FerveoVariant {
+    fn from(variant: bindings_python::FerveoVariant) -> Self {
+        variant.0
     }
 }
 

@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Formatter};
+use std::{
+    fmt,
+    fmt::{Debug, Formatter},
+};
 
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use pyo3::{
@@ -235,9 +238,9 @@ pub fn encrypt(
 
 #[pyfunction]
 pub fn combine_decryption_shares_simple(
-    shares: Vec<DecryptionShareSimple>,
+    decryption_shares: Vec<DecryptionShareSimple>,
 ) -> SharedSecret {
-    let shares = shares
+    let shares = decryption_shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
@@ -247,9 +250,9 @@ pub fn combine_decryption_shares_simple(
 
 #[pyfunction]
 pub fn combine_decryption_shares_precomputed(
-    shares: Vec<DecryptionSharePrecomputed>,
+    decryption_shares: Vec<DecryptionSharePrecomputed>,
 ) -> SharedSecret {
-    let shares = shares
+    let shares = decryption_shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
@@ -268,25 +271,35 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[pyclass(module = "ferveo")]
-pub struct FerveoVariant {}
+#[derive(Clone)]
+pub struct FerveoVariant(pub(crate) api::FerveoVariant);
 
 #[pymethods]
 impl FerveoVariant {
     #[classattr]
-    fn precomputed() -> &'static str {
-        api::FerveoVariant::Precomputed.as_str()
+    fn precomputed() -> FerveoVariant {
+        api::FerveoVariant::Precomputed.into()
     }
 
     #[classattr]
-    fn simple() -> &'static str {
-        api::FerveoVariant::Simple.as_str()
+    fn simple() -> FerveoVariant {
+        api::FerveoVariant::Simple.into()
+    }
+
+    fn __str__(&self) -> String {
+        self.0.to_string()
     }
 }
 
-impl FerveoVariant {
-    pub fn inner_form_string(variant: &str) -> PyResult<api::FerveoVariant> {
-        api::FerveoVariant::from_string(variant)
-            .map_err(|err| FerveoPythonError::FerveoError(err).into())
+impl From<api::FerveoVariant> for FerveoVariant {
+    fn from(variant: api::FerveoVariant) -> Self {
+        Self(variant)
+    }
+}
+
+impl fmt::Display for FerveoVariant {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

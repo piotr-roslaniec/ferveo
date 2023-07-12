@@ -179,8 +179,8 @@ class SharedSecret:
 
 @final
 class FerveoVariant:
-    simple: str
-    precomputed: str
+    simple: FerveoVariant
+    precomputed: FerveoVariant
 
 
 def encrypt(message: bytes, aad: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
@@ -188,13 +188,13 @@ def encrypt(message: bytes, aad: bytes, dkg_public_key: DkgPublicKey) -> Ciphert
 
 
 def combine_decryption_shares_simple(
-        shares: Sequence[DecryptionShareSimple],
+        decryption_shares: Sequence[DecryptionShareSimple],
 ) -> bytes:
     ...
 
 
 def combine_decryption_shares_precomputed(
-        shares: Sequence[DecryptionSharePrecomputed],
+        decryption_shares: Sequence[DecryptionSharePrecomputed],
 ) -> SharedSecret:
     ...
 
