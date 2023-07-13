@@ -162,18 +162,33 @@ macro_rules! generate_common_methods {
 }
 
 #[wasm_bindgen]
-pub struct FerveoVariant {}
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
+pub struct FerveoVariant(pub(crate) api::FerveoVariant);
+
+impl fmt::Display for FerveoVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
+generate_common_methods!(FerveoVariant);
 
 #[wasm_bindgen]
 impl FerveoVariant {
     #[wasm_bindgen(js_name = "precomputed", getter)]
-    pub fn precomputed() -> String {
-        api::FerveoVariant::Precomputed.as_str().to_string()
+    pub fn precomputed() -> FerveoVariant {
+        FerveoVariant(api::FerveoVariant::Precomputed)
     }
 
     #[wasm_bindgen(js_name = "simple", getter)]
-    pub fn simple() -> String {
-        api::FerveoVariant::Simple.as_str().to_string()
+    pub fn simple() -> FerveoVariant {
+        FerveoVariant(api::FerveoVariant::Simple)
+    }
+
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[wasm_bindgen(js_name = "toString")]
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 

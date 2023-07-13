@@ -23,6 +23,8 @@ pub type ValidatorMessage = (Validator, Transcript);
 
 #[cfg(feature = "bindings-python")]
 use crate::bindings_python;
+#[cfg(feature = "bindings-wasm")]
+use crate::bindings_wasm;
 pub use crate::EthereumAddress;
 use crate::{
     do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableParams,
@@ -72,7 +74,9 @@ pub fn decrypt_with_shared_secret(
 }
 
 /// The ferveo variant to use for the decryption share derivation.
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(
+    PartialEq, Eq, Debug, Serialize, Deserialize, Copy, Clone, PartialOrd,
+)]
 pub enum FerveoVariant {
     /// The simple variant requires m of n shares to decrypt
     Simple,
@@ -106,6 +110,13 @@ impl FerveoVariant {
 #[cfg(feature = "bindings-python")]
 impl From<bindings_python::FerveoVariant> for FerveoVariant {
     fn from(variant: bindings_python::FerveoVariant) -> Self {
+        variant.0
+    }
+}
+
+#[cfg(feature = "bindings-wasm")]
+impl From<bindings_wasm::FerveoVariant> for FerveoVariant {
+    fn from(variant: bindings_wasm::FerveoVariant) -> Self {
         variant.0
     }
 }

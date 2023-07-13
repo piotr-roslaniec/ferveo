@@ -271,7 +271,9 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[pyclass(module = "ferveo")]
-#[derive(Clone)]
+#[derive(
+    Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
+)]
 pub struct FerveoVariant(pub(crate) api::FerveoVariant);
 
 #[pymethods]
@@ -289,11 +291,9 @@ impl FerveoVariant {
     fn __str__(&self) -> String {
         self.0.to_string()
     }
-}
 
-impl From<api::FerveoVariant> for FerveoVariant {
-    fn from(variant: api::FerveoVariant) -> Self {
-        Self(variant)
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        richcmp(self, other, op)
     }
 }
 
