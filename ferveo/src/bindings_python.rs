@@ -295,6 +295,14 @@ impl FerveoVariant {
     fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
         richcmp(self, other, op)
     }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        let bytes = self
+            .0
+            .to_bytes()
+            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
+        hash("FerveoVariant", &bytes)
+    }
 }
 
 impl fmt::Display for FerveoVariant {

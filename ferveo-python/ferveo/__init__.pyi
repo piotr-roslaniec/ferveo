@@ -201,6 +201,9 @@ class FerveoVariant:
     def __eq__(self, other: object) -> bool:
         ...
 
+    def __hash__(self) -> int:
+        ...
+
 
 def encrypt(message: bytes, aad: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
     ...
