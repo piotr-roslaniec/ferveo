@@ -279,11 +279,13 @@ pub struct FerveoVariant(pub(crate) api::FerveoVariant);
 #[pymethods]
 impl FerveoVariant {
     #[classattr]
+    #[pyo3(name = "Precomputed")]
     fn precomputed() -> FerveoVariant {
         api::FerveoVariant::Precomputed.into()
     }
 
     #[classattr]
+    #[pyo3(name = "Simple")]
     fn simple() -> FerveoVariant {
         api::FerveoVariant::Simple.into()
     }
