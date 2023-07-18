@@ -8,6 +8,7 @@
   - [Initialization](./dkginit.md)
   - [Publicly Verifiable Secret Sharing](./pvss.md)
 - [Threshold Encryption Scheme](./tpke.md)
+  - [Threshold Decryption Variants](./variants.md)
 
 
 # Appendix
