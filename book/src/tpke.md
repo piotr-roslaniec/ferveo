@@ -25,7 +25,7 @@ Check that \\(e(U, H_{\mathbb{G}_2} (U))= e(G, W)\\) for ciphertext validity.
 1. Check ciphertext validity.
 2. Let \\(s = e(U, Z)\\)
 
-### Threshold Decryption (simple method)
+### Threshold Decryption (simple method - default)
 
 1. Check ciphertext validity.
 2. Each decryption share is \\(C_i = e(U, Z_i)\\).
@@ -65,4 +65,3 @@ Suppose there is an adversary that wins the IND-CCA2 game. Then on input \\((G, 
 The shared secret \\(s\\) can be rekeyed with respect to the secret key \\(Z_1\\) to a new secret key \\(\hat{Z} = [\alpha] Z_1 + Z_2\\), as the new shared secret \\(\hat{s} = s^{\alpha} e(U, Z_2) = e(U, [\alpha] Z_2)e(U, Z_2) = e(U, [\alpha]Z_1 + Z_2)\\).
 
 The shared secret \\(s\\) can be rekeyed with respect to the public key \\(Y_1\\) to a new public key \\(\hat{Y} = [\alpha] Y_1 + Y_2\\) as the new shared secret \\(\hat{s} = s^{\alpha} e([r] Y_2, H) = e([r\alpha] Y_1, H)e([r]Y_2, H) = e([r]([\alpha]Y_1 + Y_2), H)\\).
- 
