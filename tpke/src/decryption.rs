@@ -9,8 +9,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    check_ciphertext_validity, generate_random, Ciphertext, PrivateKeyShare,
-    PublicDecryptionContextFast, PublicDecryptionContextSimple, Result,
+    generate_random, Ciphertext, PrivateKeyShare, PublicDecryptionContextFast,
+    PublicDecryptionContextSimple, Result,
 };
 
 #[serde_as]
@@ -94,7 +94,7 @@ impl<E: Pairing> DecryptionShareSimple<E> {
         aad: &[u8],
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
+        ciphertext.check(aad, g_inv)?;
         Self::create_unchecked(
             validator_decryption_key,
             private_key_share,
@@ -165,7 +165,7 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
         lagrange_coeff: &E::ScalarField,
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        check_ciphertext_validity::<E>(ciphertext, aad, g_inv)?;
+        ciphertext.check(aad, g_inv)?;
         Self::create_unchecked(
             validator_index,
             validator_decryption_key,

@@ -3,9 +3,9 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, CurveGroup};
 
 use crate::{
-    check_ciphertext_validity, prepare_combine_simple, BlindedKeyShare,
-    Ciphertext, DecryptionShareFast, DecryptionSharePrecomputed,
-    DecryptionShareSimple, PrivateKeyShare, PublicKeyShare, Result,
+    prepare_combine_simple, BlindedKeyShare, Ciphertext, DecryptionShareFast,
+    DecryptionSharePrecomputed, DecryptionShareSimple, PrivateKeyShare,
+    PublicKeyShare, Result,
 };
 
 #[derive(Clone, Debug)]
@@ -51,11 +51,7 @@ impl<E: Pairing> PrivateDecryptionContextFast<E> {
         ciphertext: &Ciphertext<E>,
         aad: &[u8],
     ) -> Result<DecryptionShareFast<E>> {
-        check_ciphertext_validity::<E>(
-            ciphertext,
-            aad,
-            &self.setup_params.g_inv,
-        )?;
+        ciphertext.check(aad, &self.setup_params.g_inv)?;
 
         let decryption_share = ciphertext
             .commitment

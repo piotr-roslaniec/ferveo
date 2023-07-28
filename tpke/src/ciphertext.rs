@@ -32,22 +32,32 @@ pub struct Ciphertext<E: Pairing> {
 }
 
 impl<E: Pairing> Ciphertext<E> {
-    pub fn check(&self, g_inv: &E::G1Prepared) -> Result<bool> {
-        let hash_g2 = E::G2Prepared::from(self.construct_tag_hash()?);
+    pub fn check(&self, aad: &[u8], g_inv: &E::G1Prepared) -> Result<bool> {
+        // Implements a variant of the check in section 4.4.2 of the Ferveo paper:
+        //     'TPKE.CheckCiphertextValidity(U,W,aad)'
+        // See: https://eprint.iacr.org/2022/898.pdf
+        // See: https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
 
-        Ok(E::multi_pairing(
+        // H_G2(U, sym_ctxt, aad)
+        let hash_g2 = E::G2Prepared::from(construct_tag_hash::<E>(
+            self.commitment,
+            &self.ciphertext[..],
+            aad,
+        )?);
+
+        let is_ciphertext_valid = E::multi_pairing(
+            // e(U, H_G2(U, sym_ctxt, aad)) = e(G, W) ==>
+            // e(U, H_G2(U, sym_ctxt, aad)) * e(G_inv, W) = 1
             [self.commitment.into(), g_inv.to_owned()],
             [hash_g2, self.auth_tag.into()],
         )
-        .0 == E::TargetField::one())
-    }
+        .0 == E::TargetField::one();
 
-    fn construct_tag_hash(&self) -> Result<E::G2Affine> {
-        let mut hash_input = Vec::<u8>::new();
-        self.commitment.serialize_compressed(&mut hash_input)?;
-        hash_input.extend_from_slice(&self.ciphertext);
-
-        hash_to_g2(&hash_input)
+        if is_ciphertext_valid {
+            Ok(true)
+        } else {
+            Err(Error::CiphertextVerificationFailed)
+        }
     }
 
     pub fn serialized_length(&self) -> usize {
@@ -95,42 +105,13 @@ pub fn encrypt<E: Pairing>(
     })
 }
 
-/// Implements the check section 4.4.2 of the Ferveo paper, 'TPKE.CheckCiphertextValidity(U,W,aad)'
-/// See: https://eprint.iacr.org/2022/898.pdf
-/// See: https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
-pub fn check_ciphertext_validity<E: Pairing>(
-    c: &Ciphertext<E>,
-    aad: &[u8],
-    g_inv: &E::G1Prepared,
-) -> Result<()> {
-    // H_G2(U, aad)
-    let hash_g2 = E::G2Prepared::from(construct_tag_hash::<E>(
-        c.commitment,
-        &c.ciphertext[..],
-        aad,
-    )?);
-
-    let is_ciphertext_valid = E::multi_pairing(
-        // e(U, H_G2(U, aad)) = e(G, W)
-        [c.commitment.into(), g_inv.to_owned()],
-        [hash_g2, c.auth_tag.into()],
-    )
-    .0 == E::TargetField::one();
-
-    if is_ciphertext_valid {
-        Ok(())
-    } else {
-        Err(Error::CiphertextVerificationFailed)
-    }
-}
-
 pub fn decrypt_symmetric<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
     private_key: &E::G2Affine,
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
-    check_ciphertext_validity(ciphertext, aad, g_inv)?;
+    ciphertext.check(aad, g_inv)?;
     let shared_secret = E::pairing(
         E::G1Prepared::from(ciphertext.commitment),
         E::G2Prepared::from(*private_key),
@@ -161,7 +142,7 @@ pub fn decrypt_with_shared_secret<E: Pairing>(
     shared_secret: &SharedSecret<E>,
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
-    check_ciphertext_validity(ciphertext, aad, g_inv)?;
+    ciphertext.check(aad, g_inv)?;
     decrypt_with_shared_secret_unchecked(ciphertext, shared_secret)
 }
 
@@ -267,14 +248,14 @@ mod tests {
             encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         // So far, the ciphertext is valid
-        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_ok());
+        assert!(ciphertext.check(aad, &g_inv).is_ok());
 
         // Malformed the ciphertext
         ciphertext.ciphertext[0] += 1;
-        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_err());
+        assert!(ciphertext.check(aad, &g_inv).is_err());
 
         // Malformed the AAD
         let aad = "bad aad".as_bytes();
-        assert!(check_ciphertext_validity(&ciphertext, aad, &g_inv).is_err());
+        assert!(ciphertext.check(aad, &g_inv).is_err());
     }
 }
