@@ -38,16 +38,17 @@ impl<E: Pairing> Ciphertext<E> {
         // See: https://eprint.iacr.org/2022/898.pdf
         // See: https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
 
-        // H_G2(U, sym_ctxt, aad)
+        // H_G2(U, sym_ctxt_digest, aad)
+        let ciphertext_hash = sha256(&self.ciphertext[..]);
         let hash_g2 = E::G2Prepared::from(construct_tag_hash::<E>(
             self.commitment,
-            &self.ciphertext[..],
+            &ciphertext_hash,
             aad,
         )?);
 
         let is_ciphertext_valid = E::multi_pairing(
-            // e(U, H_G2(U, sym_ctxt, aad)) = e(G, W) ==>
-            // e(U, H_G2(U, sym_ctxt, aad)) * e(G_inv, W) = 1
+            // e(U, H_G2(U, sym_ctxt_digest, aad)) == e(G, W) ==>
+            // e(U, H_G2(U, sym_ctxt_digest, aad)) * e(G_inv, W) == 1
             [self.commitment.into(), g_inv.to_owned()],
             [hash_g2, self.auth_tag.into()],
         )
@@ -92,8 +93,10 @@ pub fn encrypt<E: Pairing>(
         .encrypt(&nonce.0, message.as_secret().as_ref())
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
+    let ciphertext_hash = sha256(&ciphertext);
+
     // w
-    let auth_tag = construct_tag_hash::<E>(commitment, &ciphertext, aad)?
+    let auth_tag = construct_tag_hash::<E>(commitment, &ciphertext_hash, aad)?
         .mul(rand_element)
         .into();
 
@@ -195,12 +198,12 @@ fn hash_to_g2<T: ark_serialize::CanonicalDeserialize>(
 
 fn construct_tag_hash<E: Pairing>(
     commitment: E::G1Affine,
-    stream_ciphertext: &[u8],
+    ciphertext_hash: &[u8],
     aad: &[u8],
 ) -> Result<E::G2Affine> {
     let mut hash_input = Vec::<u8>::new();
     commitment.serialize_compressed(&mut hash_input)?;
-    hash_input.extend_from_slice(stream_ciphertext);
+    hash_input.extend_from_slice(ciphertext_hash);
     hash_input.extend_from_slice(aad);
     hash_to_g2(&hash_input)
 }
