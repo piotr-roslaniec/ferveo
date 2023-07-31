@@ -4,17 +4,7 @@
 
 _This project is under active development. For questions, please join us at [Threshold Network Discord](https://discord.com/invite/threshold&ved=2ahUKEwivucaW2Y3-AhXiwosKHQCEAKUQFnoECA0QAQ&usg=AOvVaw08x-9JYJFDcd6PEOx0xAeg)_
 
-_See original README.md below_
-
-## Testing
-
-```bash
-cargo test --no-default-features
-```
-
 ---
-
-# Ferveo
 
 A synchronous Distributed Key Generation protocol for front-running protection on public blockchains.
 
@@ -39,7 +29,7 @@ A preprint paper describing the construction of Ferveo and the novel cryptosyste
 
 ## Build
 
-A Rust toolchain with version `>= 1.53.0` is required. In the future, Ferveo will target the `stable` toolchain.
+A Rust toolchain with version `>= 1.65.0` is required. In the future, Ferveo will target the `stable` toolchain.
 Installation via [rustup](https://rustup.rs/) is recommended.
 
 Run `cargo build --release` to build.
@@ -47,7 +37,7 @@ Please note that performance may be significantly poorer when compiling in `Debu
 
 ## Testing
 
-Run `cargo test --release` to run tests. Please note that performance may be significantly poorer when testing
+Run `cargo test --no-default-features --release` to run tests. Please note that performance may be significantly poorer when testing
 in `Debug` mode.
 
 ## Benchmarks
