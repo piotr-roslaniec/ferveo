@@ -4,7 +4,7 @@ use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
 use ark_serialize::{CanonicalSerialize, Compress};
 use chacha20poly1305::{
-    aead::{generic_array::GenericArray, Aead, KeyInit},
+    aead::{generic_array::GenericArray, Aead, KeyInit, Payload},
     ChaCha20Poly1305,
 };
 use ferveo_common::serialization;
@@ -89,8 +89,13 @@ pub fn encrypt<E: Pairing>(
 
     let nonce = Nonce::from_commitment::<E>(commitment)?;
     let shared_secret = SharedSecret::<E>(product);
+
+    let payload = Payload {
+        msg: message.as_secret().as_ref(),
+        aad,
+    };
     let ciphertext = shared_secret_to_chacha(&shared_secret)?
-        .encrypt(&nonce.0, message.as_secret().as_ref())
+        .encrypt(&nonce.0, payload)
         .map_err(Error::SymmetricEncryptionError)?
         .to_vec();
     let ciphertext_hash = sha256(&ciphertext);
@@ -121,18 +126,22 @@ pub fn decrypt_symmetric<E: Pairing>(
     )
     .0;
     let shared_secret = SharedSecret(shared_secret);
-    decrypt_with_shared_secret_unchecked(ciphertext, &shared_secret)
+    decrypt_with_shared_secret_unchecked(ciphertext, aad, &shared_secret)
 }
 
 fn decrypt_with_shared_secret_unchecked<E: Pairing>(
     ciphertext: &Ciphertext<E>,
+    aad: &[u8],
     shared_secret: &SharedSecret<E>,
 ) -> Result<Vec<u8>> {
     let nonce = Nonce::from_commitment::<E>(ciphertext.commitment)?;
-    let ciphertext = ciphertext.ciphertext.to_vec();
-
+    let ctxt = ciphertext.ciphertext.to_vec();
+    let payload = Payload {
+        msg: ctxt.as_ref(),
+        aad,
+    };
     let plaintext = shared_secret_to_chacha(shared_secret)?
-        .decrypt(&nonce.0, ciphertext.as_ref())
+        .decrypt(&nonce.0, payload)
         .map_err(|_| Error::CiphertextVerificationFailed)?
         .to_vec();
 
@@ -146,7 +155,7 @@ pub fn decrypt_with_shared_secret<E: Pairing>(
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
     ciphertext.check(aad, g_inv)?;
-    decrypt_with_shared_secret_unchecked(ciphertext, shared_secret)
+    decrypt_with_shared_secret_unchecked(ciphertext, aad, shared_secret)
 }
 
 fn sha256(input: &[u8]) -> Vec<u8> {
