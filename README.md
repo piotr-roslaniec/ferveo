@@ -37,12 +37,6 @@ Please note that performance may be significantly poorer when compiling in `Debu
 
 ## Testing
 
-
-```bash
-
-```
-
-
 Run `cargo test --no-default-features --release` to run tests. Please note that performance may be significantly poorer when testing
 in `Debug` mode.
 
