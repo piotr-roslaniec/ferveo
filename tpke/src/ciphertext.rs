@@ -2,7 +2,7 @@ use std::ops::Mul;
 
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
-use ark_serialize::{CanonicalSerialize, Compress};
+use ark_serialize::CanonicalSerialize;
 use chacha20poly1305::{
     aead::{generic_array::GenericArray, Aead, KeyInit, Payload},
     ChaCha20Poly1305,
@@ -59,12 +59,6 @@ impl<E: Pairing> Ciphertext<E> {
         } else {
             Err(Error::CiphertextVerificationFailed)
         }
-    }
-
-    pub fn serialized_length(&self) -> usize {
-        self.commitment.serialized_size(Compress::No)
-            + self.auth_tag.serialized_size(Compress::No)
-            + self.ciphertext.len()
     }
 }
 
