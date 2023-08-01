@@ -244,7 +244,11 @@ mod tests {
         let plaintext =
             decrypt_symmetric(&ciphertext, aad, &privkey, g_inv).unwrap();
 
-        assert_eq!(msg, plaintext)
+        assert_eq!(msg, plaintext);
+
+        let bad: &[u8] = "bad-aad".as_bytes();
+
+        assert!(decrypt_symmetric(&ciphertext, bad, &privkey, g_inv).is_err());
     }
 
     #[test]
