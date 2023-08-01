@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.2.1 (2023-08-01)
+
+### New Features
+
+ - <csr-id-50511fff3c9829d6f2004360be93b67730f66f1f/> replace FerveoVariant static methods with class atributed
+
+### Bug Fixes
+
+ - <csr-id-be900653a80e3570300f5a126af98660ab59a7d2/> python typings don't match runtime
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 10 commits contributed to the release over the course of 21 calendar days.
+ - 24 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #139 from nucypher/fix-typings ([`dc9d81a`](https://github.com/nucypher/ferveo/commit/dc9d81a4128e1966effc11d6e6bb815958482d90))
+    - Rename FerveoVariant attributes ([`0e7c561`](https://github.com/nucypher/ferveo/commit/0e7c5615a0660a69077e7b431dd24c5bb3d0f10d))
+    - Add __hash__ to FerveoVariant ([`06321d7`](https://github.com/nucypher/ferveo/commit/06321d798fc30768173eec447aed753c34890194))
+    - Add equality to FerveoVariant python bindings ([`cea467e`](https://github.com/nucypher/ferveo/commit/cea467e0bd48a096f70dd1c7ca24a7e4bd88b3d4))
+    - Apply pr suggestions ([`6c1d4be`](https://github.com/nucypher/ferveo/commit/6c1d4becd89005d6698734caa9d681dde727bff6))
+    - Add api conversion method to FerveoVariant ([`fbb97be`](https://github.com/nucypher/ferveo/commit/fbb97be59d991a263233a0b876da982143b2cbf2))
+    - Apply pr suggestions ([`7cbe65d`](https://github.com/nucypher/ferveo/commit/7cbe65def65a76043d21763723ce98787cbf8eed))
+    - Replace FerveoVariant static methods with class atributed ([`50511ff`](https://github.com/nucypher/ferveo/commit/50511fff3c9829d6f2004360be93b67730f66f1f))
+    - Merge pull request #138 from nucypher/development ([`434fd5d`](https://github.com/nucypher/ferveo/commit/434fd5d07b54e72d120e9aa06cbc3e47848e6bcf))
+    - Python typings don't match runtime ([`be90065`](https://github.com/nucypher/ferveo/commit/be900653a80e3570300f5a126af98660ab59a7d2))
+</details>
+
 ## v0.2.0 (2023-07-07)
 
 <csr-id-caef6ef73dd43a9952d783fcf18abb893b36635f/>
@@ -13,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-d786fae33b01cd0863f29b70810dfcc847f2542b/>
 <csr-id-09f26b39ddc71d9a4b1f226e2dafbdb4c51a7caa/>
 <csr-id-ec58fe1828d0560525c80cd1dc4013915b0ac54e/>
+<csr-id-0eb5bd48b598709dd0fc54adb424f5f41ce52e92/>
 
 ### New Features
 
@@ -48,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 261 commits contributed to the release over the course of 652 calendar days.
+ - 262 commits contributed to the release over the course of 652 calendar days.
  - 12 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 4 unique issues were worked on: [#68](https://github.com/nucypher/ferveo/issues/68), [#70](https://github.com/nucypher/ferveo/issues/70), [#71](https://github.com/nucypher/ferveo/issues/71), [#72](https://github.com/nucypher/ferveo/issues/72)
 
@@ -67,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#72](https://github.com/nucypher/ferveo/issues/72)**
     - Refactor subproductdomain ([`2d8026b`](https://github.com/nucypher/ferveo/commit/2d8026b2299fd9b67c77fb3b4e565ff9f4e6505b))
  * **Uncategorized**
+    - Release ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`ffb9b21`](https://github.com/nucypher/ferveo/commit/ffb9b21619d0f5dc0fb309bf2f493d3c0c25e1f0))
     - Adjust changelogs for cargo-smart-release ([`0eb5bd4`](https://github.com/nucypher/ferveo/commit/0eb5bd48b598709dd0fc54adb424f5f41ce52e92))
     - Adjusting changelogs prior to release of ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`0ccba13`](https://github.com/nucypher/ferveo/commit/0ccba13b0608e2023d8792ac9b0402af5ebaad0b))
     - Release 0.1.0 crate versions ([`c02e305`](https://github.com/nucypher/ferveo/commit/c02e3050b7a9dcf0260a5eb4e42ff74f3788c3bf))
