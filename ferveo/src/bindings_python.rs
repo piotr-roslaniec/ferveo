@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Formatter};
+use std::{
+    fmt,
+    fmt::{Debug, Formatter},
+};
 
 use ferveo_common::serialization::{FromBytes, ToBytes};
 use pyo3::{
@@ -177,8 +180,9 @@ macro_rules! generate_bytes_serialization {
         #[pymethods]
         impl $struct_name {
             #[staticmethod]
-            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-                from_py_bytes(bytes).map(Self)
+            #[pyo3(signature = (data))]
+            pub fn from_bytes(data: &[u8]) -> PyResult<Self> {
+                from_py_bytes(data).map(Self)
             }
 
             fn __bytes__(&self) -> PyResult<PyObject> {
@@ -193,12 +197,11 @@ macro_rules! generate_boxed_bytes_serialization {
         #[pymethods]
         impl $struct_name {
             #[staticmethod]
-            pub fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-                Ok($struct_name(
-                    $inner_struct_name::from_bytes(bytes).map_err(|err| {
-                        FerveoPythonError::Other(err.to_string())
-                    })?,
-                ))
+            #[pyo3(signature = (data))]
+            pub fn from_bytes(data: &[u8]) -> PyResult<Self> {
+                Ok($struct_name($inner_struct_name::from_bytes(data).map_err(
+                    |err| FerveoPythonError::Other(err.to_string()),
+                )?))
             }
 
             fn __bytes__(&self) -> PyResult<PyObject> {
@@ -235,9 +238,9 @@ pub fn encrypt(
 
 #[pyfunction]
 pub fn combine_decryption_shares_simple(
-    shares: Vec<DecryptionShareSimple>,
+    decryption_shares: Vec<DecryptionShareSimple>,
 ) -> SharedSecret {
-    let shares = shares
+    let shares = decryption_shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
@@ -247,9 +250,9 @@ pub fn combine_decryption_shares_simple(
 
 #[pyfunction]
 pub fn combine_decryption_shares_precomputed(
-    shares: Vec<DecryptionSharePrecomputed>,
+    decryption_shares: Vec<DecryptionSharePrecomputed>,
 ) -> SharedSecret {
-    let shares = shares
+    let shares = decryption_shares
         .iter()
         .map(|share| share.0.clone())
         .collect::<Vec<_>>();
@@ -268,18 +271,45 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[pyclass(module = "ferveo")]
-struct FerveoVariant {}
+#[derive(
+    Clone, PartialEq, PartialOrd, Eq, derive_more::From, derive_more::AsRef,
+)]
+pub struct FerveoVariant(pub(crate) api::FerveoVariant);
 
 #[pymethods]
 impl FerveoVariant {
-    #[staticmethod]
-    fn precomputed() -> &'static str {
-        api::FerveoVariant::Precomputed.as_str()
+    #[classattr]
+    #[pyo3(name = "Precomputed")]
+    fn precomputed() -> FerveoVariant {
+        api::FerveoVariant::Precomputed.into()
     }
 
-    #[staticmethod]
-    fn simple() -> &'static str {
-        api::FerveoVariant::Simple.as_str()
+    #[classattr]
+    #[pyo3(name = "Simple")]
+    fn simple() -> FerveoVariant {
+        api::FerveoVariant::Simple.into()
+    }
+
+    fn __str__(&self) -> String {
+        self.0.to_string()
+    }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        richcmp(self, other, op)
+    }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        let bytes = self
+            .0
+            .to_bytes()
+            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
+        hash("FerveoVariant", &bytes)
+    }
+}
+
+impl fmt::Display for FerveoVariant {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -303,9 +333,10 @@ impl Keypair {
     }
 
     #[staticmethod]
-    pub fn from_secure_randomness(bytes: &[u8]) -> PyResult<Self> {
-        let keypair = api::Keypair::from_secure_randomness(bytes)
-            .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
+    pub fn from_secure_randomness(secure_randomness: &[u8]) -> PyResult<Self> {
+        let keypair =
+            api::Keypair::from_secure_randomness(secure_randomness)
+                .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(keypair))
     }
 

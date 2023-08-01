@@ -1,6 +1,6 @@
 import pytest
 
-from ferveo_py import (
+from ferveo import (
     encrypt,
     combine_decryption_shares_simple,
     combine_decryption_shares_precomputed,
@@ -11,7 +11,8 @@ from ferveo_py import (
     Dkg,
     AggregatedTranscript,
     DkgPublicKey,
-    ThresholdEncryptionError
+    ThresholdEncryptionError,
+    FerveoVariant
 )
 
 
@@ -19,26 +20,26 @@ def gen_eth_addr(i: int) -> str:
     return f"0x{i:040x}"
 
 
-def decryption_share_for_variant(variant, agg_transcript):
-    if variant == "simple":
+def decryption_share_for_variant(v: FerveoVariant, agg_transcript):
+    if v == FerveoVariant.Simple:
         return agg_transcript.create_decryption_share_simple
-    elif variant == "precomputed":
+    elif v == FerveoVariant.Precomputed:
         return agg_transcript.create_decryption_share_precomputed
     else:
         raise ValueError("Unknown variant")
 
 
-def combine_shares_for_variant(variant, decryption_shares):
-    if variant == "simple":
+def combine_shares_for_variant(v: FerveoVariant, decryption_shares):
+    if v == FerveoVariant.Simple:
         return combine_decryption_shares_simple(decryption_shares)
-    elif variant == "precomputed":
+    elif v == FerveoVariant.Precomputed:
         return combine_decryption_shares_precomputed(decryption_shares)
     else:
         raise ValueError("Unknown variant")
 
 
-def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
-    if variant not in ["simple", "precomputed"]:
+def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_to_use):
+    if variant not in [FerveoVariant.Simple, FerveoVariant.Precomputed]:
         raise ValueError("Unknown variant: " + variant)
 
     tau = 1
@@ -98,12 +99,12 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
 
     shared_secret = combine_shares_for_variant(variant, decryption_shares)
 
-    if variant == "simple" and len(decryption_shares) < threshold:
+    if variant == FerveoVariant.Simple and len(decryption_shares) < threshold:
         with pytest.raises(ThresholdEncryptionError):
             decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
 
-    if variant == "precomputed" and len(decryption_shares) < shares_num:
+    if variant == FerveoVariant.Precomputed and len(decryption_shares) < shares_num:
         with pytest.raises(ThresholdEncryptionError):
             decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
@@ -113,31 +114,32 @@ def scenario_for_variant(variant, shares_num, threshold, shares_to_use):
 
 
 def test_simple_tdec_has_enough_messages():
-    scenario_for_variant("simple", shares_num=4, threshold=3, shares_to_use=3)
+    scenario_for_variant(FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=3)
 
 
 def test_simple_tdec_doesnt_have_enough_messages():
-    scenario_for_variant("simple", shares_num=4, threshold=3, shares_to_use=2)
+    scenario_for_variant(FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=2)
 
 
 def test_precomputed_tdec_has_enough_messages():
-    scenario_for_variant("precomputed", shares_num=4, threshold=4, shares_to_use=4)
+    scenario_for_variant(FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=4)
 
 
 def test_precomputed_tdec_doesnt_have_enough_messages():
-    scenario_for_variant("precomputed", shares_num=4, threshold=4, shares_to_use=3)
+    scenario_for_variant(FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=3)
 
 
 PARAMS = [
-    (1, 'simple'),
-    (4, 'simple'),
-    (8, 'simple'),
-    (32, 'simple'),
-    (1, 'precomputed'),
-    (4, 'precomputed'),
-    (8, 'precomputed'),
-    (32, 'precomputed'),
-
+    (1, FerveoVariant.Simple),
+    (3, FerveoVariant.Simple),
+    (4, FerveoVariant.Simple),
+    (7, FerveoVariant.Simple),
+    (8, FerveoVariant.Simple),
+    (1, FerveoVariant.Precomputed),
+    (3, FerveoVariant.Precomputed),
+    (4, FerveoVariant.Precomputed),
+    (7, FerveoVariant.Precomputed),
+    (8, FerveoVariant.Precomputed),
 ]
 
 TEST_CASES_WITH_THRESHOLD_RANGE = []

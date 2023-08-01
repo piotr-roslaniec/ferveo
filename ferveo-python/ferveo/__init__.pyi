@@ -1,17 +1,18 @@
-from typing import Sequence
+from typing import Sequence, final
 
 
+@final
 class Keypair:
     @staticmethod
     def random() -> Keypair:
         ...
 
     @staticmethod
-    def from_secure_randomness(data: bytes) -> Keypair:
+    def from_secure_randomness(secure_randomness: bytes) -> Keypair:
         ...
 
     @staticmethod
-    def secure_randomness_size(data: bytes) -> int:
+    def secure_randomness_size() -> int:
         ...
 
     @staticmethod
@@ -25,6 +26,7 @@ class Keypair:
         ...
 
 
+@final
 class FerveoPublicKey:
     @staticmethod
     def from_bytes(data: bytes) -> FerveoPublicKey:
@@ -36,10 +38,15 @@ class FerveoPublicKey:
     def __hash__(self) -> int:
         ...
 
-    def __richcmp__(self, other: FerveoPublicKey, op: int) -> bool:
+    @staticmethod
+    def serialized_size() -> int:
+        ...
+
+    def __eq__(self, other: object) -> bool:
         ...
 
 
+@final
 class Validator:
 
     def __init__(self, address: str, public_key: FerveoPublicKey):
@@ -50,6 +57,7 @@ class Validator:
     public_key: FerveoPublicKey
 
 
+@final
 class Transcript:
     @staticmethod
     def from_bytes(data: bytes) -> Transcript:
@@ -59,6 +67,7 @@ class Transcript:
         ...
 
 
+@final
 class DkgPublicKey:
     @staticmethod
     def from_bytes(data: bytes) -> DkgPublicKey:
@@ -67,7 +76,12 @@ class DkgPublicKey:
     def __bytes__(self) -> bytes:
         ...
 
+    @staticmethod
+    def serialized_size() -> int:
+        ...
 
+
+@final
 class ValidatorMessage:
 
     def __init__(
@@ -81,6 +95,7 @@ class ValidatorMessage:
     transcript: Transcript
 
 
+@final
 class Dkg:
 
     def __init__(
@@ -102,6 +117,7 @@ class Dkg:
         ...
 
 
+@final
 class Ciphertext:
     @staticmethod
     def from_bytes(data: bytes) -> Ciphertext:
@@ -111,6 +127,7 @@ class Ciphertext:
         ...
 
 
+@final
 class DecryptionShareSimple:
     @staticmethod
     def from_bytes(data: bytes) -> DecryptionShareSimple:
@@ -120,6 +137,7 @@ class DecryptionShareSimple:
         ...
 
 
+@final
 class DecryptionSharePrecomputed:
     @staticmethod
     def from_bytes(data: bytes) -> DecryptionSharePrecomputed:
@@ -129,6 +147,7 @@ class DecryptionSharePrecomputed:
         ...
 
 
+@final
 class AggregatedTranscript:
 
     def __init__(self, messages: Sequence[ValidatorMessage]):
@@ -163,6 +182,7 @@ class AggregatedTranscript:
         ...
 
 
+@final
 class SharedSecret:
 
     @staticmethod
@@ -173,15 +193,19 @@ class SharedSecret:
         ...
 
 
+@final
 class FerveoVariant:
-    @staticmethod
-    def simple() -> str: ...
+    Simple: FerveoVariant
+    Precomputed: FerveoVariant
 
-    @staticmethod
-    def precomputed() -> str: ...
+    def __eq__(self, other: object) -> bool:
+        ...
+
+    def __hash__(self) -> int:
+        ...
 
 
-def encrypt(message: bytes, add: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
+def encrypt(message: bytes, aad: bytes, dkg_public_key: DkgPublicKey) -> Ciphertext:
     ...
 
 
@@ -266,8 +290,4 @@ class ValidatorPublicKeyMismatch(Exception):
 
 
 class SerializationError(Exception):
-    pass
-
-
-class InvalidVariant(Exception):
     pass
