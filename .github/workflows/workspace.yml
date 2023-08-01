@@ -61,7 +61,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            rust: 1.65 # MSRV, `cargo msrv`
+            rust: 1.67 # MSRV, `cargo msrv`
           - target: x86_64-unknown-linux-gnu
             rust: stable
     steps:
@@ -94,7 +94,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.65 # MSRV, `cargo msrv`
+          - 1.67 # MSRV, `cargo msrv`
           - stable
         target:
           - wasm32-unknown-unknown
@@ -106,7 +106,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install --version 0.11.1 wasm-pack
+      - run: cargo install wasm-pack
       - run: wasm-pack test --node
         working-directory: ferveo-wasm
   
