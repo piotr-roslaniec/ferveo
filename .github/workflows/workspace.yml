@@ -106,7 +106,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install wasm-pack
+      - run: cargo install --version 0.11.1 wasm-pack
       - run: wasm-pack test --node
         working-directory: ferveo-wasm
   
