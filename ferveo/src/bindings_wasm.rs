@@ -30,7 +30,7 @@ pub fn set_panic_hook() {
 }
 
 pub fn map_js_err<T: fmt::Display>(err: T) -> Error {
-    Error::new(&format!("{}", err))
+    Error::new(&format!("{err}"))
 }
 
 pub fn to_js_bytes<T: ToBytes>(t: &T) -> Result<Vec<u8>, Error> {
@@ -577,7 +577,7 @@ pub mod test_common {
     }
 
     pub fn gen_address(i: usize) -> EthereumAddress {
-        EthereumAddress::from_string(&format!("0x{:040}", i)).unwrap()
+        EthereumAddress::from_string(&format!("0x{i:040}")).unwrap()
     }
 
     pub fn gen_validator(i: usize, keypair: &Keypair) -> Validator {

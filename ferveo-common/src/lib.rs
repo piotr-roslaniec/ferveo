@@ -19,15 +19,14 @@ impl fmt::Display for Error {
             Error::InvalidByteLength(expected, actual) => {
                 write!(
                     f,
-                    "Invalid byte length: expected {}, actual {}",
-                    expected, actual
+                    "Invalid byte length: expected {expected}, actual {actual}"
                 )
             }
             Error::SerializationError(e) => {
-                write!(f, "Serialization error: {}", e)
+                write!(f, "Serialization error: {e}")
             }
             Error::InvalidSeedLength(len) => {
-                write!(f, "Invalid seed length: {}", len)
+                write!(f, "Invalid seed length: {len}")
             }
         }
     }

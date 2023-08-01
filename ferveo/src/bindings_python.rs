@@ -65,14 +65,12 @@ impl From<FerveoPythonError> for PyErr {
                     expected,
                     actual,
                 ) => InsufficientTranscriptsForAggregate::new_err(format!(
-                    "expected: {}, actual: {}",
-                    expected, actual
+                    "expected: {expected}, actual: {actual}"
                 )),
                 Error::InvalidDkgPublicKey => InvalidDkgPublicKey::new_err(""),
                 Error::InsufficientValidators(expected, actual) => {
                     InsufficientValidators::new_err(format!(
-                        "expected: {}, actual: {}",
-                        expected, actual
+                        "expected: {expected}, actual: {actual}"
                     ))
                 }
                 Error::InvalidTranscriptAggregate => {
@@ -90,8 +88,7 @@ impl From<FerveoPythonError> for PyErr {
                 }
                 Error::InvalidByteLength(expected, actual) => {
                     InvalidByteLength::new_err(format!(
-                        "expected: {}, actual: {}",
-                        expected, actual
+                        "expected: {expected}, actual: {actual}"
                     ))
                 }
                 Error::InvalidVariant(variant) => {
