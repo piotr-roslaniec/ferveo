@@ -41,8 +41,8 @@ pub trait Aggregate {}
 /// Apply trait gate to Aggregated marker struct
 impl Aggregate for Aggregated {}
 
-/// Type alias for non aggregated PVSS transcripts
-pub type Pvss<E> = PubliclyVerifiableSS<E>;
+// /// Type alias for non aggregated PVSS transcripts
+// pub type Pvss<E> = PubliclyVerifiableSS<E>;
 
 /// Type alias for aggregated PVSS transcripts
 pub type AggregatedPvss<E> = PubliclyVerifiableSS<E, Aggregated>;
@@ -504,8 +504,8 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
-        let pvss =
-            Pvss::<EllipticCurve>::new(&s, &dkg, rng).expect("Test failed");
+        let pvss = PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng)
+            .expect("Test failed");
         // Check that the chosen secret coefficient is correct
         assert_eq!(pvss.coeffs[0], G1::generator().mul(s));
         // Check that a polynomial of the correct degree was created
@@ -548,7 +548,8 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
-        let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
+        let pvss =
+            PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
 
         // So far, everything works
         assert!(pvss.verify_optimistic());
