@@ -27,11 +27,11 @@ function setupTest() {
   const sharesNum = 4;
   const threshold = Math.floor((sharesNum * 2) / 3);
 
-  const validator_keypairs: Keypair[] = [];
+  const validatorKeypairs: Keypair[] = [];
   const validators: Validator[] = [];
   for (let i = 0; i < sharesNum; i++) {
     const keypair = Keypair.random();
-    validator_keypairs.push(keypair);
+    validatorKeypairs.push(keypair);
     const validator = new Validator(genEthAddr(i), keypair.publicKey);
     validators.push(validator);
   }
@@ -66,7 +66,7 @@ function setupTest() {
     tau,
     sharesNum,
     threshold,
-    validatorKeypairs: validator_keypairs,
+    validatorKeypairs,
     validators,
     dkg,
     messages,
@@ -103,7 +103,7 @@ describe("ferveo-wasm", () => {
 
       const decryptionShare = aggregate.createDecryptionShareSimple(
         dkg,
-        ciphertext,
+        ciphertext.header,
         aad,
         keypair
       );
@@ -150,7 +150,7 @@ describe("ferveo-wasm", () => {
 
       const decryptionShare = aggregate.createDecryptionSharePrecomputed(
         dkg,
-        ciphertext,
+        ciphertext.header,
         aad,
         keypair
       );

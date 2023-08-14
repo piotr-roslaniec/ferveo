@@ -3,9 +3,9 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, CurveGroup};
 
 use crate::{
-    prepare_combine_simple, BlindedKeyShare, Ciphertext, DecryptionShareFast,
-    DecryptionSharePrecomputed, DecryptionShareSimple, PrivateKeyShare,
-    PublicKeyShare, Result,
+    prepare_combine_simple, BlindedKeyShare, Ciphertext, CiphertextHeader,
+    DecryptionShareFast, DecryptionSharePrecomputed, DecryptionShareSimple,
+    PrivateKeyShare, PublicKeyShare, Result,
 };
 
 #[derive(Clone, Debug)]
@@ -78,13 +78,13 @@ pub struct PrivateDecryptionContextSimple<E: Pairing> {
 impl<E: Pairing> PrivateDecryptionContextSimple<E> {
     pub fn create_share(
         &self,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
     ) -> Result<DecryptionShareSimple<E>> {
         DecryptionShareSimple::create(
             &self.validator_private_key,
             &self.private_key_share,
-            ciphertext,
+            ciphertext_header,
             aad,
             &self.setup_params.g_inv,
         )
@@ -92,7 +92,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
 
     pub fn create_share_precomputed(
         &self,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
     ) -> Result<DecryptionSharePrecomputed<E>> {
         let domain = self
@@ -106,7 +106,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
             self.index,
             &self.validator_private_key,
             &self.private_key_share,
-            ciphertext,
+            ciphertext_header,
             aad,
             &lagrange_coeffs[self.index],
             &self.setup_params.g_inv,

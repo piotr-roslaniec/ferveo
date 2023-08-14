@@ -309,7 +309,9 @@ mod tests {
     ) -> SharedSecret<E> {
         let decryption_shares: Vec<_> = contexts
             .iter()
-            .map(|c| c.create_share(ciphertext, aad).unwrap())
+            .map(|c| {
+                c.create_share(&ciphertext.header().unwrap(), aad).unwrap()
+            })
             .collect();
         make_shared_secret(
             &contexts[0].public_decryption_contexts,
@@ -459,7 +461,9 @@ mod tests {
             encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
         let bad_aad = "bad aad".as_bytes();
-        assert!(contexts[0].create_share(&ciphertext, bad_aad).is_err());
+        assert!(contexts[0]
+            .create_share(&ciphertext.header().unwrap(), bad_aad)
+            .is_err());
     }
 
     #[test]
@@ -531,7 +535,9 @@ mod tests {
         // We need at least threshold shares to decrypt
         let decryption_shares: Vec<_> = contexts
             .iter()
-            .map(|c| c.create_share(&ciphertext, aad).unwrap())
+            .map(|c| {
+                c.create_share(&ciphertext.header().unwrap(), aad).unwrap()
+            })
             .take(threshold)
             .collect();
         let pub_contexts =
@@ -575,7 +581,12 @@ mod tests {
         let decryption_shares: Vec<_> = contexts
             .iter()
             .map(|context| {
-                context.create_share_precomputed(&ciphertext, aad).unwrap()
+                context
+                    .create_share_precomputed(
+                        &ciphertext.header().unwrap(),
+                        aad,
+                    )
+                    .unwrap()
             })
             .collect();
 
@@ -620,7 +631,9 @@ mod tests {
 
         let decryption_shares: Vec<_> = contexts
             .iter()
-            .map(|c| c.create_share(&ciphertext, aad).unwrap())
+            .map(|c| {
+                c.create_share(&ciphertext.header().unwrap(), aad).unwrap()
+            })
             .collect();
 
         // In simple tDec variant, we verify decryption shares only after decryption fails.
@@ -772,7 +785,9 @@ mod tests {
         // Get decryption shares from remaining participants
         let mut decryption_shares: Vec<_> = remaining_participants
             .iter()
-            .map(|c| c.create_share(&ciphertext, aad).unwrap())
+            .map(|c| {
+                c.create_share(&ciphertext.header().unwrap(), aad).unwrap()
+            })
             .collect();
 
         // Create a decryption share from a recovered private key share
@@ -781,7 +796,7 @@ mod tests {
             DecryptionShareSimple::create(
                 &new_validator_decryption_key,
                 &new_private_key_share,
-                &ciphertext,
+                &ciphertext.header().unwrap(),
                 aad,
                 g_inv,
             )
@@ -845,7 +860,7 @@ mod tests {
                 DecryptionShareSimple::create(
                     &p.validator_private_key,
                     &private_key_share,
-                    &ciphertext,
+                    &ciphertext.header().unwrap(),
                     aad,
                     g_inv,
                 )

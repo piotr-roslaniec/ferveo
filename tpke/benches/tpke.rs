@@ -118,7 +118,11 @@ impl SetupSimple {
         // Creating decryption shares
         let decryption_shares: Vec<_> = contexts
             .iter()
-            .map(|context| context.create_share(&ciphertext, aad).unwrap())
+            .map(|context| {
+                context
+                    .create_share(&ciphertext.header().unwrap(), aad)
+                    .unwrap()
+            })
             .collect();
 
         let pub_contexts = contexts[0].clone().public_decryption_contexts;
@@ -190,7 +194,7 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                             DecryptionShareSimple::create_unchecked(
                                 &ctx.validator_private_key,
                                 &ctx.private_key_share,
-                                &setup.shared.ciphertext,
+                                &setup.shared.ciphertext.header().unwrap(),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -206,7 +210,7 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                         .iter()
                         .map(|context| {
                             context.create_share_precomputed(
-                                &setup.shared.ciphertext,
+                                &setup.shared.ciphertext.header().unwrap(),
                                 &setup.shared.aad,
                             )
                         })
@@ -301,7 +305,7 @@ pub fn bench_share_combine(c: &mut Criterion) {
                 .map(|context| {
                     context
                         .create_share_precomputed(
-                            &setup.shared.ciphertext,
+                            &setup.shared.ciphertext.header().unwrap(),
                             &setup.shared.aad,
                         )
                         .unwrap()

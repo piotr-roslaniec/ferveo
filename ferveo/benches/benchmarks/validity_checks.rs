@@ -22,7 +22,7 @@ fn gen_keypairs(num: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
 }
 
 pub fn gen_address(i: usize) -> EthereumAddress {
-    EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+    EthereumAddress::from_str(&format!("0x{i:040}")).unwrap()
 }
 
 fn gen_validators(

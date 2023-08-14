@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 pub use tpke::api::{
     prepare_combine_simple, share_combine_precomputed, share_combine_simple,
-    Ciphertext, Fr, G1Affine, G1Prepared, SecretBox, E,
+    Fr, G1Affine, G1Prepared, G2Affine, SecretBox, E,
 };
 
 pub type PublicKey = ferveo_common::PublicKey<E>;
@@ -55,7 +55,7 @@ pub fn encrypt(
 ) -> Result<Ciphertext> {
     let mut rng = rand::thread_rng();
     let ciphertext = tpke::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
-    Ok(ciphertext)
+    Ok(Ciphertext(ciphertext))
 }
 
 pub fn decrypt_with_shared_secret(
@@ -65,13 +65,30 @@ pub fn decrypt_with_shared_secret(
 ) -> Result<Vec<u8>> {
     let dkg_public_params = DkgPublicParameters::default();
     tpke::api::decrypt_with_shared_secret(
-        ciphertext,
+        &ciphertext.0,
         aad,
         &shared_secret.0,
         &dkg_public_params.g1_inv,
     )
     .map_err(Error::from)
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq)]
+pub struct Ciphertext(tpke::api::Ciphertext);
+
+impl Ciphertext {
+    pub fn header(&self) -> Result<CiphertextHeader> {
+        Ok(CiphertextHeader(self.0.header()?))
+    }
+
+    pub fn payload(&self) -> Vec<u8> {
+        self.0.payload()
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CiphertextHeader(tpke::api::CiphertextHeader);
 
 /// The ferveo variant to use for the decryption share derivation.
 #[derive(
@@ -286,7 +303,7 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_precomputed(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
@@ -297,7 +314,7 @@ impl AggregatedTranscript {
             .take(dkg.0.dkg_params.shares_num as usize)
             .collect();
         self.0.make_decryption_share_simple_precomputed(
-            ciphertext,
+            &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
             dkg.0.me.share_index,
@@ -309,12 +326,12 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_simple(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionShareSimple> {
         let share = self.0.make_decryption_share_simple(
-            ciphertext,
+            &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
             dkg.0.me.share_index,
@@ -458,14 +475,10 @@ mod test_ferveo_api {
             // In the meantime, the client creates a ciphertext and decryption request
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
-            let rng = &mut thread_rng();
-            let ciphertext = tpke::api::encrypt(
-                SecretBox::new(msg.clone()),
-                aad,
-                &dkg_public_key.0,
-                rng,
-            )
-            .unwrap();
+            let _rng = &mut thread_rng();
+            let ciphertext =
+                encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key)
+                    .unwrap();
 
             // Having aggregated the transcripts, the validators can now create decryption shares
             let decryption_shares: Vec<_> =
@@ -490,7 +503,7 @@ mod test_ferveo_api {
                         aggregate
                             .create_decryption_share_precomputed(
                                 &dkg,
-                                &ciphertext,
+                                &ciphertext.header().unwrap(),
                                 aad,
                                 validator_keypair,
                             )
@@ -557,14 +570,9 @@ mod test_ferveo_api {
             // In the meantime, the client creates a ciphertext and decryption request
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
-            let rng = &mut thread_rng();
-            let ciphertext = tpke::api::encrypt(
-                SecretBox::new(msg.clone()),
-                aad,
-                &public_key.0,
-                rng,
-            )
-            .unwrap();
+            let _rng = &mut thread_rng();
+            let ciphertext =
+                encrypt(SecretBox::new(msg.clone()), aad, &public_key).unwrap();
 
             // Having aggregated the transcripts, the validators can now create decryption shares
             let decryption_shares: Vec<_> =
@@ -587,7 +595,7 @@ mod test_ferveo_api {
                         aggregate
                             .create_decryption_share_simple(
                                 &dkg,
-                                &ciphertext,
+                                &ciphertext.header().unwrap(),
                                 aad,
                                 validator_keypair,
                             )

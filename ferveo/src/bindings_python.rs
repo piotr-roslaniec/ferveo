@@ -509,7 +509,37 @@ impl Dkg {
 )]
 pub struct Ciphertext(api::Ciphertext);
 
+#[pymethods]
+impl Ciphertext {
+    #[getter]
+    pub fn header(&self) -> PyResult<CiphertextHeader> {
+        let header = self.0.header().map_err(FerveoPythonError::from)?;
+        Ok(CiphertextHeader(header))
+    }
+
+    #[getter]
+    pub fn payload(&self) -> Vec<u8> {
+        self.0.payload().to_vec()
+    }
+}
+
 generate_bytes_serialization!(Ciphertext);
+
+#[pyclass(module = "ferveo")]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::AsRef,
+    derive_more::Into,
+)]
+pub struct CiphertextHeader(api::CiphertextHeader);
+
+generate_bytes_serialization!(CiphertextHeader);
 
 #[pyclass(module = "ferveo")]
 #[derive(Clone, derive_more::AsRef, derive_more::From)]
@@ -555,7 +585,7 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_precomputed(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> PyResult<DecryptionSharePrecomputed> {
@@ -563,7 +593,7 @@ impl AggregatedTranscript {
             .0
             .create_decryption_share_precomputed(
                 &dkg.0,
-                &ciphertext.0,
+                &ciphertext_header.0,
                 aad,
                 &validator_keypair.0,
             )
@@ -574,7 +604,7 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_simple(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> PyResult<DecryptionShareSimple> {
@@ -582,7 +612,7 @@ impl AggregatedTranscript {
             .0
             .create_decryption_share_simple(
                 &dkg.0,
-                &ciphertext.0,
+                &ciphertext_header.0,
                 aad,
                 &validator_keypair.0,
             )
@@ -628,6 +658,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Transcript>()?;
     m.add_class::<Dkg>()?;
     m.add_class::<Ciphertext>()?;
+    m.add_class::<CiphertextHeader>()?;
     m.add_class::<DecryptionShareSimple>()?;
     m.add_class::<DecryptionSharePrecomputed>()?;
     m.add_class::<AggregatedTranscript>()?;
@@ -712,7 +743,7 @@ mod test_ferveo_python {
             .iter()
             .enumerate()
             .map(|(i, keypair)| {
-                Validator::new(format!("0x{:040}", i), &keypair.public_key())
+                Validator::new(format!("0x{i:040}"), &keypair.public_key())
                     .unwrap()
             })
             .collect();
@@ -799,7 +830,7 @@ mod test_ferveo_python {
                 aggregate
                     .create_decryption_share_precomputed(
                         &dkg,
-                        &ciphertext,
+                        &ciphertext.header().unwrap(),
                         aad,
                         validator_keypair,
                     )
@@ -876,7 +907,7 @@ mod test_ferveo_python {
                 aggregate
                     .create_decryption_share_simple(
                         &dkg,
-                        &ciphertext,
+                        &ciphertext.header().unwrap(),
                         aad,
                         validator_keypair,
                     )

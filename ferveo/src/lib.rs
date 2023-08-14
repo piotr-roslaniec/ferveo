@@ -127,8 +127,8 @@ mod test_dkg_full {
     use ferveo_common::Keypair;
     use group_threshold_cryptography as tpke;
     use group_threshold_cryptography::{
-        Ciphertext, DecryptionSharePrecomputed, DecryptionShareSimple,
-        SecretBox, SharedSecret,
+        DecryptionSharePrecomputed, DecryptionShareSimple, SecretBox,
+        SharedSecret,
     };
     use itertools::izip;
 
@@ -140,7 +140,7 @@ mod test_dkg_full {
     fn make_shared_secret_simple_tdec(
         dkg: &PubliclyVerifiableDkg<E>,
         aad: &[u8],
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &tpke::CiphertextHeader<E>,
         validator_keypairs: &[Keypair<E>],
     ) -> (
         PubliclyVerifiableSS<E, Aggregated>,
@@ -159,7 +159,7 @@ mod test_dkg_full {
                         .unwrap();
                     pvss_aggregated
                         .make_decryption_share_simple(
-                            ciphertext,
+                            ciphertext_header,
                             aad,
                             &validator_keypair.decryption_key,
                             validator.share_index,
@@ -211,7 +211,7 @@ mod test_dkg_full {
             let (_, _, shared_secret) = make_shared_secret_simple_tdec(
                 &dkg,
                 aad,
-                &ciphertext,
+                &ciphertext.header().unwrap(),
                 &validator_keypairs,
             );
 
@@ -264,7 +264,7 @@ mod test_dkg_full {
                             .unwrap();
                         pvss_aggregated
                             .make_decryption_share_simple_precomputed(
-                                &ciphertext,
+                                &ciphertext.header().unwrap(),
                                 aad,
                                 &validator_keypair.decryption_key,
                                 validator.share_index,
@@ -307,7 +307,7 @@ mod test_dkg_full {
             make_shared_secret_simple_tdec(
                 &dkg,
                 aad,
-                &ciphertext,
+                &ciphertext.header().unwrap(),
                 &validator_keypairs,
             );
 
@@ -367,7 +367,7 @@ mod test_dkg_full {
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
             &dkg,
             aad,
-            &ciphertext,
+            &ciphertext.header().unwrap(),
             &validator_keypairs,
         );
 
@@ -443,7 +443,7 @@ mod test_dkg_full {
                 .map(|(share_index, validator_keypair)| {
                     pvss_aggregated
                         .make_decryption_share_simple(
-                            &ciphertext,
+                            &ciphertext.header().unwrap(),
                             aad,
                             &validator_keypair.decryption_key,
                             share_index,
@@ -459,7 +459,7 @@ mod test_dkg_full {
             DecryptionShareSimple::create(
                 &new_validator_decryption_key,
                 &new_private_key_share,
-                &ciphertext,
+                &ciphertext.header().unwrap(),
                 aad,
                 &dkg.pvss_params.g_inv(),
             )
@@ -491,7 +491,7 @@ mod test_dkg_full {
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
             &dkg,
             aad,
-            &ciphertext,
+            &ciphertext.header().unwrap(),
             &validator_keypairs,
         );
 
@@ -514,7 +514,7 @@ mod test_dkg_full {
                 .map(|(validator_address, validator_keypair)| {
                     pvss_aggregated
                         .refresh_decryption_share(
-                            &ciphertext,
+                            &ciphertext.header().unwrap(),
                             aad,
                             &validator_keypair.decryption_key,
                             validator_address,

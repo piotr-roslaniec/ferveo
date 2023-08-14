@@ -125,7 +125,7 @@ fn tdec_simple() {
             aggregate
                 .create_decryption_share_simple(
                     &dkg,
-                    &ciphertext,
+                    &ciphertext.header().unwrap(),
                     &aad,
                     &keypair,
                 )
@@ -179,7 +179,7 @@ fn tdec_precomputed() {
             aggregate
                 .create_decryption_share_precomputed(
                     &dkg,
-                    &ciphertext,
+                    &ciphertext.header().unwrap(),
                     &aad,
                     &keypair,
                 )

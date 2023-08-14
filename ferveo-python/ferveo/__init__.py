@@ -9,6 +9,7 @@ from ._ferveo import (
     Transcript,
     Dkg,
     Ciphertext,
+    CiphertextHeader,
     DecryptionShareSimple,
     DecryptionSharePrecomputed,
     AggregatedTranscript,
