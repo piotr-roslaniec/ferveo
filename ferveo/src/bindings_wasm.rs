@@ -317,6 +317,10 @@ pub fn decrypt_with_shared_secret(
 type InnerDkgPublicKey = api::DkgPublicKey;
 
 #[wasm_bindgen]
+#[derive(
+    derive_more::From,
+    derive_more::AsRef,
+)]
 pub struct DkgPublicKey(InnerDkgPublicKey);
 
 generate_equals!(DkgPublicKey);
