@@ -133,7 +133,7 @@ class Ciphertext:
 @final
 class CiphertextHeader:
     @staticmethod
-    def from_bytes(data: bytes) -> Ciphertext:
+    def from_bytes(data: bytes) -> CiphertextHeader:
         ...
 
     def __bytes__(self) -> bytes:
