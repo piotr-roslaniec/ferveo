@@ -273,7 +273,7 @@ pub fn ferveo_encrypt(
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, derive_more::AsRef)]
 pub struct SharedSecret(api::SharedSecret);
 
 generate_common_methods!(SharedSecret);
