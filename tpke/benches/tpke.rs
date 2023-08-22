@@ -388,8 +388,7 @@ pub fn bench_ciphertext_validity_checks(c: &mut Criterion) {
             let mut rng = rng.clone();
             let setup = SetupFast::new(shares_num, msg_size, &mut rng);
             move || {
-                black_box(check_ciphertext_validity(
-                    &setup.shared.ciphertext,
+                black_box(setup.shared.ciphertext.check(
                     &setup.shared.aad,
                     &setup.contexts[0].setup_params.g_inv,
                 ))
