@@ -394,7 +394,7 @@ pub struct SharedSecret(pub tpke::api::SharedSecret<E>);
 #[cfg(test)]
 mod test_ferveo_api {
     use itertools::izip;
-    use rand::{prelude::StdRng, thread_rng, SeedableRng};
+    use rand::{prelude::StdRng, SeedableRng};
     use tpke::SecretBox;
 
     use crate::{api::*, dkg::test_common::*};
@@ -475,7 +475,6 @@ mod test_ferveo_api {
             // In the meantime, the client creates a ciphertext and decryption request
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
-            let _rng = &mut thread_rng();
             let ciphertext =
                 encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key)
                     .unwrap();
@@ -570,7 +569,6 @@ mod test_ferveo_api {
             // In the meantime, the client creates a ciphertext and decryption request
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
-            let _rng = &mut thread_rng();
             let ciphertext =
                 encrypt(SecretBox::new(msg.clone()), aad, &public_key).unwrap();
 
