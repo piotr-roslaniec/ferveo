@@ -273,7 +273,7 @@ pub fn ferveo_encrypt(
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, derive_more::AsRef)]
 pub struct SharedSecret(api::SharedSecret);
 
 generate_common_methods!(SharedSecret);
@@ -317,6 +317,7 @@ pub fn decrypt_with_shared_secret(
 type InnerDkgPublicKey = api::DkgPublicKey;
 
 #[wasm_bindgen]
+#[derive(derive_more::From, derive_more::AsRef)]
 pub struct DkgPublicKey(InnerDkgPublicKey);
 
 generate_equals!(DkgPublicKey);
