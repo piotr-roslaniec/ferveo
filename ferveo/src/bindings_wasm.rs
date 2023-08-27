@@ -229,7 +229,35 @@ generate_boxed_bytes_serialization!(FerveoPublicKey, InnerPublicKey);
 )]
 pub struct Ciphertext(api::Ciphertext);
 
+#[wasm_bindgen]
+impl Ciphertext {
+    #[wasm_bindgen(js_name = "header", getter)]
+    pub fn header(&self) -> JsResult<CiphertextHeader> {
+        let header = self.0.header().map_err(map_js_err)?;
+        Ok(CiphertextHeader(header))
+    }
+
+    #[wasm_bindgen(js_name = "payload", getter)]
+    pub fn payload(&self) -> Vec<u8> {
+        self.0.payload()
+    }
+}
+
 generate_common_methods!(Ciphertext);
+
+#[wasm_bindgen]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    derive_more::From,
+    derive_more::AsRef,
+    derive_more::Into,
+)]
+pub struct CiphertextHeader(api::CiphertextHeader);
+
+generate_common_methods!(CiphertextHeader);
 
 #[wasm_bindgen(js_name = "ferveoEncrypt")]
 pub fn ferveo_encrypt(
@@ -497,7 +525,7 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_precomputed(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> JsResult<DecryptionSharePrecomputed> {
@@ -506,7 +534,7 @@ impl AggregatedTranscript {
             .0
             .create_decryption_share_precomputed(
                 &dkg.0,
-                &ciphertext.0,
+                &ciphertext_header.0,
                 aad,
                 &validator_keypair.0,
             )
@@ -518,7 +546,7 @@ impl AggregatedTranscript {
     pub fn create_decryption_share_simple(
         &self,
         dkg: &Dkg,
-        ciphertext: &Ciphertext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> JsResult<DecryptionShareSimple> {
@@ -527,7 +555,7 @@ impl AggregatedTranscript {
             .0
             .create_decryption_share_simple(
                 &dkg.0,
-                &ciphertext.0,
+                &ciphertext_header.0,
                 aad,
                 &validator_keypair.0,
             )

@@ -91,7 +91,7 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
         assert pvss_aggregated.verify(shares_num, messages)
 
         decryption_share = decryption_share_for_variant(variant, pvss_aggregated)(
-            dkg, ciphertext, aad, validator_keypair
+            dkg, ciphertext.header, aad, validator_keypair
         )
         decryption_shares.append(decryption_share)
 

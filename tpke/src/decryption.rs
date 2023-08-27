@@ -9,8 +9,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    generate_random, Ciphertext, PrivateKeyShare, PublicDecryptionContextFast,
-    PublicDecryptionContextSimple, Result,
+    generate_random, Ciphertext, CiphertextHeader, PrivateKeyShare,
+    PublicDecryptionContextFast, PublicDecryptionContextSimple, Result,
 };
 
 #[serde_as]
@@ -31,10 +31,10 @@ pub struct ValidatorShareChecksum<E: Pairing> {
 impl<E: Pairing> ValidatorShareChecksum<E> {
     pub fn new(
         validator_decryption_key: &E::ScalarField,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
     ) -> Result<Self> {
         // C_i = dk_i^{-1} * U
-        let checksum = ciphertext
+        let checksum = ciphertext_header
             .commitment
             // TODO: Should we panic here? I think we should since that would mean that the decryption key is invalid.
             //   And so, the validator should not be able to create a decryption share.
@@ -90,15 +90,15 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     pub fn create(
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        ciphertext.check(aad, g_inv)?;
+        ciphertext_header.check(aad, g_inv)?;
         Self::create_unchecked(
             validator_decryption_key,
             private_key_share,
-            ciphertext,
+            ciphertext_header,
         )
     }
 
@@ -107,17 +107,19 @@ impl<E: Pairing> DecryptionShareSimple<E> {
     pub fn create_unchecked(
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
     ) -> Result<Self> {
         // D_i = e(U, Z_i)
         let decryption_share = E::pairing(
-            ciphertext.commitment,
+            ciphertext_header.commitment,
             private_key_share.private_key_share,
         )
         .0;
 
-        let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
+        let validator_checksum = ValidatorShareChecksum::new(
+            validator_decryption_key,
+            ciphertext_header,
+        )?;
 
         Ok(Self {
             decryption_share,
@@ -160,17 +162,17 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
         validator_index: usize,
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         lagrange_coeff: &E::ScalarField,
         g_inv: &E::G1Prepared,
     ) -> Result<Self> {
-        ciphertext.check(aad, g_inv)?;
+        ciphertext_header.check(aad, g_inv)?;
         Self::create_unchecked(
             validator_index,
             validator_decryption_key,
             private_key_share,
-            ciphertext,
+            ciphertext_header,
             lagrange_coeff,
         )
     }
@@ -179,11 +181,12 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
         validator_index: usize,
         validator_decryption_key: &E::ScalarField,
         private_key_share: &PrivateKeyShare<E>,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         lagrange_coeff: &E::ScalarField,
     ) -> Result<Self> {
         // U_{λ_i} = [λ_{i}(0)] U
-        let u_to_lagrange_coeff = ciphertext.commitment.mul(lagrange_coeff);
+        let u_to_lagrange_coeff =
+            ciphertext_header.commitment.mul(lagrange_coeff);
         // C_{λ_i} = e(U_{λ_i}, Z_i)
         let decryption_share = E::pairing(
             u_to_lagrange_coeff,
@@ -191,8 +194,10 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
         )
         .0;
 
-        let validator_checksum =
-            ValidatorShareChecksum::new(validator_decryption_key, ciphertext)?;
+        let validator_checksum = ValidatorShareChecksum::new(
+            validator_decryption_key,
+            ciphertext_header,
+        )?;
 
         Ok(Self {
             decrypter_index: validator_index,

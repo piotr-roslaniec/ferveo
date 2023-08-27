@@ -33,16 +33,46 @@ pub struct Ciphertext<E: Pairing> {
 
 impl<E: Pairing> Ciphertext<E> {
     pub fn check(&self, aad: &[u8], g_inv: &E::G1Prepared) -> Result<bool> {
+        self.header()?.check(aad, g_inv)
+    }
+
+    pub fn ciphertext_hash(&self) -> [u8; 32] {
+        sha256(&self.ciphertext)
+    }
+
+    pub fn header(&self) -> Result<CiphertextHeader<E>> {
+        Ok(CiphertextHeader {
+            commitment: self.commitment,
+            auth_tag: self.auth_tag,
+            ciphertext_hash: self.ciphertext_hash(),
+        })
+    }
+    pub fn payload(&self) -> Vec<u8> {
+        self.ciphertext.clone()
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CiphertextHeader<E: Pairing> {
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub commitment: E::G1Affine,
+    #[serde_as(as = "serialization::SerdeAs")]
+    pub auth_tag: E::G2Affine,
+    pub ciphertext_hash: [u8; 32],
+}
+
+impl<E: Pairing> CiphertextHeader<E> {
+    pub fn check(&self, aad: &[u8], g_inv: &E::G1Prepared) -> Result<bool> {
         // Implements a variant of the check in section 4.4.2 of the Ferveo paper:
-        //     'TPKE.CheckCiphertextValidity(U,W,aad)'
+        // 'TPKE.CheckCiphertextValidity(U,W,aad)'
         // See: https://eprint.iacr.org/2022/898.pdf
         // See: https://nikkolasg.github.io/ferveo/tpke.html#to-validate-ciphertext-for-ind-cca2-security
 
         // H_G2(U, sym_ctxt_digest, aad)
-        let ciphertext_hash = sha256(&self.ciphertext[..]);
         let hash_g2 = E::G2Prepared::from(construct_tag_hash::<E>(
             self.commitment,
-            &ciphertext_hash,
+            &self.ciphertext_hash,
             aad,
         )?);
 
@@ -152,11 +182,11 @@ pub fn decrypt_with_shared_secret<E: Pairing>(
     decrypt_with_shared_secret_unchecked(ciphertext, aad, shared_secret)
 }
 
-fn sha256(input: &[u8]) -> Vec<u8> {
+fn sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(input);
     let result = hasher.finalize();
-    result.to_vec()
+    result.into()
 }
 
 pub fn shared_secret_to_chacha<E: Pairing>(

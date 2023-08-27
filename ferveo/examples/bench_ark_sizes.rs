@@ -47,8 +47,7 @@ pub fn save_data(
     let mut file = OpenOptions::new().append(true).open(&file_path).unwrap();
     writeln!(
         file,
-        "{}|{}|{}|",
-        n_of_elements, type_of_element, serialized_size_in_bytes
+        "{n_of_elements}|{type_of_element}|{serialized_size_in_bytes}|"
     )
     .unwrap();
 }
@@ -66,10 +65,10 @@ fn main() {
         .map(|(n, element)| (n, element))
         .collect::<BTreeSet<_>>();
 
-    println!("Running benchmarks for {:?}", configs);
+    println!("Running benchmarks for {configs:?}");
 
     for (n, element) in configs {
-        println!("number_of_elements: {}, type_of_elements: {}", n, element);
+        println!("number_of_elements: {n}, type_of_elements: {element}");
 
         let g1_affine =
             (0..*n).map(|_| G1Affine::rand(rng)).collect::<Vec<_>>();

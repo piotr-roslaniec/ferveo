@@ -333,7 +333,7 @@ pub(crate) mod test_common {
     }
 
     pub fn gen_address(i: usize) -> EthereumAddress {
-        EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+        EthereumAddress::from_str(&format!("0x{i:040}")).unwrap()
     }
 
     pub fn gen_validators(keypairs: &[Keypair<E>]) -> Vec<Validator<E>> {

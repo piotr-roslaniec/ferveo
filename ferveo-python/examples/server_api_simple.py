@@ -85,7 +85,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
 
     # Create a decryption share for the ciphertext
     decryption_share = aggregate.create_decryption_share_simple(
-        dkg, ciphertext, aad, validator_keypair
+        dkg, ciphertext.header, aad, validator_keypair
     )
     decryption_shares.append(decryption_share)
 

@@ -42,12 +42,8 @@ pub fn save_data(
 
     eprintln!("Appending to file: {}", file_path.display());
     let mut file = OpenOptions::new().append(true).open(&file_path).unwrap();
-    writeln!(
-        file,
-        "{}|{}|{}|",
-        shares_num, threshold, transcript_size_bytes
-    )
-    .unwrap();
+    writeln!(file, "{shares_num}|{threshold}|{transcript_size_bytes}|")
+        .unwrap();
 }
 
 // TODO: Find a way to deduplicate the following methods with benchmarks and test setup
@@ -60,7 +56,7 @@ fn gen_keypairs(num: u32) -> Vec<ferveo_common::Keypair<EllipticCurve>> {
 }
 
 pub fn gen_address(i: usize) -> EthereumAddress {
-    EthereumAddress::from_str(&format!("0x{:040}", i)).unwrap()
+    EthereumAddress::from_str(&format!("0x{i:040}")).unwrap()
 }
 
 fn gen_validators(
@@ -132,10 +128,10 @@ fn main() {
         })
         .collect::<BTreeSet<_>>();
 
-    println!("Running benchmarks for {:?}", configs);
+    println!("Running benchmarks for {configs:?}");
 
     for (shares_num, threshold) in configs {
-        println!("shares_num: {}, threshold: {}", shares_num, threshold);
+        println!("shares_num: {shares_num}, threshold: {threshold}");
         let dkg = setup(*shares_num as u32, threshold, rng);
         let transcript = &dkg.vss.values().next().unwrap();
         let transcript_bytes = bincode::serialize(&transcript).unwrap();

@@ -14,7 +14,7 @@ use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use tpke::{
     prepare_combine_simple, refresh_private_key_share,
-    update_share_for_recovery, Ciphertext, DecryptionSharePrecomputed,
+    update_share_for_recovery, CiphertextHeader, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
@@ -329,7 +329,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     pub fn make_decryption_share_simple(
         &self,
-        ciphertext: &Ciphertext<E>,
+        ciphertext: &CiphertextHeader<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
@@ -349,7 +349,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     pub fn make_decryption_share_simple_precomputed(
         &self,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
@@ -366,7 +366,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             share_index,
             validator_decryption_key,
             &private_key_share,
-            ciphertext,
+            ciphertext_header,
             aad,
             &lagrange_coeffs[share_index],
             g_inv,
@@ -376,7 +376,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     pub fn refresh_decryption_share(
         &self,
-        ciphertext: &Ciphertext<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
@@ -396,7 +396,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         DecryptionShareSimple::create(
             validator_decryption_key,
             &refreshed_private_key_share,
-            ciphertext,
+            ciphertext_header,
             aad,
             &dkg.pvss_params.g_inv(),
         )
