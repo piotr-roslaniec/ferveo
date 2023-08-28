@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.1 (2023-08-28)
 
 Maintenance release
 
@@ -13,8 +13,8 @@ Maintenance release
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release over the course of 47 calendar days.
- - 51 days passed between releases.
+ - 4 commits contributed to the release over the course of 49 calendar days.
+ - 52 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -25,6 +25,7 @@ Maintenance release
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Fix changelogs for cargo-smart-release ([`fe4ec4e`](https://github.com/nucypher/ferveo/commit/fe4ec4ec7667f513b6ebb4bd604303e6ff53a425))
     - Merge pull request #149 from cygnusv/thin ([`f44e1be`](https://github.com/nucypher/ferveo/commit/f44e1be4fe9a0a165d8b0b50ad29bb7f6818f672))
     - Clippy stuff ([`4337c3c`](https://github.com/nucypher/ferveo/commit/4337c3c312719987405f620f2e377cf493ece6d3))
     - Merge pull request #138 from nucypher/development ([`434fd5d`](https://github.com/nucypher/ferveo/commit/434fd5d07b54e72d120e9aa06cbc3e47848e6bcf))

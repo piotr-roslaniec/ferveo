@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0 (2023-08-28)
 
 ### New Features (BREAKING)
 
@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 9 commits contributed to the release over the course of 47 calendar days.
- - 51 days passed between releases.
+ - 10 commits contributed to the release over the course of 49 calendar days.
+ - 52 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Fix changelogs for cargo-smart-release ([`fe4ec4e`](https://github.com/nucypher/ferveo/commit/fe4ec4ec7667f513b6ebb4bd604303e6ff53a425))
     - Merge pull request #155 from nucypher/update-ciphertext-api ([`bc0a6a5`](https://github.com/nucypher/ferveo/commit/bc0a6a56b9ae63aa6573c6ad045c73356b053058))
     - Merge pull request #149 from cygnusv/thin ([`f44e1be`](https://github.com/nucypher/ferveo/commit/f44e1be4fe9a0a165d8b0b50ad29bb7f6818f672))
     - Add ciphertext header to ciphertext api ([`1800d3c`](https://github.com/nucypher/ferveo/commit/1800d3c5db164947c7cae35433fb8e3ad2650b66))

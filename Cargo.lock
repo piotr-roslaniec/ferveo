@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-common-pre-release"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "ferveo-pre-release"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -881,7 +881,7 @@ checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
 
 [[package]]
 name = "group-threshold-cryptography-pre-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
