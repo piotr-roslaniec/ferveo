@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New Features (BREAKING)
+
+ - <csr-id-1800d3c5db164947c7cae35433fb8e3ad2650b66/> add ciphertext header to ciphertext api
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 9 commits contributed to the release over the course of 25 calendar days.
+ - 26 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #156 from derekpierre/acp ([`e2c4c2e`](https://github.com/nucypher/ferveo/commit/e2c4c2ee9efa20ee2f835530117dd03d67b142fb))
+    - Merge pull request #155 from nucypher/update-ciphertext-api ([`bc0a6a5`](https://github.com/nucypher/ferveo/commit/bc0a6a56b9ae63aa6573c6ad045c73356b053058))
+    - Apply pr suggestions ([`c06217c`](https://github.com/nucypher/ferveo/commit/c06217c06e16df17d0525027312d5c368f443cb6))
+    - SharedSecret wasm-binding now derives AsRef. ([`c3fe68a`](https://github.com/nucypher/ferveo/commit/c3fe68a3214b398db617e687e5244371661a77f7))
+    - Merge pull request #149 from cygnusv/thin ([`f44e1be`](https://github.com/nucypher/ferveo/commit/f44e1be4fe9a0a165d8b0b50ad29bb7f6818f672))
+    - Appease linter. ([`2c1288b`](https://github.com/nucypher/ferveo/commit/2c1288b1adb983fdb432490d0a64a9a7cd929d76))
+    - DkgPublicKey wasm-binding now derives From and AsRef. ([`ce7d280`](https://github.com/nucypher/ferveo/commit/ce7d280c46173297b0d123b54bac6e57e9f9cc36))
+    - Add ciphertext header to ciphertext api ([`1800d3c`](https://github.com/nucypher/ferveo/commit/1800d3c5db164947c7cae35433fb8e3ad2650b66))
+    - Clippy stuff ([`4337c3c`](https://github.com/nucypher/ferveo/commit/4337c3c312719987405f620f2e377cf493ece6d3))
+</details>
+
 ## v0.2.1 (2023-08-01)
 
 ### New Features
@@ -19,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 10 commits contributed to the release over the course of 21 calendar days.
+ - 11 commits contributed to the release over the course of 21 calendar days.
  - 24 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -31,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release ferveo-pre-release v0.2.1 ([`37ea895`](https://github.com/nucypher/ferveo/commit/37ea895e787ae013ffb2c8bb2d738b29a1c32163))
     - Merge pull request #139 from nucypher/fix-typings ([`dc9d81a`](https://github.com/nucypher/ferveo/commit/dc9d81a4128e1966effc11d6e6bb815958482d90))
     - Rename FerveoVariant attributes ([`0e7c561`](https://github.com/nucypher/ferveo/commit/0e7c5615a0660a69077e7b431dd24c5bb3d0f10d))
     - Add __hash__ to FerveoVariant ([`06321d7`](https://github.com/nucypher/ferveo/commit/06321d798fc30768173eec447aed753c34890194))

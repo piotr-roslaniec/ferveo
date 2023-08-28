@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New Features (BREAKING)
+
+ - <csr-id-1800d3c5db164947c7cae35433fb8e3ad2650b66/> add ciphertext header to ciphertext api
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 9 commits contributed to the release over the course of 47 calendar days.
+ - 51 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #155 from nucypher/update-ciphertext-api ([`bc0a6a5`](https://github.com/nucypher/ferveo/commit/bc0a6a56b9ae63aa6573c6ad045c73356b053058))
+    - Merge pull request #149 from cygnusv/thin ([`f44e1be`](https://github.com/nucypher/ferveo/commit/f44e1be4fe9a0a165d8b0b50ad29bb7f6818f672))
+    - Add ciphertext header to ciphertext api ([`1800d3c`](https://github.com/nucypher/ferveo/commit/1800d3c5db164947c7cae35433fb8e3ad2650b66))
+    - Remove unused & incorrect ciphertext length method ([`f427f0d`](https://github.com/nucypher/ferveo/commit/f427f0d12043f751905827ea31c7a179bd9a6180))
+    - Test for bad AAD input ([`e51e6ec`](https://github.com/nucypher/ferveo/commit/e51e6ec6632720409c0fc9a525265c0ca1a0404b))
+    - Use AEAD payloads (message + AAD) as input to chacha20poly1305. Fix #146 ([`e662e17`](https://github.com/nucypher/ferveo/commit/e662e178d80f26b9a727b790e6d3e6f3456a6085))
+    - Use symmetric ciphertext hash when creating/checking the auth_tag ([`396b1d2`](https://github.com/nucypher/ferveo/commit/396b1d28297ea1a840c0b9dc4f6c6be061cd6bba))
+    - Refactor Ciphertext implementation. Fixes #144 ([`41e5be5`](https://github.com/nucypher/ferveo/commit/41e5be5dc0edc3c81e82d34f523108a7d06bd09c))
+    - Merge pull request #138 from nucypher/development ([`434fd5d`](https://github.com/nucypher/ferveo/commit/434fd5d07b54e72d120e9aa06cbc3e47848e6bcf))
+</details>
+
 ## v0.1.0 (2023-07-07)
 
 <csr-id-ca43921af214903e2d1345bb05b5f9c6e1987919/>
@@ -17,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 249 commits contributed to the release over the course of 702 calendar days.
+ - 250 commits contributed to the release over the course of 702 calendar days.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 3 unique issues were worked on: [#70](https://github.com/nucypher/ferveo/issues/70), [#71](https://github.com/nucypher/ferveo/issues/71), [#72](https://github.com/nucypher/ferveo/issues/72)
 
@@ -34,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#72](https://github.com/nucypher/ferveo/issues/72)**
     - Refactor subproductdomain ([`2d8026b`](https://github.com/nucypher/ferveo/commit/2d8026b2299fd9b67c77fb3b4e565ff9f4e6505b))
  * **Uncategorized**
+    - Release ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`ffb9b21`](https://github.com/nucypher/ferveo/commit/ffb9b21619d0f5dc0fb309bf2f493d3c0c25e1f0))
     - Release ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`a7b889e`](https://github.com/nucypher/ferveo/commit/a7b889e3a20cfffc96bcb801dfb0946227cb32d9))
     - Adjust changelogs for cargo-smart-release ([`ca43921`](https://github.com/nucypher/ferveo/commit/ca43921af214903e2d1345bb05b5f9c6e1987919))
     - Adjusting changelogs prior to release of ferveo-common-pre-release v0.1.0, subproductdomain-pre-release v0.1.0, group-threshold-cryptography-pre-release v0.1.0, ferveo-pre-release v0.2.0 ([`0ccba13`](https://github.com/nucypher/ferveo/commit/0ccba13b0608e2023d8792ac9b0402af5ebaad0b))
