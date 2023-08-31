@@ -61,7 +61,7 @@ pub fn recover_share_from_updated_private_shares<E: Pairing>(
     }
 }
 
-pub fn make_random_polynomial_at<E: Pairing>(
+pub fn make_random_polynomial_with_root<E: Pairing>(
     threshold: usize,
     root: &E::ScalarField,
     rng: &mut impl RngCore,
@@ -78,6 +78,7 @@ pub fn make_random_polynomial_at<E: Pairing>(
     let d_i_0 = E::ScalarField::zero() - threshold_poly.evaluate(root);
     threshold_poly[0] = d_i_0;
 
+    // Evaluating the polynomial at the root should result in 0
     debug_assert!(threshold_poly.evaluate(root) == E::ScalarField::zero());
     debug_assert!(threshold_poly.coeffs.len() == threshold);
 
@@ -120,7 +121,7 @@ mod tests_refresh {
     type ScalarField = <E as Pairing>::ScalarField;
 
     use crate::{
-        make_random_polynomial_at, prepare_share_updates_for_recovery,
+        make_random_polynomial_with_root, prepare_share_updates_for_recovery,
         recover_share_from_updated_private_shares, refresh_private_key_share,
         update_share_for_recovery,
     };
@@ -359,7 +360,7 @@ mod tests_refresh {
         // Now, we're going to refresh the shares and check that the shared secret is the same
 
         // Dealer computes a new random polynomial with constant term x_r
-        let polynomial = make_random_polynomial_at::<E>(
+        let polynomial = make_random_polynomial_with_root::<E>(
             threshold,
             &ScalarField::zero(),
             rng,

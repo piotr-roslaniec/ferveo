@@ -552,7 +552,7 @@ pub fn bench_refresh_shares(c: &mut Criterion) {
         let setup = SetupSimple::new(shares_num, msg_size, rng);
         let threshold = setup.shared.threshold;
         let polynomial =
-            make_random_polynomial_at::<E>(threshold, &Fr::zero(), rng);
+            make_random_polynomial_with_root::<E>(threshold, &Fr::zero(), rng);
         let p = setup.contexts[0].clone();
         group.bench_function(
             BenchmarkId::new("refresh_private_key_share", shares_num),

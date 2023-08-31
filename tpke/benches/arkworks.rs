@@ -14,7 +14,7 @@ use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography_pre_release::make_random_polynomial_at;
+use group_threshold_cryptography_pre_release::make_random_polynomial_with_root;
 use itertools::izip;
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
@@ -219,7 +219,7 @@ pub fn bench_random_poly(c: &mut Criterion) {
         result
     }
 
-    pub fn naive_make_random_polynomial_at<E: Pairing>(
+    pub fn naive_make_random_polynomial_with_root<E: Pairing>(
         threshold: usize,
         root: &Fr,
         rng: &mut impl RngCore,
@@ -248,7 +248,7 @@ pub fn bench_random_poly(c: &mut Criterion) {
         let mut ark = {
             let mut rng = rng.clone();
             move || {
-                black_box(make_random_polynomial_at::<E>(
+                black_box(make_random_polynomial_with_root::<E>(
                     threshold,
                     &Fr::zero(),
                     &mut rng,
@@ -258,7 +258,7 @@ pub fn bench_random_poly(c: &mut Criterion) {
         let mut naive = {
             let mut rng = rng.clone();
             move || {
-                black_box(naive_make_random_polynomial_at::<E>(
+                black_box(naive_make_random_polynomial_with_root::<E>(
                     threshold,
                     &Fr::zero(),
                     &mut rng,
