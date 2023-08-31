@@ -477,7 +477,7 @@ pub fn aggregate_for_decryption<E: Pairing>(
         // We're assuming that in every PVSS instance, the shares are in the same order
         .fold(first_share, |acc, shares| {
             acc.into_iter()
-                .zip_eq(shares.into_iter())
+                .zip_eq(shares)
                 .map(|(a, b)| (a + b).into())
                 .collect()
         })
