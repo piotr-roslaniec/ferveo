@@ -8,6 +8,8 @@ use itertools::zip_eq;
 use rand_core::RngCore;
 use tpke::{lagrange_basis_at, PrivateKeyShare};
 
+// SHARE UPDATE FUNCTIONS:
+
 /// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
 pub fn prepare_share_updates_for_recovery<E: Pairing>(
     domain_points: &[E::ScalarField],
@@ -16,17 +18,8 @@ pub fn prepare_share_updates_for_recovery<E: Pairing>(
     threshold: usize,
     rng: &mut impl RngCore,
 ) -> Vec<E::G2> {
-    // Generate a new random polynomial with constant term x_r
-    let d_i = make_random_polynomial_at::<E>(threshold, x_r, rng);
-
-    // Now, we need to evaluate the polynomial at each of participants' indices
-    domain_points
-        .iter()
-        .map(|x_i| {
-            let eval = d_i.evaluate(x_i);
-            h.mul(eval)
-        })
-        .collect()
+    // Update polynomial has root at x_r
+    prepare_share_updates_with_root::<E>(domain_points, h, x_r, threshold, rng)
 }
 
 /// From PSS paper, section 4.2.3, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
@@ -61,6 +54,46 @@ pub fn recover_share_from_updated_private_shares<E: Pairing>(
     }
 }
 
+// SHARE REFRESH FUNCTIONS:
+
+pub fn prepare_share_updates_for_refresh<E: Pairing>(
+    domain_points: &[E::ScalarField],
+    h: &E::G2Affine,
+    threshold: usize,
+    rng: &mut impl RngCore,
+) -> Vec<E::G2> {
+    // Update polynomial has root at 0
+    prepare_share_updates_with_root::<E>(
+        domain_points,
+        h,
+        &E::ScalarField::zero(),
+        threshold,
+        rng,
+    )
+}
+
+// UTILS:
+
+fn prepare_share_updates_with_root<E: Pairing>(
+    domain_points: &[E::ScalarField],
+    h: &E::G2Affine,
+    root: &E::ScalarField,
+    threshold: usize,
+    rng: &mut impl RngCore,
+) -> Vec<E::G2> {
+    // Generate a new random polynomial with defined root
+    let d_i = make_random_polynomial_with_root::<E>(threshold, root, rng);
+
+    // Now, we need to evaluate the polynomial at each of participants' indices
+    domain_points
+        .iter()
+        .map(|x_i| {
+            let eval = d_i.evaluate(x_i);
+            h.mul(eval)
+        })
+        .collect()
+}
+
 pub fn make_random_polynomial_with_root<E: Pairing>(
     threshold: usize,
     root: &E::ScalarField,
@@ -86,6 +119,7 @@ pub fn make_random_polynomial_with_root<E: Pairing>(
 }
 
 // TODO: Expose a method to create a proper decryption share after refreshing
+// TODO: This is just updating a share locally, but not using contributions from others
 pub fn refresh_private_key_share<E: Pairing>(
     h: &E::G2,
     domain_point: &E::ScalarField,
