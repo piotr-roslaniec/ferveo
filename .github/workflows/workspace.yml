@@ -15,6 +15,8 @@ on:
 env:
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: "-Dwarnings"
+  WASM_PACK_VERSION: 0.12.0
+  WASM_OPT_VERSION: 0.114.1
 
 jobs:
   check:
@@ -94,7 +96,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.67 # MSRV, `cargo msrv`
+          - 1.71 # MSRV for wasm-opt & wasm-pack
           - stable
         target:
           - wasm32-unknown-unknown
@@ -106,7 +108,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install wasm-pack
+      - run: cargo install wasm-opt@${{ env.WASM_OPT_VERSION }} wasm-pack@${{ env.WASM_PACK_VERSION }}
       - run: wasm-pack test --node
         working-directory: ferveo-wasm
   
@@ -126,7 +128,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install wasm-pack
+      - run: cargo install wasm-opt@${{ env.WASM_OPT_VERSION }} wasm-pack@${{ env.WASM_PACK_VERSION }}
       - run: wasm-pack build --target nodejs
         working-directory: ferveo-wasm
       - uses: borales/actions-yarn@v3.0.0
