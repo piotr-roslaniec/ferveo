@@ -3,10 +3,10 @@ use std::{ops::Mul, usize};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::Zero;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
+use group_threshold_cryptography as tpke;
 use itertools::zip_eq;
 use rand_core::RngCore;
-
-use crate::{lagrange_basis_at, PrivateKeyShare};
+use tpke::{lagrange_basis_at, PrivateKeyShare};
 
 /// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
 pub fn prepare_share_updates_for_recovery<E: Pairing>(

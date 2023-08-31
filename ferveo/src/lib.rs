@@ -17,6 +17,7 @@ pub mod api;
 pub mod dkg;
 pub mod primitives;
 pub mod pvss;
+pub mod refresh;
 pub mod validator;
 
 mod utils;
@@ -24,6 +25,7 @@ mod utils;
 pub use dkg::*;
 pub use primitives::*;
 pub use pvss::*;
+pub use refresh::*;
 pub use validator::*;
 
 #[derive(Debug, thiserror::Error)]
@@ -390,7 +392,7 @@ mod test_dkg_full {
         let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
-                let deltas_i = tpke::prepare_share_updates_for_recovery::<E>(
+                let deltas_i = prepare_share_updates_for_recovery::<E>(
                     &domain_points,
                     &dkg.pvss_params.h.into_affine(),
                     &x_r,
@@ -428,12 +430,11 @@ mod test_dkg_full {
             .collect();
 
         // Now, we have to combine new share fragments into a new share
-        let new_private_key_share =
-            tpke::recover_share_from_updated_private_shares(
-                &x_r,
-                &domain_points,
-                &updated_shares,
-            );
+        let new_private_key_share = recover_share_from_updated_private_shares(
+            &x_r,
+            &domain_points,
+            &updated_shares,
+        );
 
         // Get decryption shares from remaining participants
         let mut decryption_shares: Vec<DecryptionShareSimple<E>> =
@@ -498,7 +499,7 @@ mod test_dkg_full {
         // Now, we're going to refresh the shares and check that the shared secret is the same
 
         // Dealer computes a new random polynomial with constant term x_r = 0
-        let polynomial = tpke::make_random_polynomial_at::<E>(
+        let polynomial = make_random_polynomial_at::<E>(
             dkg.dkg_params.security_threshold as usize,
             &Fr::zero(),
             rng,

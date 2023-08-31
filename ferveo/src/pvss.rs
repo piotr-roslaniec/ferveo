@@ -13,15 +13,15 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use tpke::{
-    prepare_combine_simple, refresh_private_key_share,
-    update_share_for_recovery, CiphertextHeader, DecryptionSharePrecomputed,
+    prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    batch_to_projective_g1, batch_to_projective_g2, utils::is_sorted, Error,
-    PVSSMap, PubliclyVerifiableDkg, Result, Validator,
+    batch_to_projective_g1, batch_to_projective_g2, refresh_private_key_share,
+    update_share_for_recovery, utils::is_sorted, Error, PVSSMap,
+    PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
