@@ -94,7 +94,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.67 # MSRV, `cargo msrv`
+          - 1.67 # MSRV
           - stable
         target:
           - wasm32-unknown-unknown
@@ -106,7 +106,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install wasm-pack
+      - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - run: wasm-pack test --node
         working-directory: ferveo-wasm
   
@@ -126,7 +126,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
           override: true
-      - run: cargo install wasm-pack
+      - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - run: wasm-pack build --target nodejs
         working-directory: ferveo-wasm
       - uses: borales/actions-yarn@v3.0.0
