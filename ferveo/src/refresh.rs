@@ -82,7 +82,7 @@ fn prepare_share_updates_with_root<E: Pairing>(
     rng: &mut impl RngCore,
 ) -> Vec<E::G2> {
     // Generate a new random polynomial with defined root
-    let d_i = make_random_polynomial_with_root::<E>(threshold, root, rng);
+    let d_i = make_random_polynomial_with_root::<E>(threshold - 1, root, rng);
 
     // Now, we need to evaluate the polynomial at each of participants' indices
     domain_points
@@ -95,27 +95,25 @@ fn prepare_share_updates_with_root<E: Pairing>(
 }
 
 pub fn make_random_polynomial_with_root<E: Pairing>(
-    threshold: usize,
+    degree: usize,
     root: &E::ScalarField,
     rng: &mut impl RngCore,
 ) -> DensePolynomial<E::ScalarField> {
-    // [][threshold-1]
-    let mut threshold_poly =
-        DensePolynomial::<E::ScalarField>::rand(threshold - 1, rng);
+    // [c_0, c_1, ..., c_{degree}] (Random polynomial)
+    let mut poly = DensePolynomial::<E::ScalarField>::rand(degree, rng);
 
-    // [0..][threshold]
-    threshold_poly[0] = E::ScalarField::zero();
+    // [0, c_1, ... , c_{degree}]  (We zeroize the free term)
+    poly[0] = E::ScalarField::zero();
 
-    // Now, we calculate d_i_0
-    // This is the term that will "zero out" the polynomial at x_r, d_i(x_r) = 0
-    let d_i_0 = E::ScalarField::zero() - threshold_poly.evaluate(root);
-    threshold_poly[0] = d_i_0;
+    // Now, we calculate a new free term so that `poly(root) = 0`
+    let new_c_0 = E::ScalarField::zero() - poly.evaluate(root);
+    poly[0] = new_c_0;
 
     // Evaluating the polynomial at the root should result in 0
-    debug_assert!(threshold_poly.evaluate(root) == E::ScalarField::zero());
-    debug_assert!(threshold_poly.coeffs.len() == threshold);
+    debug_assert!(poly.evaluate(root) == E::ScalarField::zero());
+    debug_assert!(poly.coeffs.len() == degree + 1);
 
-    threshold_poly
+    poly
 }
 
 // TODO: Expose a method to create a proper decryption share after refreshing
@@ -395,7 +393,7 @@ mod tests_refresh {
 
         // Dealer computes a new random polynomial with constant term x_r
         let polynomial = make_random_polynomial_with_root::<E>(
-            threshold,
+            threshold - 1,
             &ScalarField::zero(),
             rng,
         );

@@ -519,9 +519,11 @@ mod test_dkg_full {
 
         // Now, we're going to refresh the shares and check that the shared secret is the same
 
-        // Dealer computes a new random polynomial with constant term x_r = 0
+        // Dealer computes a new random polynomial with constant term 0
+        // TODO: Doesn't work if I move this to the loop below
+        let degree = dkg.dkg_params.security_threshold - 1;
         let polynomial = make_random_polynomial_with_root::<E>(
-            dkg.dkg_params.security_threshold as usize,
+            degree as usize,
             &Fr::zero(),
             rng,
         );

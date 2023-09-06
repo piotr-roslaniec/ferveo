@@ -249,7 +249,7 @@ pub fn bench_random_poly(c: &mut Criterion) {
             let mut rng = rng.clone();
             move || {
                 black_box(make_random_polynomial_with_root::<E>(
-                    threshold,
+                    threshold - 1,
                     &Fr::zero(),
                     &mut rng,
                 ))
@@ -259,7 +259,7 @@ pub fn bench_random_poly(c: &mut Criterion) {
             let mut rng = rng.clone();
             move || {
                 black_box(naive_make_random_polynomial_with_root::<E>(
-                    threshold,
+                    threshold - 1,
                     &Fr::zero(),
                     &mut rng,
                 ))
