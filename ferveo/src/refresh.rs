@@ -166,7 +166,7 @@ mod tests_refresh {
         SharedSecret,
     };
 
-    fn make_new_share_fragments<R: RngCore>(
+    fn make_new_share_fragments_for_recovery<R: RngCore>(
         rng: &mut R,
         threshold: usize,
         x_r: &Fr,
@@ -258,7 +258,7 @@ mod tests_refresh {
         }
 
         // Each participant prepares an update for each other participant, and uses it to create a new share fragment
-        let new_share_fragments = make_new_share_fragments(
+        let new_share_fragments = make_new_share_fragments_for_recovery(
             rng,
             threshold,
             &x_r,
@@ -297,35 +297,26 @@ mod tests_refresh {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
 
-        let (pubkey, _, contexts) =
+        let (_, shared_private_key, mut contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let g_inv = &contexts[0].setup_params.g_inv;
-        let ciphertext =
-            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
-        // Create an initial shared secret
-        let old_shared_secret = make_shared_secret_from_contexts(
-            &contexts,
-            &ciphertext.header().unwrap(),
-            aad,
-        );
+        // Prepare participants
+
+        // Remove one participant from the contexts and all nested structures
+        contexts.pop().unwrap();
+        let mut remaining_participants = contexts.clone();
+        for p in &mut remaining_participants {
+            p.public_decryption_contexts.pop().unwrap();
+        }
 
         // Now, we're going to recover a new share at a random point and check that the shared secret is still the same
 
         // Our random point
         let x_r = ScalarField::rand(rng);
 
-        // Remove one participant from the contexts and all nested structures
-        let mut remaining_participants = contexts.clone();
-        remaining_participants.pop().unwrap();
-        for p in &mut remaining_participants {
-            p.public_decryption_contexts.pop().unwrap();
-        }
-
-        let new_share_fragments = make_new_share_fragments(
+        // Each participant prepares an update for each other participant, and uses it to create a new share fragment
+        let new_share_fragments = make_new_share_fragments_for_recovery(
             rng,
             threshold,
             &x_r,
@@ -333,45 +324,37 @@ mod tests_refresh {
         );
 
         // Now, we have to combine new share fragments into a new share
-        let domain_points = &remaining_participants[0]
+        let domain_points = &mut remaining_participants[0]
             .public_decryption_contexts
             .iter()
             .map(|ctxt| ctxt.domain)
             .collect::<Vec<_>>();
         let new_private_key_share = recover_share_from_updated_private_shares(
             &x_r,
-            domain_points,
-            &new_share_fragments,
+            &domain_points[..threshold],
+            &new_share_fragments[..threshold],
         );
 
-        // Get decryption shares from remaining participants
-        let mut decryption_shares: Vec<_> = remaining_participants
+        let mut private_shares = contexts
             .iter()
-            .map(|c| {
-                c.create_share(&ciphertext.header().unwrap(), aad).unwrap()
-            })
-            .collect();
+            .cloned()
+            .map(|ctxt| ctxt.private_key_share)
+            .collect::<Vec<_>>();
 
-        // Create a decryption share from a recovered private key share
-        let new_validator_decryption_key = ScalarField::rand(rng);
-        decryption_shares.push(
-            DecryptionShareSimple::create(
-                &new_validator_decryption_key,
-                &new_private_key_share,
-                &ciphertext.header().unwrap(),
-                aad,
-                g_inv,
-            )
-            .unwrap(),
+        // Finally, let's recreate the shared private key from some original shares and the recovered one
+        domain_points.push(x_r);
+        private_shares.push(new_private_key_share);
+        let start_from = shares_num - threshold;
+        let new_shared_private_key = recover_share_from_updated_private_shares(
+            &ScalarField::zero(),
+            &domain_points[start_from..],
+            &private_shares[start_from..],
         );
 
-        // Creating a shared secret from remaining shares and the recovered one
-        let new_shared_secret = make_shared_secret(
-            &remaining_participants[0].public_decryption_contexts,
-            &decryption_shares,
+        assert_eq!(
+            shared_private_key,
+            new_shared_private_key.private_key_share
         );
-
-        assert_eq!(old_shared_secret, new_shared_secret);
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share refresh" algorithm.
