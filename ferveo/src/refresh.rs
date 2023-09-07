@@ -137,10 +137,10 @@ pub fn refresh_private_key_share<E: Pairing>(
 #[cfg(test)]
 mod tests_refresh {
 
-    use std::{collections::HashMap, ops::Mul};
+    use std::collections::HashMap;
 
     use ark_bls12_381::Fr;
-    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+    use ark_ec::{pairing::Pairing, AffineRepr};
     // use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand, Zero};
     // use ferveo_common::{FromBytes, ToBytes};
@@ -273,11 +273,21 @@ mod tests_refresh {
             .collect::<Vec<_>>();
         let new_private_key_share = recover_share_from_updated_private_shares(
             &x_r,
-            domain_points,
-            &new_share_fragments,
+            &domain_points[..threshold],
+            &new_share_fragments[..threshold],
         );
 
         assert_eq!(new_private_key_share, original_private_key_share);
+
+        // If we don't have enough private share updates, the resulting private share will be incorrect
+        let incorrect_private_key_share =
+            recover_share_from_updated_private_shares(
+                &x_r,
+                &domain_points[..(threshold - 1)],
+                &new_share_fragments[..(threshold - 1)],
+            );
+
+        assert_ne!(incorrect_private_key_share, original_private_key_share);
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
