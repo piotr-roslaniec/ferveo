@@ -20,8 +20,8 @@ use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
     apply_updates_to_private_share, batch_to_projective_g1,
-    batch_to_projective_g2, refresh_private_key_share, utils::is_sorted, Error,
-    PVSSMap, PubliclyVerifiableDkg, Result, Validator,
+    batch_to_projective_g2, utils::is_sorted, Error, PVSSMap,
+    PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -370,35 +370,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             aad,
             &lagrange_coeffs[share_index],
             g_inv,
-        )
-        .map_err(|e| e.into())
-    }
-
-    pub fn refresh_decryption_share(
-        &self,
-        ciphertext_header: &CiphertextHeader<E>,
-        aad: &[u8],
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
-        polynomial: &DensePolynomial<E::ScalarField>,
-        dkg: &PubliclyVerifiableDkg<E>,
-    ) -> Result<DecryptionShareSimple<E>> {
-        let validator_private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index);
-        let h = dkg.pvss_params.h;
-        let domain_point = dkg.domain.element(share_index);
-        let refreshed_private_key_share = refresh_private_key_share(
-            &h,
-            &domain_point,
-            polynomial,
-            &validator_private_key_share,
-        );
-        DecryptionShareSimple::create(
-            validator_decryption_key,
-            &refreshed_private_key_share,
-            ciphertext_header,
-            aad,
-            &dkg.pvss_params.g_inv(),
         )
         .map_err(|e| e.into())
     }

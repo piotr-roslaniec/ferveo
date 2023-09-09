@@ -116,54 +116,28 @@ pub fn make_random_polynomial_with_root<E: Pairing>(
     poly
 }
 
-// TODO: Expose a method to create a proper decryption share after refreshing
-// TODO: This is just updating a share locally, but not using contributions from others
-pub fn refresh_private_key_share<E: Pairing>(
-    h: &E::G2,
-    domain_point: &E::ScalarField,
-    polynomial: &DensePolynomial<E::ScalarField>,
-    validator_private_key_share: &PrivateKeyShare<E>,
-) -> PrivateKeyShare<E> {
-    let evaluated_polynomial = polynomial.evaluate(domain_point);
-    let share_update = h.mul(evaluated_polynomial);
-    let updated_share =
-        validator_private_key_share.private_key_share.into_group()
-            + share_update;
-    PrivateKeyShare {
-        private_key_share: updated_share.into_affine(),
-    }
-}
-
 #[cfg(test)]
 mod tests_refresh {
 
     use std::collections::HashMap;
 
     use ark_bls12_381::Fr;
-    use ark_ec::{pairing::Pairing, AffineRepr};
-    // use ark_ff::Zero;
+    use ark_ec::pairing::Pairing;
     use ark_std::{test_rng, UniformRand, Zero};
-    // use ferveo_common::{FromBytes, ToBytes};
     use rand_core::RngCore;
 
-    // use tpke::test_common::{make_shared_secret};
-
     type E = ark_bls12_381::Bls12_381;
-    // type TargetField = <E as Pairing>::TargetField;
     type ScalarField = <E as Pairing>::ScalarField;
 
     use crate::{
-        apply_updates_to_private_share, make_random_polynomial_with_root,
-        prepare_share_updates_for_recovery, prepare_share_updates_for_refresh,
-        recover_share_from_updated_private_shares, 
+        apply_updates_to_private_share, prepare_share_updates_for_recovery,
+        prepare_share_updates_for_refresh,
+        recover_share_from_updated_private_shares,
     };
 
     use group_threshold_cryptography::{
-        encrypt,
-        test_common::{make_shared_secret, setup_simple},
-        CiphertextHeader, DecryptionShareSimple,
-        PrivateDecryptionContextSimple, PrivateKeyShare, SecretBox,
-        SharedSecret,
+        test_common::setup_simple, PrivateDecryptionContextSimple,
+        PrivateKeyShare,
     };
 
     fn make_new_share_fragments_for_recovery<R: RngCore>(
@@ -404,6 +378,5 @@ mod tests_refresh {
             shared_private_key,
             new_shared_private_key.private_key_share
         );
-
     }
 }
