@@ -23,7 +23,7 @@ pub fn prepare_share_updates_for_recovery<E: Pairing>(
 }
 
 /// From PSS paper, section 4.2.3, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
-pub fn update_share_for_recovery<E: Pairing>(
+pub fn apply_updates_to_private_share<E: Pairing>(
     private_key_share: &PrivateKeyShare<E>,
     share_updates: &[E::G2],
 ) -> PrivateKeyShare<E> {
@@ -153,9 +153,9 @@ mod tests_refresh {
     type ScalarField = <E as Pairing>::ScalarField;
 
     use crate::{
-        make_random_polynomial_with_root, prepare_share_updates_for_recovery,
-        recover_share_from_updated_private_shares, refresh_private_key_share,
-        update_share_for_recovery,
+        apply_updates_to_private_share, make_random_polynomial_with_root,
+        prepare_share_updates_for_recovery, prepare_share_updates_for_refresh,
+        recover_share_from_updated_private_shares, 
     };
 
     use group_threshold_cryptography::{
@@ -204,7 +204,7 @@ mod tests_refresh {
                     .collect();
 
                 // And updates their share
-                update_share_for_recovery::<E>(
+                apply_updates_to_private_share::<E>(
                     &p.private_key_share,
                     &updates_for_participant,
                 )
@@ -212,21 +212,6 @@ mod tests_refresh {
             .collect();
 
         new_share_fragments
-    }
-
-    fn make_shared_secret_from_contexts<E: Pairing>(
-        contexts: &[PrivateDecryptionContextSimple<E>],
-        ciphertext_header: &CiphertextHeader<E>,
-        aad: &[u8],
-    ) -> SharedSecret<E> {
-        let decryption_shares: Vec<_> = contexts
-            .iter()
-            .map(|c| c.create_share(ciphertext_header, aad).unwrap())
-            .collect();
-        make_shared_secret(
-            &contexts[0].public_decryption_contexts,
-            &decryption_shares,
-        )
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
@@ -365,60 +350,60 @@ mod tests_refresh {
         let rng = &mut test_rng();
         let shares_num = 16;
         let threshold = shares_num * 2 / 3;
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
 
-        let (pubkey, _, contexts) =
+        let (_, shared_private_key, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
-        let g_inv = &contexts[0].setup_params.g_inv;
-        let pub_contexts = contexts[0].public_decryption_contexts.clone();
-        let ciphertext =
-            encrypt::<E>(SecretBox::new(msg), aad, &pubkey, rng).unwrap();
 
-        // Create an initial shared secret
-        let old_shared_secret = make_shared_secret_from_contexts(
-            &contexts,
-            &ciphertext.header().unwrap(),
-            aad,
-        );
-
-        // Now, we're going to refresh the shares and check that the shared secret is the same
-
-        // Dealer computes a new random polynomial with constant term x_r
-        let polynomial = make_random_polynomial_with_root::<E>(
-            threshold - 1,
-            &ScalarField::zero(),
-            rng,
-        );
-
-        // Dealer shares the polynomial with participants
-
-        // Participants computes new decryption shares
-        let new_decryption_shares: Vec<_> = contexts
+        let domain_points = &contexts[0]
+            .public_decryption_contexts
             .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                // Participant computes share updates and update their private key shares
-                let private_key_share = refresh_private_key_share::<E>(
-                    &p.setup_params.h.into_group(),
-                    &p.public_decryption_contexts[i].domain,
-                    &polynomial,
-                    &p.private_key_share,
+            .map(|ctxt| ctxt.domain)
+            .collect::<Vec<_>>();
+        let h = contexts[0].public_decryption_contexts[0].h;
+
+        // Each participant prepares an update for each other participant:
+        let share_updates = contexts
+            .iter()
+            .map(|p| {
+                let deltas_i = prepare_share_updates_for_refresh::<E>(
+                    &domain_points,
+                    &h,
+                    threshold,
+                    rng,
                 );
-                DecryptionShareSimple::create(
-                    &p.validator_private_key,
-                    &private_key_share,
-                    &ciphertext.header().unwrap(),
-                    aad,
-                    g_inv,
+                (p.index, deltas_i)
+            })
+            .collect::<HashMap<_, _>>();
+
+        // Participants "refresh" their shares with the updates from each other:
+        let refreshed_shares: Vec<_> = contexts
+            .iter()
+            .map(|p| {
+                // Current participant receives updates from other participants
+                let updates_for_participant: Vec<_> = share_updates
+                    .values()
+                    .map(|updates| *updates.get(p.index).unwrap())
+                    .collect();
+
+                // And updates their share
+                apply_updates_to_private_share::<E>(
+                    &p.private_key_share,
+                    &updates_for_participant,
                 )
-                .unwrap()
             })
             .collect();
 
-        let new_shared_secret =
-            make_shared_secret(&pub_contexts, &new_decryption_shares);
+        // Finally, let's recreate the shared private key from the refreshed shares
+        let new_shared_private_key = recover_share_from_updated_private_shares(
+            &ScalarField::zero(),
+            &domain_points[..threshold],
+            &refreshed_shares[..threshold],
+        );
 
-        assert_eq!(old_shared_secret, new_shared_secret);
+        assert_eq!(
+            shared_private_key,
+            new_shared_private_key.private_key_share
+        );
+
     }
 }

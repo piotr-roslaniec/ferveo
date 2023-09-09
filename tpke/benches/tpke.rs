@@ -517,7 +517,7 @@ pub fn bench_recover_share_at_point(c: &mut Criterion) {
                     .collect();
 
                 // And updates their share
-                update_share_for_recovery::<E>(
+                apply_updates_to_private_share::<E>(
                     &p.private_key_share,
                     &updates_for_participant,
                 )

@@ -19,9 +19,9 @@ use tpke::{
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    batch_to_projective_g1, batch_to_projective_g2, refresh_private_key_share,
-    update_share_for_recovery, utils::is_sorted, Error, PVSSMap,
-    PubliclyVerifiableDkg, Result, Validator,
+    apply_updates_to_private_share, batch_to_projective_g1,
+    batch_to_projective_g2, refresh_private_key_share, utils::is_sorted, Error,
+    PVSSMap, PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -414,7 +414,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             .decrypt_private_key_share(validator_decryption_key, share_index);
 
         // And updates their share
-        update_share_for_recovery::<E>(&private_key_share, share_updates)
+        apply_updates_to_private_share::<E>(&private_key_share, share_updates)
     }
 }
 
