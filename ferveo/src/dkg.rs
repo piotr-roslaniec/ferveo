@@ -355,7 +355,7 @@ pub(crate) mod test_common {
         my_index: usize,
     ) -> TestSetup {
         let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(&keypairs);
+        let mut validators = gen_validators(&keypairs.as_slice());
         validators.sort();
         let me = validators[my_index].clone();
         let dkg = PubliclyVerifiableDkg::new(
