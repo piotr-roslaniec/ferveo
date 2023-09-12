@@ -380,19 +380,20 @@ mod test_dkg_full {
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
         let mut remaining_validators = dkg.validators.clone();
-        let removed_validator = remaining_validators.remove(&removed_validator_addr).unwrap();
+        remaining_validators
+            .remove(&removed_validator_addr)
+            .unwrap();
         // dkg.vss.remove(&removed_validator_addr); // TODO: Test whether it makes any difference
 
         // Remember to remove one domain point too
         let mut domain_points = dkg.domain.elements().collect::<Vec<_>>();
-        let old = domain_points.pop().unwrap();
+        domain_points.pop().unwrap();
 
         // Now, we're going to recover a new share at a random point,
         // and check that the shared secret is still the same.
 
         // Our random point:
-        // FIXME: For the moment let's use the old point, but change later to random
-        let x_r = old; // Fr::rand(rng);
+        let x_r = Fr::rand(rng);
 
         // Each participant prepares an update for each other participant
         let share_updates = remaining_validators
@@ -448,12 +449,6 @@ mod test_dkg_full {
             &updated_shares,
         );
 
-        // FIXME: Since for the moment we're using the old point, let's check that this recovers the same share
-        let old_dec_key = validator_keypairs.clone().pop().unwrap().decryption_key;
-        let pvss_aggregated = aggregate(&dkg.vss);
-        let original_private_key_share = pvss_aggregated.decrypt_private_key_share(&old_dec_key, removed_validator.share_index);
-        assert_eq!(new_private_key_share, original_private_key_share, "DIFFERENT SHARE");
-
         // Get decryption shares from remaining participants
         let mut remaining_validator_keypairs = validator_keypairs;
         remaining_validator_keypairs
@@ -505,7 +500,10 @@ mod test_dkg_full {
         let new_shared_secret =
             tpke::share_combine_simple::<E>(&decryption_shares, &lagrange);
 
-        assert_eq!(old_shared_secret, new_shared_secret, "Shared secret reconstruction failed");
+        assert_eq!(
+            old_shared_secret, new_shared_secret,
+            "Shared secret reconstruction failed"
+        );
     }
 
     #[test]
