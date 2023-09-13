@@ -14,7 +14,6 @@ use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography_pre_release::make_random_polynomial_with_root;
 use itertools::izip;
 use rand::prelude::StdRng;
 use rand_core::{RngCore, SeedableRng};
@@ -205,77 +204,6 @@ pub fn bench_product_of_pairings(c: &mut Criterion) {
     }
 }
 
-pub fn bench_random_poly(c: &mut Criterion) {
-    let mut group = c.benchmark_group("random_polynomial_evaluation");
-    group.sample_size(10);
-
-    fn evaluate_polynomial<E: Pairing>(polynomial: &[Fr], x: &Fr) -> Fr {
-        let mut result = Fr::zero();
-        let mut x_power = Fr::one();
-        for coeff in polynomial {
-            result += *coeff * x_power;
-            x_power *= x;
-        }
-        result
-    }
-
-    pub fn naive_make_random_polynomial_with_root<E: Pairing>(
-        threshold: usize,
-        root: &Fr,
-        rng: &mut impl RngCore,
-    ) -> Vec<Fr> {
-        // [][threshold-1]
-        let mut d_i = (0..threshold - 1)
-            .map(|_| Fr::rand(rng))
-            .collect::<Vec<_>>();
-        // [0..][threshold]
-        d_i.insert(0, Fr::zero());
-
-        // Now, we calculate d_i_0
-        // This is the term that will "zero out" the polynomial at x_r, d_i(x_r) = 0
-        let d_i_0 = Fr::zero() - evaluate_polynomial::<E>(&d_i, root);
-        d_i[0] = d_i_0;
-        assert_eq!(evaluate_polynomial::<E>(&d_i, root), Fr::zero());
-
-        debug_assert!(d_i.len() == threshold);
-        debug_assert!(evaluate_polynomial::<E>(&d_i, root) == Fr::zero());
-        d_i
-    }
-
-    // Skipping t=1, because it results in a random polynomial with t-1=0 coefficients
-    for threshold in [2, 4, 8, 16, 32, 64] {
-        let rng = &mut StdRng::seed_from_u64(0);
-        let mut ark = {
-            let mut rng = rng.clone();
-            move || {
-                black_box(make_random_polynomial_with_root::<E>(
-                    threshold - 1,
-                    &Fr::zero(),
-                    &mut rng,
-                ))
-            }
-        };
-        let mut naive = {
-            let mut rng = rng.clone();
-            move || {
-                black_box(naive_make_random_polynomial_with_root::<E>(
-                    threshold - 1,
-                    &Fr::zero(),
-                    &mut rng,
-                ))
-            }
-        };
-        group.bench_function(
-            BenchmarkId::new("random_polynomial_ark", threshold),
-            |b| b.iter(|| ark()),
-        );
-        group.bench_function(
-            BenchmarkId::new("random_polynomial_naive", threshold),
-            |b| b.iter(|| naive()),
-        );
-    }
-}
-
 pub fn bench_dummy(_c: &mut Criterion) {
     // Does nothing on purpose, but is required to make criterion happy.
 }
@@ -294,7 +222,6 @@ criterion_group!(
     // bench_final_exponentiation,
     // bench_pairing,
     // bench_product_of_pairings,
-    // bench_random_poly,
 );
 
 criterion_main!(benches);
