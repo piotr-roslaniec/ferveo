@@ -374,6 +374,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         .map_err(|e| e.into())
     }
 
+    // TODO: Consider relocate to different place, maybe PrivateKeyShare? (see #162, #163)
     pub fn update_private_key_share_for_recovery(
         &self,
         validator_decryption_key: &E::ScalarField,

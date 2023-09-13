@@ -22,6 +22,7 @@ pub fn prepare_share_updates_for_recovery<E: Pairing>(
     prepare_share_updates_with_root::<E>(domain_points, h, x_r, threshold, rng)
 }
 
+// TODO: Consider relocating to PrivateKeyShare (see #162, #163)
 /// From PSS paper, section 4.2.3, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
 pub fn apply_updates_to_private_share<E: Pairing>(
     private_key_share: &PrivateKeyShare<E>,
@@ -147,6 +148,7 @@ mod tests_refresh {
         remaining_participants: &[PrivateDecryptionContextSimple<E>],
     ) -> Vec<PrivateKeyShare<E>> {
         // Each participant prepares an update for each other participant
+        // TODO: Extract as parameter
         let domain_points = remaining_participants[0]
             .public_decryption_contexts
             .iter()

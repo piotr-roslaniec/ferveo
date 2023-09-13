@@ -56,6 +56,8 @@ pub fn prepare_combine_fast<E: Pairing>(
         .collect::<Vec<_>>()
 }
 
+// TODO: Combine `tpke::prepare_combine_simple` and `tpke::share_combine_simple` into
+//  one function and expose it in the tpke::api?
 pub fn prepare_combine_simple<E: Pairing>(
     domain: &[E::ScalarField],
 ) -> Vec<E::ScalarField> {

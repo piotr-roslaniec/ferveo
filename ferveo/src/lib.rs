@@ -413,7 +413,7 @@ mod test_dkg_full {
         // Participants share updates and update their shares
 
         // Now, every participant separately:
-        // TODO: Move this logic outside tests
+        // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = remaining_validators
             .iter()
             .map(|(_validator_address, validator)| {
@@ -440,7 +440,7 @@ mod test_dkg_full {
             })
             .collect();
 
-        // TODO: Rename updated_private_shares to something that doesn't imply mutation
+        // TODO: Rename updated_private_shares to something that doesn't imply mutation (see #162, #163)
 
         // Now, we have to combine new share fragments into a new share
         let new_private_key_share = recover_share_from_updated_private_shares(
@@ -549,7 +549,7 @@ mod test_dkg_full {
         // Participants share updates and update their shares
 
         // Now, every participant separately:
-        // TODO: Move this logic outside tests
+        // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = dkg
             .validators
             .iter()
@@ -576,8 +576,6 @@ mod test_dkg_full {
                 )
             })
             .collect();
-
-        // TODO: Rename updated_private_shares to something that doesn't imply mutation
 
         // Get decryption shares, now with refreshed private shares:
         let decryption_shares: Vec<DecryptionShareSimple<E>> =

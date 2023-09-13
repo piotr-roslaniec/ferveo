@@ -56,11 +56,13 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
         h: &E::G2,
         ciphertext: &Ciphertext<E>,
     ) -> bool {
+        // See https://github.com/nucypher/ferveo/issues/42#issuecomment-1398953777
         // D_i == e(C_i, Y_i)
         if *decryption_share != E::pairing(self.checksum, *share_aggregate).0 {
             return false;
         }
 
+        // TODO: use multipairing here (h_inv)
         // e(C_i, ek_i) == e(U, H)
         if E::pairing(self.checksum, *validator_public_key)
             != E::pairing(ciphertext.commitment, *h)
