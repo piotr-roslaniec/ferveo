@@ -1,10 +1,7 @@
 #![allow(clippy::redundant_closure)]
 
-use std::collections::HashMap;
-
 use ark_bls12_381::{Bls12_381, Fr, G1Affine as G1, G2Affine as G2};
-use ark_ec::{pairing::Pairing, AffineRepr};
-use ark_ff::Zero;
+use ark_ec::pairing::Pairing;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };

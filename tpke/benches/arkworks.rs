@@ -10,13 +10,13 @@ use ark_ec::{
     pairing::{prepare_g1, prepare_g2, Pairing},
     AffineRepr, CurveGroup,
 };
-use ark_ff::{BigInteger256, Field, One, UniformRand, Zero};
+use ark_ff::{BigInteger256, Field, UniformRand};
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
 use itertools::izip;
 use rand::prelude::StdRng;
-use rand_core::{RngCore, SeedableRng};
+use rand_core::SeedableRng;
 
 type E = Bls12_381;
 type G1Prepared = <E as Pairing>::G1Prepared;

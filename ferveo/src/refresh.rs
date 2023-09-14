@@ -130,15 +130,15 @@ mod tests_refresh {
     type E = ark_bls12_381::Bls12_381;
     type ScalarField = <E as Pairing>::ScalarField;
 
+    use group_threshold_cryptography::{
+        test_common::setup_simple, PrivateDecryptionContextSimple,
+        PrivateKeyShare,
+    };
+
     use crate::{
         apply_updates_to_private_share, prepare_share_updates_for_recovery,
         prepare_share_updates_for_refresh,
         recover_share_from_updated_private_shares,
-    };
-
-    use group_threshold_cryptography::{
-        test_common::setup_simple, PrivateDecryptionContextSimple,
-        PrivateKeyShare,
     };
 
     fn make_new_share_fragments_for_recovery<R: RngCore>(
@@ -241,6 +241,7 @@ mod tests_refresh {
         assert_eq!(new_private_key_share, original_private_key_share);
 
         // If we don't have enough private share updates, the resulting private share will be incorrect
+        assert_eq!(domain_points.len(), new_share_fragments.len());
         let incorrect_private_key_share =
             recover_share_from_updated_private_shares(
                 &x_r,
@@ -342,7 +343,7 @@ mod tests_refresh {
             .iter()
             .map(|p| {
                 let deltas_i = prepare_share_updates_for_refresh::<E>(
-                    &domain_points,
+                    domain_points,
                     &h,
                     threshold,
                     rng,

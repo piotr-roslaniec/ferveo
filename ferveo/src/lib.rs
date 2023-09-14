@@ -415,8 +415,8 @@ mod test_dkg_full {
         // Now, every participant separately:
         // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = remaining_validators
-            .iter()
-            .map(|(_validator_address, validator)| {
+            .values()
+            .map(|validator| {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
@@ -496,9 +496,9 @@ mod test_dkg_full {
         assert_eq!(domain_points.len(), security_threshold as usize);
         assert_eq!(decryption_shares.len(), security_threshold as usize);
 
-        let lagrange = tpke::prepare_combine_simple::<E>(&domain_points);
+        let lagrange = tpke::prepare_combine_simple::<E>(domain_points);
         let new_shared_secret =
-            tpke::share_combine_simple::<E>(&decryption_shares, &lagrange);
+            tpke::share_combine_simple::<E>(decryption_shares, &lagrange);
 
         assert_eq!(
             old_shared_secret, new_shared_secret,
@@ -552,8 +552,8 @@ mod test_dkg_full {
         // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = dkg
             .validators
-            .iter()
-            .map(|(_validator_address, validator)| {
+            .values()
+            .map(|validator| {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
@@ -585,7 +585,7 @@ mod test_dkg_full {
                 .map(|(share_index, validator_keypair)| {
                     DecryptionShareSimple::create(
                         &validator_keypair.decryption_key,
-                        &updated_shares.get(share_index).unwrap(),
+                        updated_shares.get(share_index).unwrap(),
                         &ciphertext.header().unwrap(),
                         aad,
                         &dkg.pvss_params.g_inv(),
