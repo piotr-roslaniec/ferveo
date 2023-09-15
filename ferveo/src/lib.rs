@@ -17,6 +17,7 @@ pub mod api;
 pub mod dkg;
 pub mod primitives;
 pub mod pvss;
+pub mod refresh;
 pub mod validator;
 
 mod utils;
@@ -24,6 +25,7 @@ mod utils;
 pub use dkg::*;
 pub use primitives::*;
 pub use pvss::*;
+pub use refresh::*;
 pub use validator::*;
 
 #[derive(Debug, thiserror::Error)]
@@ -212,7 +214,7 @@ mod test_dkg_full {
                 &dkg,
                 aad,
                 &ciphertext.header().unwrap(),
-                &validator_keypairs,
+                validator_keypairs.as_slice(),
             );
 
             let plaintext = tpke::decrypt_with_shared_secret(
@@ -308,7 +310,7 @@ mod test_dkg_full {
                 &dkg,
                 aad,
                 &ciphertext.header().unwrap(),
-                &validator_keypairs,
+                validator_keypairs.as_slice(),
             );
 
         izip!(
@@ -355,7 +357,10 @@ mod test_dkg_full {
     fn test_dkg_simple_tdec_share_recovery() {
         let rng = &mut test_rng();
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
+        let security_threshold = 3;
+        let shares_num = 4;
+        let (dkg, validator_keypairs) =
+            setup_dealt_dkg_with_n_validators(security_threshold, shares_num);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.public_key();
@@ -368,29 +373,33 @@ mod test_dkg_full {
             &dkg,
             aad,
             &ciphertext.header().unwrap(),
-            &validator_keypairs,
+            validator_keypairs.as_slice(),
         );
-
-        // Now, we're going to recover a new share at a random point and check that the shared secret is still the same
-
-        // Our random point
-        let x_r = Fr::rand(rng);
 
         // Remove one participant from the contexts and all nested structure
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
         let mut remaining_validators = dkg.validators.clone();
-        remaining_validators.remove(&removed_validator_addr);
+        remaining_validators
+            .remove(&removed_validator_addr)
+            .unwrap();
+        // dkg.vss.remove(&removed_validator_addr); // TODO: Test whether it makes any difference
 
         // Remember to remove one domain point too
         let mut domain_points = dkg.domain.elements().collect::<Vec<_>>();
         domain_points.pop().unwrap();
 
+        // Now, we're going to recover a new share at a random point,
+        // and check that the shared secret is still the same.
+
+        // Our random point:
+        let x_r = Fr::rand(rng);
+
         // Each participant prepares an update for each other participant
         let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
-                let deltas_i = tpke::prepare_share_updates_for_recovery::<E>(
+                let deltas_i = prepare_share_updates_for_recovery::<E>(
                     &domain_points,
                     &dkg.pvss_params.h.into_affine(),
                     &x_r,
@@ -402,15 +411,17 @@ mod test_dkg_full {
             .collect::<HashMap<_, _>>();
 
         // Participants share updates and update their shares
-        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Now, every participant separately:
+        // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = remaining_validators
-            .iter()
-            .map(|(validator_address, validator)| {
-                // Receives updates from other participants
-                let updates_for_participant =
-                    share_updates.get(validator_address).unwrap();
+            .values()
+            .map(|validator| {
+                // Current participant receives updates from other participants
+                let updates_for_participant: Vec<_> = share_updates
+                    .values()
+                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .collect();
 
                 // Each validator uses their decryption key to update their share
                 let decryption_key = validator_keypairs
@@ -419,28 +430,37 @@ mod test_dkg_full {
                     .decryption_key;
 
                 // Creates updated private key shares
+                // TODO: Why not using dkg.aggregate()?
+                let pvss_aggregated = aggregate(&dkg.vss);
                 pvss_aggregated.update_private_key_share_for_recovery(
                     &decryption_key,
                     validator.share_index,
-                    updates_for_participant,
+                    updates_for_participant.as_slice(),
                 )
             })
             .collect();
 
+        // TODO: Rename updated_private_shares to something that doesn't imply mutation (see #162, #163)
+
         // Now, we have to combine new share fragments into a new share
-        let new_private_key_share =
-            tpke::recover_share_from_updated_private_shares(
-                &x_r,
-                &domain_points,
-                &updated_shares,
-            );
+        let new_private_key_share = recover_share_from_updated_private_shares(
+            &x_r,
+            &domain_points,
+            &updated_shares,
+        );
 
         // Get decryption shares from remaining participants
+        let mut remaining_validator_keypairs = validator_keypairs;
+        remaining_validator_keypairs
+            .pop()
+            .expect("Should have a keypair");
         let mut decryption_shares: Vec<DecryptionShareSimple<E>> =
-            validator_keypairs
+            remaining_validator_keypairs
                 .iter()
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
+                    // TODO: Why not using dkg.aggregate()?
+                    let pvss_aggregated = aggregate(&dkg.vss);
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext.header().unwrap(),
@@ -466,73 +486,120 @@ mod test_dkg_full {
             .unwrap(),
         );
 
-        let lagrange = tpke::prepare_combine_simple::<E>(&domain_points);
-        let new_shared_secret =
-            tpke::share_combine_simple::<E>(&decryption_shares, &lagrange);
+        domain_points.push(x_r);
+        assert_eq!(domain_points.len(), shares_num as usize);
+        assert_eq!(decryption_shares.len(), shares_num as usize);
 
-        assert_eq!(old_shared_secret, new_shared_secret);
+        // Maybe parametrize this test with [1..] and [..threshold]
+        let domain_points = &domain_points[1..];
+        let decryption_shares = &decryption_shares[1..];
+        assert_eq!(domain_points.len(), security_threshold as usize);
+        assert_eq!(decryption_shares.len(), security_threshold as usize);
+
+        let lagrange = tpke::prepare_combine_simple::<E>(domain_points);
+        let new_shared_secret =
+            tpke::share_combine_simple::<E>(decryption_shares, &lagrange);
+
+        assert_eq!(
+            old_shared_secret, new_shared_secret,
+            "Shared secret reconstruction failed"
+        );
     }
 
     #[test]
-    fn simple_tdec_share_refreshing() {
+    fn test_dkg_simple_tdec_share_refreshing() {
         let rng = &mut test_rng();
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(3, 4);
 
+        let security_threshold = 3;
+        let shares_num = 4;
+        let (dkg, validator_keypairs) =
+            setup_dealt_dkg_with_n_validators(security_threshold, shares_num);
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
-        let public_key = dkg.public_key();
+        let public_key = &dkg.public_key();
         let ciphertext =
-            tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
+            tpke::encrypt::<E>(SecretBox::new(msg), aad, public_key, rng)
                 .unwrap();
-
-        let pvss_aggregated = aggregate(&dkg.vss);
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
             &dkg,
             aad,
             &ciphertext.header().unwrap(),
-            &validator_keypairs,
+            validator_keypairs.as_slice(),
         );
 
-        // Now, we're going to refresh the shares and check that the shared secret is the same
+        let domain_points = dkg.domain.elements().collect::<Vec<_>>();
 
-        // Dealer computes a new random polynomial with constant term x_r = 0
-        let polynomial = tpke::make_random_polynomial_at::<E>(
-            dkg.dkg_params.security_threshold as usize,
-            &Fr::zero(),
-            rng,
-        );
+        // Each participant prepares an update for each other participant
+        let share_updates = dkg
+            .validators
+            .keys()
+            .map(|v_addr| {
+                let deltas_i = prepare_share_updates_for_refresh::<E>(
+                    &domain_points,
+                    &dkg.pvss_params.h.into_affine(),
+                    dkg.dkg_params.security_threshold as usize,
+                    rng,
+                );
+                (v_addr.clone(), deltas_i)
+            })
+            .collect::<HashMap<_, _>>();
 
-        // Dealer shares the polynomial with participants
+        // Participants share updates and update their shares
 
-        // Participants computes new decryption shares
-        let new_decryption_shares: Vec<DecryptionShareSimple<E>> =
+        // Now, every participant separately:
+        // TODO: Move this logic outside tests (see #162, #163)
+        let updated_shares: Vec<_> = dkg
+            .validators
+            .values()
+            .map(|validator| {
+                // Current participant receives updates from other participants
+                let updates_for_participant: Vec<_> = share_updates
+                    .values()
+                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .collect();
+
+                // Each validator uses their decryption key to update their share
+                let decryption_key = validator_keypairs
+                    .get(validator.share_index)
+                    .unwrap()
+                    .decryption_key;
+
+                // Creates updated private key shares
+                // TODO: Why not using dkg.aggregate()?
+                let pvss_aggregated = aggregate(&dkg.vss);
+                pvss_aggregated.update_private_key_share_for_recovery(
+                    &decryption_key,
+                    validator.share_index,
+                    updates_for_participant.as_slice(),
+                )
+            })
+            .collect();
+
+        // Get decryption shares, now with refreshed private shares:
+        let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
                 .iter()
                 .enumerate()
-                .map(|(validator_address, validator_keypair)| {
-                    pvss_aggregated
-                        .refresh_decryption_share(
-                            &ciphertext.header().unwrap(),
-                            aad,
-                            &validator_keypair.decryption_key,
-                            validator_address,
-                            &polynomial,
-                            &dkg,
-                        )
-                        .unwrap()
+                .map(|(share_index, validator_keypair)| {
+                    DecryptionShareSimple::create(
+                        &validator_keypair.decryption_key,
+                        updated_shares.get(share_index).unwrap(),
+                        &ciphertext.header().unwrap(),
+                        aad,
+                        &dkg.pvss_params.g_inv(),
+                    )
+                    .unwrap()
                 })
                 .collect();
 
-        // Create a new shared secret
-        let domain = &dkg.domain.elements().collect::<Vec<_>>();
-        // TODO: Combine `tpke::prepare_combine_simple` and `tpke::share_combine_simple` into
-        //  one function and expose it in the tpke::api?
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(domain);
+        let lagrange = tpke::prepare_combine_simple::<E>(
+            &domain_points[..security_threshold as usize],
+        );
         let new_shared_secret = tpke::share_combine_simple::<E>(
-            &new_decryption_shares,
-            &lagrange_coeffs,
+            &decryption_shares[..security_threshold as usize],
+            &lagrange,
         );
 
         assert_eq!(old_shared_secret, new_shared_secret);

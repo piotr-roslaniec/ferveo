@@ -10,7 +10,7 @@ use serde_with::serde_as;
 
 use crate::{
     aggregate, utils::is_sorted, AggregatedPvss, Error, EthereumAddress,
-    PubliclyVerifiableParams, PubliclyVerifiableSS, Pvss, Result, Validator,
+    PubliclyVerifiableParams, PubliclyVerifiableSS, Result, Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -156,7 +156,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         rng: &mut R,
     ) -> Result<PubliclyVerifiableSS<E>> {
         use ark_std::UniformRand;
-        Pvss::<E>::new(&E::ScalarField::rand(rng), self, rng)
+        PubliclyVerifiableSS::<E>::new(&E::ScalarField::rand(rng), self, rng)
     }
 
     /// Aggregate all received PVSS messages into a single message, prepared to post on-chain
@@ -279,7 +279,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     pub fn deal(
         &mut self,
         sender: &Validator<E>,
-        pvss: &Pvss<E>,
+        pvss: &PubliclyVerifiableSS<E>,
     ) -> Result<()> {
         // Add the ephemeral public key and pvss transcript
         let (sender_address, _) = self
@@ -306,11 +306,11 @@ pub struct Aggregation<E: Pairing> {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(bound(
-    serialize = "AggregatedPvss<E>: Serialize, Pvss<E>: Serialize",
-    deserialize = "AggregatedPvss<E>: DeserializeOwned, Pvss<E>: DeserializeOwned"
+    serialize = "AggregatedPvss<E>: Serialize, PubliclyVerifiableSS<E>: Serialize",
+    deserialize = "AggregatedPvss<E>: DeserializeOwned, PubliclyVerifiableSS<E>: DeserializeOwned"
 ))]
 pub enum Message<E: Pairing> {
-    Deal(Pvss<E>),
+    Deal(PubliclyVerifiableSS<E>),
     Aggregate(Aggregation<E>),
 }
 
@@ -355,7 +355,7 @@ pub(crate) mod test_common {
         my_index: usize,
     ) -> TestSetup {
         let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(&keypairs);
+        let mut validators = gen_validators(keypairs.as_slice());
         validators.sort();
         let me = validators[my_index].clone();
         let dkg = PubliclyVerifiableDkg::new(

@@ -13,15 +13,15 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use tpke::{
-    prepare_combine_simple, refresh_private_key_share,
-    update_share_for_recovery, CiphertextHeader, DecryptionSharePrecomputed,
+    prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    batch_to_projective_g1, batch_to_projective_g2, utils::is_sorted, Error,
-    PVSSMap, PubliclyVerifiableDkg, Result, Validator,
+    apply_updates_to_private_share, batch_to_projective_g1,
+    batch_to_projective_g2, utils::is_sorted, Error, PVSSMap,
+    PubliclyVerifiableDkg, Result, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -41,8 +41,8 @@ pub trait Aggregate {}
 /// Apply trait gate to Aggregated marker struct
 impl Aggregate for Aggregated {}
 
-/// Type alias for non aggregated PVSS transcripts
-pub type Pvss<E> = PubliclyVerifiableSS<E>;
+// /// Type alias for non aggregated PVSS transcripts
+// pub type Pvss<E> = PubliclyVerifiableSS<E>;
 
 /// Type alias for aggregated PVSS transcripts
 pub type AggregatedPvss<E> = PubliclyVerifiableSS<E, Aggregated>;
@@ -374,35 +374,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         .map_err(|e| e.into())
     }
 
-    pub fn refresh_decryption_share(
-        &self,
-        ciphertext_header: &CiphertextHeader<E>,
-        aad: &[u8],
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
-        polynomial: &DensePolynomial<E::ScalarField>,
-        dkg: &PubliclyVerifiableDkg<E>,
-    ) -> Result<DecryptionShareSimple<E>> {
-        let validator_private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index);
-        let h = dkg.pvss_params.h;
-        let domain_point = dkg.domain.element(share_index);
-        let refreshed_private_key_share = refresh_private_key_share(
-            &h,
-            &domain_point,
-            polynomial,
-            &validator_private_key_share,
-        );
-        DecryptionShareSimple::create(
-            validator_decryption_key,
-            &refreshed_private_key_share,
-            ciphertext_header,
-            aad,
-            &dkg.pvss_params.g_inv(),
-        )
-        .map_err(|e| e.into())
-    }
-
+    // TODO: Consider relocate to different place, maybe PrivateKeyShare? (see #162, #163)
     pub fn update_private_key_share_for_recovery(
         &self,
         validator_decryption_key: &E::ScalarField,
@@ -414,7 +386,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             .decrypt_private_key_share(validator_decryption_key, share_index);
 
         // And updates their share
-        update_share_for_recovery::<E>(&private_key_share, share_updates)
+        apply_updates_to_private_share::<E>(&private_key_share, share_updates)
     }
 }
 
@@ -504,8 +476,8 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
-        let pvss =
-            Pvss::<EllipticCurve>::new(&s, &dkg, rng).expect("Test failed");
+        let pvss = PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng)
+            .expect("Test failed");
         // Check that the chosen secret coefficient is correct
         assert_eq!(pvss.coeffs[0], G1::generator().mul(s));
         // Check that a polynomial of the correct degree was created
@@ -548,7 +520,8 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let s = ScalarField::rand(rng);
-        let pvss = Pvss::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
+        let pvss =
+            PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng).unwrap();
 
         // So far, everything works
         assert!(pvss.verify_optimistic());
