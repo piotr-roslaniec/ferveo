@@ -139,7 +139,7 @@ impl From<bindings_wasm::FerveoVariant> for FerveoVariant {
 }
 
 #[serde_as]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
     #[serde_as(as = "serialization::SerdeAs")] pub(crate) G1Affine,
 );

@@ -61,15 +61,7 @@ impl<E: Pairing> PublicKey<E> {
 
 impl<E: Pairing> PartialOrd for PublicKey<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.encryption_key.x() == other.encryption_key.x() {
-            return self
-                .encryption_key
-                .y()
-                .partial_cmp(&other.encryption_key.y());
-        }
-        self.encryption_key
-            .x()
-            .partial_cmp(&other.encryption_key.x())
+        Some(self.cmp(other))
     }
 }
 
@@ -102,7 +94,7 @@ pub struct Keypair<E: Pairing> {
 
 impl<E: Pairing> PartialOrd for Keypair<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.decryption_key.partial_cmp(&other.decryption_key)
+        Some(self.cmp(other))
     }
 }
 

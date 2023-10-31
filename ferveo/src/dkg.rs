@@ -28,7 +28,7 @@ pub struct DkgValidator<E: Pairing> {
 
 impl<E: Pairing> PartialOrd for DkgValidator<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.share_index.partial_cmp(&other.share_index)
+        Some(self.cmp(other))
     }
 }
 
