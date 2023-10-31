@@ -4,9 +4,9 @@ members = [
     "ferveo",
     "ferveo-common",
     "ferveo-python",
+    "ferveo-tpke",
     "ferveo-wasm",
     "subproductdomain",
-    "ferveo-tpke",
 ]
 
 [profile.bench]
