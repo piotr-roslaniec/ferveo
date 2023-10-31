@@ -6,16 +6,15 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain,
 };
-use group_threshold_cryptography as tpke;
+use ferveo_tpke::{
+    prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
+    DecryptionShareSimple, PrivateKeyShare,
+};
 use itertools::Itertools;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
-use tpke::{
-    prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
-    DecryptionShareSimple, PrivateKeyShare,
-};
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{

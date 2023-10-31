@@ -5,7 +5,7 @@ use ark_ec::pairing::Pairing;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
 };
-use group_threshold_cryptography_pre_release::{
+use ferveo_tpke::{
     test_common::{setup_fast, setup_simple},
     *,
 };
