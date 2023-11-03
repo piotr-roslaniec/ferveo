@@ -5,7 +5,6 @@ from ferveo import (
     DkgPublicKey,
     FerveoPublicKey,
     FerveoVariant,
-    SharedSecret,
 )
 
 
@@ -53,6 +52,7 @@ def make_pk():
 #     # TODO: Implement __richcmp__
 #     # assert shared_secret == deserialized
 #     assert serialized == bytes(deserialized)
+
 
 def test_keypair_serialization():
     keypair = Keypair.random()

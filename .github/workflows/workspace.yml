@@ -176,7 +176,7 @@ jobs:
         working-directory: ferveo-python
 
       - name: Install pip dependencies
-        run: pip install pytest mypy
+        run: pip install pytest mypy ruff
 
       - name: Run pytest
         run: pytest
@@ -184,6 +184,10 @@ jobs:
 
       - name: Run mypy.stubtest
         run: python -m mypy.stubtest ferveo
+        working-directory: ferveo-python
+
+      - name: Run ruff
+        run: ruff check .
         working-directory: ferveo-python
 
   codecov:

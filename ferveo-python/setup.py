@@ -2,6 +2,7 @@ from setuptools import setup
 from setuptools_rust import Binding, RustExtension
 
 from pathlib import Path
+
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text()
 
@@ -14,11 +15,12 @@ setup(
     author="Piotr Roslaniec",
     author_email="p.roslaniec@gmail.com",
     url="https://github.com/nucypher/ferveo/tree/master/ferveo-python",
-    rust_extensions=[RustExtension(
-        "ferveo._ferveo", binding=Binding.PyO3, debug=False)],
+    rust_extensions=[
+        RustExtension("ferveo._ferveo", binding=Binding.PyO3, debug=False)
+    ],
     packages=["ferveo"],
     package_data={
-        'ferveo': ['py.typed', '__init__.pyi'],
+        "ferveo": ["py.typed", "__init__.pyi"],
     },
     # rust extensions are not zip safe, just like C-extensions.
     zip_safe=False,
