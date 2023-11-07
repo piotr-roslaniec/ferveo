@@ -187,7 +187,7 @@ jobs:
         working-directory: ferveo-python
 
       - name: Run ruff
-        run: ruff check .
+        run: ruff check ferveo
         working-directory: ferveo-python
 
   codecov:
