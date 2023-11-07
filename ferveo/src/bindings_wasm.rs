@@ -5,7 +5,7 @@ use std::{
 };
 
 use ferveo_common::{FromBytes, ToBytes};
-use ferveo_tpke::SecretBox;
+use ferveo_tdec::SecretBox;
 use js_sys::Error;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -201,7 +201,7 @@ generate_common_methods!(DecryptionShareSimple);
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
 pub struct DecryptionSharePrecomputed(
-    ferveo_tpke::api::DecryptionSharePrecomputed,
+    ferveo_tdec::api::DecryptionSharePrecomputed,
 );
 
 generate_common_methods!(DecryptionSharePrecomputed);

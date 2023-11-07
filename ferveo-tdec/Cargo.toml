@@ -1,5 +1,5 @@
 [package]
-name = "ferveo-tpke"
+name = "ferveo-tdec"
 version = "0.2.0"
 edition = "2021"
 authors = ["Heliax AG <hello@heliax.dev>", "Piotr Roslaniec <p.roslaniec@gmail.com>"]

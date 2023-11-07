@@ -5,7 +5,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use bincode;
 use ferveo_common::serialization;
-pub use ferveo_tpke::api::{
+pub use ferveo_tdec::api::{
     prepare_combine_simple, share_combine_precomputed, share_combine_simple,
     Fr, G1Affine, G1Prepared, G2Affine, SecretBox, E,
 };
@@ -31,7 +31,7 @@ use crate::{
 };
 
 pub type DecryptionSharePrecomputed =
-    ferveo_tpke::api::DecryptionSharePrecomputed;
+    ferveo_tdec::api::DecryptionSharePrecomputed;
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
@@ -55,7 +55,7 @@ pub fn encrypt(
 ) -> Result<Ciphertext> {
     let mut rng = rand::thread_rng();
     let ciphertext =
-        ferveo_tpke::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
+        ferveo_tdec::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -65,7 +65,7 @@ pub fn decrypt_with_shared_secret(
     shared_secret: &SharedSecret,
 ) -> Result<Vec<u8>> {
     let dkg_public_params = DkgPublicParameters::default();
-    ferveo_tpke::api::decrypt_with_shared_secret(
+    ferveo_tdec::api::decrypt_with_shared_secret(
         &ciphertext.0,
         aad,
         &shared_secret.0,
@@ -75,7 +75,7 @@ pub fn decrypt_with_shared_secret(
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq)]
-pub struct Ciphertext(ferveo_tpke::api::Ciphertext);
+pub struct Ciphertext(ferveo_tdec::api::Ciphertext);
 
 impl Ciphertext {
     pub fn header(&self) -> Result<CiphertextHeader> {
@@ -89,7 +89,7 @@ impl Ciphertext {
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CiphertextHeader(ferveo_tpke::api::CiphertextHeader);
+pub struct CiphertextHeader(ferveo_tdec::api::CiphertextHeader);
 
 /// The ferveo variant to use for the decryption share derivation.
 #[derive(
@@ -348,7 +348,7 @@ impl AggregatedTranscript {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecryptionShareSimple {
-    share: ferveo_tpke::api::DecryptionShareSimple,
+    share: ferveo_tdec::api::DecryptionShareSimple,
     #[serde_as(as = "serialization::SerdeAs")]
     domain_point: Fr,
 }
@@ -390,11 +390,11 @@ pub fn combine_shares_simple(shares: &[DecryptionShareSimple]) -> SharedSecret {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SharedSecret(pub ferveo_tpke::api::SharedSecret<E>);
+pub struct SharedSecret(pub ferveo_tdec::api::SharedSecret<E>);
 
 #[cfg(test)]
 mod test_ferveo_api {
-    use ferveo_tpke::SecretBox;
+    use ferveo_tdec::SecretBox;
     use itertools::izip;
     use rand::{prelude::StdRng, SeedableRng};
 

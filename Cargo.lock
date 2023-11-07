@@ -771,7 +771,7 @@ dependencies = [
  "derive_more",
  "digest",
  "ferveo-common-pre-release",
- "ferveo-tpke",
+ "ferveo-tdec",
  "generic-array",
  "getrandom 0.2.9",
  "hex",
@@ -802,7 +802,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferveo-tpke"
+name = "ferveo-tdec"
 version = "0.2.0"
 dependencies = [
  "ark-bls12-381",

@@ -3,7 +3,7 @@ use std::{ops::Mul, usize};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::Zero;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
-use ferveo_tpke::{lagrange_basis_at, PrivateKeyShare};
+use ferveo_tdec::{lagrange_basis_at, PrivateKeyShare};
 use itertools::zip_eq;
 use rand_core::RngCore;
 
@@ -129,7 +129,7 @@ mod tests_refresh {
     type E = ark_bls12_381::Bls12_381;
     type ScalarField = <E as Pairing>::ScalarField;
 
-    use ferveo_tpke::{
+    use ferveo_tdec::{
         test_common::setup_simple, PrivateDecryptionContextSimple,
         PrivateKeyShare,
     };

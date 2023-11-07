@@ -6,7 +6,7 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain,
 };
-use ferveo_tpke::{
+use ferveo_tdec::{
     prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
     DecryptionShareSimple, PrivateKeyShare,
 };
