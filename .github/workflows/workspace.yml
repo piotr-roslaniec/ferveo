@@ -213,6 +213,21 @@ jobs:
           files: lcov.info
           fail_ci_if_error: true
 
+  compile-benchmarks:
+    # Temporarily replaces "benchmark" job. TODO: Remove this job once the "benchmark" job is fixed.
+    runs-on: ubuntu-latest
+    needs: [ test ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+      - name: Compile benchmarks
+        run: cargo bench --no-run --no-default-features
+
   benchmark:
 
     # TODO: This job is failing with error:
