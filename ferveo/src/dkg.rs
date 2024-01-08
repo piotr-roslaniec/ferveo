@@ -320,7 +320,6 @@ pub(crate) mod test_common {
     use std::str::FromStr;
 
     pub use ark_bls12_381::Bls12_381 as E;
-    pub use ark_ff::UniformRand;
     use ferveo_common::Keypair;
 
     pub use super::*;

@@ -1,7 +1,6 @@
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::unit_arg)]
 
-pub use ark_bls12_381::Bls12_381 as EllipticCurve;
 use ark_ff::Field;
 use ark_poly::EvaluationDomain;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion};
