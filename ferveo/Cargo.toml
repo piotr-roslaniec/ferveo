@@ -76,5 +76,8 @@ path = "benches/bench_main.rs"
 harness = false
 
 [package.metadata.cargo-machete]
-ignored = ["ark-serialize", "getrandom"]
+ignored = [
+    "getrandom",
+    "rand_old" # used by benchmarks/pairing.rs
+]
 
