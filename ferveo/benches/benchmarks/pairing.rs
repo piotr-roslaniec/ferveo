@@ -3,11 +3,9 @@
 use ark_bls12_381::*;
 use ark_ec::*;
 use criterion::{black_box, criterion_group, Criterion};
-//use redjubjub::*;
 
 use ark_ff::Field;
 use ark_std::UniformRand;
-use ed25519_dalek::verify_batch;
 
 pub fn lagrange(c: &mut Criterion) {
     let rng = &mut ark_std::test_rng();
@@ -41,7 +39,7 @@ pub fn lagrange(c: &mut Criterion) {
                 subproductdomain::SubproductDomain::<jubjub::ScalarField>::new(
                     u.clone(),
                 )
-                .inverse_lagrange_coefficients(),
+                    .inverse_lagrange_coefficients(),
             )
         })
     });
@@ -255,105 +253,6 @@ pub fn pairing(c: &mut Criterion) {
         })
     });
 }
-/*
-enum Item {
-    SpendAuth {
-        vk_bytes: VerificationKeyBytes<SpendAuth>,
-        sig: Signature<SpendAuth>,
-    },
-    Binding {
-        vk_bytes: VerificationKeyBytes<Binding>,
-        sig: Signature<Binding>,
-    },
-}
-
-fn sigs_with_distinct_keys() -> impl Iterator<Item = Item> {
-    use rand::{thread_rng, Rng};
-    std::iter::repeat_with(|| {
-        let mut rng = thread_rng();
-        let msg = b"Bench";
-        match rng.gen::<u8>() % 2 {
-            0 => {
-                let sk = SigningKey::<SpendAuth>::new(thread_rng());
-                let vk_bytes = VerificationKey::from(&sk).into();
-                let sig = sk.sign(thread_rng(), &msg[..]);
-                Item::SpendAuth { vk_bytes, sig }
-            }
-            1 => {
-                let sk = SigningKey::<Binding>::new(thread_rng());
-                let vk_bytes = VerificationKey::from(&sk).into();
-                let sig = sk.sign(thread_rng(), &msg[..]);
-                Item::Binding { vk_bytes, sig }
-            }
-            _ => panic!(),
-        }
-    })
-}
-
-pub fn redjubjub(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Redjubjub Batch Verification");
-    group.sample_size(10);
-    group.measurement_time(core::time::Duration::new(10, 0));
-
-    for &n in [1, 100usize, 1024 * 2 / 3, 8192 * 2 / 3].iter() {
-        let sigs = sigs_with_distinct_keys().take(n).collect::<Vec<_>>();
-
-        group.bench_with_input(
-            criterion::BenchmarkId::new("Batched verification", n),
-            &sigs,
-            |b, sigs| {
-                b.iter(|| {
-                    let mut batch = batch::Verifier::new();
-                    for item in sigs.iter() {
-                        let msg = b"Bench";
-                        match item {
-                            Item::SpendAuth { vk_bytes, sig } => {
-                                batch.queue((*vk_bytes, *sig, msg));
-                            }
-                            Item::Binding { vk_bytes, sig } => {
-                                batch.queue((*vk_bytes, *sig, msg));
-                            }
-                        }
-                    }
-                    batch.verify(thread_rng())
-                })
-            },
-        );
-    }
-    group.finish();
-}*/
-
-fn ed25519_batch(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Ed25519 Batch Verification");
-    group.sample_size(10);
-    group.measurement_time(core::time::Duration::new(10, 0));
-
-    use ed25519_dalek::Signer;
-    use ed25519_dalek::{Keypair, PublicKey, Signature};
-    for &n in [1, 100usize, 1024 * 2 / 3, 8192 * 2 / 3].iter() {
-        let mut csprng = rand_old::thread_rng();
-        let keypairs: Vec<Keypair> =
-            (0..n).map(|_| Keypair::generate(&mut csprng)).collect();
-        let msg: &[u8] =
-            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let messages: Vec<&[u8]> = (0..n).map(|_| msg).collect();
-        let signatures: Vec<Signature> =
-            keypairs.iter().map(|key| key.sign(msg)).collect();
-        let public_keys: Vec<PublicKey> =
-            keypairs.iter().map(|key| key.public).collect();
-
-        group.bench_with_input(
-            criterion::BenchmarkId::new(
-                "Ed25519 batch signature verification",
-                n,
-            ),
-            &(messages, signatures, public_keys),
-            |b, sigs| {
-                b.iter(|| verify_batch(&sigs.0, &sigs.1, &sigs.2));
-            },
-        );
-    }
-}
 
 pub fn bench_batch_inverse(c: &mut Criterion) {
     let rng = &mut ark_std::test_rng();
@@ -378,8 +277,6 @@ pub fn bench_batch_inverse(c: &mut Criterion) {
 criterion_group!(
     ec,
     pairing,
-    //redjubjub,
-    ed25519_batch,
     lagrange,
     bench_batch_inverse
 );

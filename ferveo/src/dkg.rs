@@ -66,7 +66,7 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
 
 impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// Create a new DKG context to participate in the DKG
-    /// Every identity in the DKG is linked to an ed25519 public key;
+    /// Every identity in the DKG is linked to a bls12-381 public key;
     /// `validators`: List of validators
     /// `params` contains the parameters of the DKG such as number of shares
     /// `me` the validator creating this instance
