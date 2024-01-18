@@ -101,6 +101,12 @@ pub enum Error {
 
     #[error("Invalid variant: {0}")]
     InvalidVariant(String),
+
+    #[error("Invalid DKG parameters: number of shares {0}, threshold {1}")]
+    InvalidDkgParameters(u32, u32),
+
+    #[error("Invalid share index: {0}")]
+    InvalidShareIndex(u32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -410,7 +416,7 @@ mod test_dkg_full {
                     &domain_points,
                     &dkg.pvss_params.h.into_affine(),
                     &x_r,
-                    dkg.dkg_params.security_threshold as usize,
+                    dkg.dkg_params.security_threshold() as usize,
                     rng,
                 );
                 (v_addr.clone(), deltas_i)
@@ -439,11 +445,13 @@ mod test_dkg_full {
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
                 let pvss_aggregated = aggregate(&dkg.vss);
-                pvss_aggregated.update_private_key_share_for_recovery(
-                    &decryption_key,
-                    validator.share_index,
-                    updates_for_participant.as_slice(),
-                )
+                pvss_aggregated
+                    .update_private_key_share_for_recovery(
+                        &decryption_key,
+                        validator.share_index,
+                        updates_for_participant.as_slice(),
+                    )
+                    .unwrap()
             })
             .collect();
 
@@ -552,7 +560,7 @@ mod test_dkg_full {
                 let deltas_i = prepare_share_updates_for_refresh::<E>(
                     &domain_points,
                     &dkg.pvss_params.h.into_affine(),
-                    dkg.dkg_params.security_threshold as usize,
+                    dkg.dkg_params.security_threshold() as usize,
                     rng,
                 );
                 (v_addr.clone(), deltas_i)
@@ -582,11 +590,13 @@ mod test_dkg_full {
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
                 let pvss_aggregated = aggregate(&dkg.vss);
-                pvss_aggregated.update_private_key_share_for_recovery(
-                    &decryption_key,
-                    validator.share_index,
-                    updates_for_participant.as_slice(),
-                )
+                pvss_aggregated
+                    .update_private_key_share_for_recovery(
+                        &decryption_key,
+                        validator.share_index,
+                        updates_for_participant.as_slice(),
+                    )
+                    .unwrap()
             })
             .collect();
 

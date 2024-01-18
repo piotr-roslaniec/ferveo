@@ -15,9 +15,50 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DkgParams {
-    pub tau: u32,
-    pub security_threshold: u32,
-    pub shares_num: u32,
+    tau: u32,
+    security_threshold: u32,
+    shares_num: u32,
+}
+
+impl DkgParams {
+    /// Create new DKG parameters
+    /// `tau` is a unique identifier for the DKG (ritual id)
+    /// `security_threshold` is the minimum number of shares required to reconstruct the key
+    /// `shares_num` is the total number of shares to be generated
+    /// Returns an error if the parameters are invalid
+    /// Parameters must hold: `shares_num` >= `security_threshold`
+    pub fn new(
+        tau: u32,
+        security_threshold: u32,
+        shares_num: u32,
+    ) -> Result<Self> {
+        if shares_num < security_threshold
+            || shares_num == 0
+            || security_threshold == 0
+        {
+            return Err(Error::InvalidDkgParameters(
+                shares_num,
+                security_threshold,
+            ));
+        }
+        Ok(Self {
+            tau,
+            security_threshold,
+            shares_num,
+        })
+    }
+
+    pub fn tau(&self) -> u32 {
+        self.tau
+    }
+
+    pub fn security_threshold(&self) -> u32 {
+        self.security_threshold
+    }
+
+    pub fn shares_num(&self) -> u32 {
+        self.shares_num
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -123,6 +164,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             validators,
             state: DkgState::Sharing {
                 accumulated_shares: 0,
+                // TODO: Do we need to keep track of the block number?
                 block: 0,
             },
         })
@@ -151,6 +193,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
+    // TODO: Make private, use `share` instead. Currently used only in bindings
     pub fn create_share<R: RngCore>(
         &self,
         rng: &mut R,
@@ -248,6 +291,10 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     return Err(Error::UnknownDealer(sender.clone().address));
                 }
 
+                // TODO: Throw error instead of silently accepting excess shares?
+                // if self.vss.len() < self.dkg_params.shares_num as usize {
+                //     self.vss.insert(sender.address.clone(), pvss.clone());
+                // }
                 self.vss.insert(sender.address.clone(), pvss.clone());
 
                 // we keep track of the amount of shares seen until the security
@@ -749,5 +796,23 @@ mod test_aggregation {
         }
         let sender = dkg.me.validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
+    }
+}
+
+/// Test DKG parameters
+#[cfg(test)]
+mod test_dkg_params {
+    const TAU: u32 = 0;
+
+    #[test]
+    fn test_shares_num_less_than_security_threshold() {
+        let dkg_params = super::DkgParams::new(TAU, 4, 3);
+        assert!(dkg_params.is_err());
+    }
+
+    #[test]
+    fn test_valid_dkg_params() {
+        let dkg_params = super::DkgParams::new(TAU, 2, 3);
+        assert!(dkg_params.is_ok());
     }
 }

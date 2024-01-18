@@ -18,6 +18,9 @@ pub type PublicKey = ferveo_common::PublicKey<E>;
 pub type Keypair = ferveo_common::Keypair<E>;
 pub type Validator = crate::Validator<E>;
 pub type Transcript = PubliclyVerifiableSS<E>;
+
+// pub type ShareIndex = u32;
+// pub type ValidatorMessage = (ShareIndex, Validator, Transcript);
 pub type ValidatorMessage = (Validator, Transcript);
 
 #[cfg(feature = "bindings-python")]
@@ -203,11 +206,8 @@ impl Dkg {
         validators: &[Validator],
         me: &Validator,
     ) -> Result<Self> {
-        let dkg_params = crate::DkgParams {
-            tau,
-            security_threshold,
-            shares_num,
-        };
+        let dkg_params =
+            crate::DkgParams::new(tau, security_threshold, shares_num)?;
         let dkg = crate::PubliclyVerifiableDkg::<E>::new(
             validators,
             &dkg_params,
@@ -312,7 +312,7 @@ impl AggregatedTranscript {
             .0
             .domain
             .elements()
-            .take(dkg.0.dkg_params.shares_num as usize)
+            .take(dkg.0.dkg_params.shares_num() as usize)
             .collect();
         self.0.make_decryption_share_simple_precomputed(
             &ciphertext_header.0,
@@ -434,6 +434,7 @@ mod test_ferveo_api {
                 (sender.clone(), dkg.generate_transcript(rng).unwrap())
             })
             .collect();
+
         (messages, validators, validator_keypairs)
     }
 
@@ -647,7 +648,7 @@ mod test_ferveo_api {
 
         let local_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(local_aggregate
-            .verify(dkg.0.dkg_params.shares_num, &messages)
+            .verify(dkg.0.dkg_params.shares_num(), &messages)
             .is_ok());
     }
 

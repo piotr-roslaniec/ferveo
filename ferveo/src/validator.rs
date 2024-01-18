@@ -54,6 +54,7 @@ impl<E: Pairing> PartialOrd for Validator<E> {
 }
 
 impl<E: Pairing> Ord for Validator<E> {
+    // Validators are ordered by their address only
     fn cmp(&self, other: &Self) -> Ordering {
         self.address.cmp(&other.address)
     }
