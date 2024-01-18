@@ -397,10 +397,13 @@ mod test_ferveo_api {
     use ferveo_tdec::SecretBox;
     use itertools::izip;
     use rand::{prelude::StdRng, SeedableRng};
+    use test_case::test_case;
 
     use crate::{api::*, dkg::test_common::*};
 
     type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
+
+    const TAU: u32 = 1;
 
     fn make_test_inputs(
         rng: &mut StdRng,
@@ -446,204 +449,188 @@ mod test_ferveo_api {
         assert_eq!(dkg_pk, deserialized);
     }
 
-    #[test]
-    fn test_server_api_tdec_precomputed() {
+    #[test_case(4; "number of shares (validators) is a power of 2")]
+    #[test_case(7; "number of shares (validators) is not a power of 2")]
+    fn test_server_api_tdec_precomputed(shares_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        // Works for both power of 2 and non-power of 2
-        for shares_num in [4, 7] {
-            let tau = 1;
-            // In precomputed variant, the security threshold is equal to the number of shares
-            // TODO: Refactor DKG constructor to not require security threshold or this case.
-            //  Or figure out a different way to simplify the precomputed variant API.
-            let security_threshold = shares_num;
+        // In precomputed variant, the security threshold is equal to the number of shares
+        // TODO: Refactor DKG constructor to not require security threshold or this case.
+        //  Or figure out a different way to simplify the precomputed variant API.
+        let security_threshold = shares_num;
 
-            let (messages, validators, validator_keypairs) =
-                make_test_inputs(rng, tau, security_threshold, shares_num);
+        let (messages, validators, validator_keypairs) =
+            make_test_inputs(rng, TAU, security_threshold, shares_num);
 
-            // Now that every validator holds a dkg instance and a transcript for every other validator,
-            // every validator can aggregate the transcripts
-            let me = validators[0].clone();
-            let mut dkg =
-                Dkg::new(tau, shares_num, security_threshold, &validators, &me)
-                    .unwrap();
+        // Now that every validator holds a dkg instance and a transcript for every other validator,
+        // every validator can aggregate the transcripts
+        let me = validators[0].clone();
+        let mut dkg =
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
+                .unwrap();
 
-            let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-            assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
+        let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
-            // At this point, any given validator should be able to provide a DKG public key
-            let dkg_public_key = dkg.public_key();
+        // At this point, any given validator should be able to provide a DKG public key
+        let dkg_public_key = dkg.public_key();
 
-            // In the meantime, the client creates a ciphertext and decryption request
-            let msg = "my-msg".as_bytes().to_vec();
-            let aad: &[u8] = "my-aad".as_bytes();
-            let ciphertext =
-                encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key)
-                    .unwrap();
+        // In the meantime, the client creates a ciphertext and decryption request
+        let msg = "my-msg".as_bytes().to_vec();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let ciphertext =
+            encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key).unwrap();
 
-            // Having aggregated the transcripts, the validators can now create decryption shares
-            let decryption_shares: Vec<_> =
-                izip!(&validators, &validator_keypairs)
-                    .map(|(validator, validator_keypair)| {
-                        // Each validator holds their own instance of DKG and creates their own aggregate
-                        let mut dkg = Dkg::new(
-                            tau,
-                            shares_num,
-                            security_threshold,
-                            &validators,
-                            validator,
-                        )
-                        .unwrap();
-                        let aggregate =
-                            dkg.aggregate_transcripts(&messages).unwrap();
-                        assert!(pvss_aggregated
-                            .verify(shares_num, &messages)
-                            .unwrap());
+        // Having aggregated the transcripts, the validators can now create decryption shares
+        let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
+            .map(|(validator, validator_keypair)| {
+                // Each validator holds their own instance of DKG and creates their own aggregate
+                let mut dkg = Dkg::new(
+                    TAU,
+                    shares_num,
+                    security_threshold,
+                    &validators,
+                    validator,
+                )
+                .unwrap();
+                let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+                assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
-                        // And then each validator creates their own decryption share
-                        aggregate
-                            .create_decryption_share_precomputed(
-                                &dkg,
-                                &ciphertext.header().unwrap(),
-                                aad,
-                                validator_keypair,
-                            )
-                            .unwrap()
-                    })
-                    .collect();
+                // And then each validator creates their own decryption share
+                aggregate
+                    .create_decryption_share_precomputed(
+                        &dkg,
+                        &ciphertext.header().unwrap(),
+                        aad,
+                        validator_keypair,
+                    )
+                    .unwrap()
+            })
+            .collect();
 
-            // Now, the decryption share can be used to decrypt the ciphertext
-            // This part is part of the client API
+        // Now, the decryption share can be used to decrypt the ciphertext
+        // This part is part of the client API
 
-            let shared_secret = share_combine_precomputed(&decryption_shares);
-            let plaintext = decrypt_with_shared_secret(
-                &ciphertext,
-                aad,
-                &SharedSecret(shared_secret),
-            )
-            .unwrap();
-            assert_eq!(plaintext, msg);
+        let shared_secret = share_combine_precomputed(&decryption_shares);
+        let plaintext = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &SharedSecret(shared_secret),
+        )
+        .unwrap();
+        assert_eq!(plaintext, msg);
 
-            // Since we're using a precomputed variant, we need all the shares to be able to decrypt
-            // So if we remove one share, we should not be able to decrypt
-            let decryption_shares =
-                decryption_shares[..shares_num as usize - 1].to_vec();
+        // Since we're using a precomputed variant, we need all the shares to be able to decrypt
+        // So if we remove one share, we should not be able to decrypt
+        let decryption_shares =
+            decryption_shares[..shares_num as usize - 1].to_vec();
 
-            let shared_secret = share_combine_precomputed(&decryption_shares);
-            let result = decrypt_with_shared_secret(
-                &ciphertext,
-                aad,
-                &SharedSecret(shared_secret),
-            );
-            assert!(result.is_err());
-        }
+        let shared_secret = share_combine_precomputed(&decryption_shares);
+        let result = decrypt_with_shared_secret(
+            &ciphertext,
+            aad,
+            &SharedSecret(shared_secret),
+        );
+        assert!(result.is_err());
     }
 
-    #[test]
-    fn test_server_api_tdec_simple() {
+    #[test_case(4; "number of shares (validators) is a power of 2")]
+    #[test_case(7; "number of shares (validators) is not a power of 2")]
+    fn test_server_api_tdec_simple(shares_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        // Works for both power of 2 and non-power of 2
-        for shares_num in [4, 7] {
-            let tau = 1;
-            let security_threshold = shares_num / 2 + 1;
+        let security_threshold = shares_num / 2 + 1;
 
-            let (messages, validators, validator_keypairs) =
-                make_test_inputs(rng, tau, security_threshold, shares_num);
+        let (messages, validators, validator_keypairs) =
+            make_test_inputs(rng, TAU, security_threshold, shares_num);
 
-            // Now that every validator holds a dkg instance and a transcript for every other validator,
-            // every validator can aggregate the transcripts
-            let mut dkg = Dkg::new(
-                tau,
-                shares_num,
-                security_threshold,
-                &validators,
-                &validators[0],
-            )
-            .unwrap();
+        // Now that every validator holds a dkg instance and a transcript for every other validator,
+        // every validator can aggregate the transcripts
+        let mut dkg = Dkg::new(
+            TAU,
+            shares_num,
+            security_threshold,
+            &validators,
+            &validators[0],
+        )
+        .unwrap();
 
-            let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-            assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
+        let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
 
-            // At this point, any given validator should be able to provide a DKG public key
-            let public_key = dkg.public_key();
+        // At this point, any given validator should be able to provide a DKG public key
+        let public_key = dkg.public_key();
 
-            // In the meantime, the client creates a ciphertext and decryption request
-            let msg = "my-msg".as_bytes().to_vec();
-            let aad: &[u8] = "my-aad".as_bytes();
-            let ciphertext =
-                encrypt(SecretBox::new(msg.clone()), aad, &public_key).unwrap();
+        // In the meantime, the client creates a ciphertext and decryption request
+        let msg = "my-msg".as_bytes().to_vec();
+        let aad: &[u8] = "my-aad".as_bytes();
+        let ciphertext =
+            encrypt(SecretBox::new(msg.clone()), aad, &public_key).unwrap();
 
-            // Having aggregated the transcripts, the validators can now create decryption shares
-            let decryption_shares: Vec<_> =
-                izip!(&validators, &validator_keypairs)
-                    .map(|(validator, validator_keypair)| {
-                        // Each validator holds their own instance of DKG and creates their own aggregate
-                        let mut dkg = Dkg::new(
-                            tau,
-                            shares_num,
-                            security_threshold,
-                            &validators,
-                            validator,
-                        )
-                        .unwrap();
-                        let aggregate =
-                            dkg.aggregate_transcripts(&messages).unwrap();
-                        assert!(aggregate
-                            .verify(shares_num, &messages)
-                            .unwrap());
-                        aggregate
-                            .create_decryption_share_simple(
-                                &dkg,
-                                &ciphertext.header().unwrap(),
-                                aad,
-                                validator_keypair,
-                            )
-                            .unwrap()
-                    })
-                    .collect();
+        // Having aggregated the transcripts, the validators can now create decryption shares
+        let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
+            .map(|(validator, validator_keypair)| {
+                // Each validator holds their own instance of DKG and creates their own aggregate
+                let mut dkg = Dkg::new(
+                    TAU,
+                    shares_num,
+                    security_threshold,
+                    &validators,
+                    validator,
+                )
+                .unwrap();
+                let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+                assert!(aggregate.verify(shares_num, &messages).unwrap());
+                aggregate
+                    .create_decryption_share_simple(
+                        &dkg,
+                        &ciphertext.header().unwrap(),
+                        aad,
+                        validator_keypair,
+                    )
+                    .unwrap()
+            })
+            .collect();
 
-            // Now, the decryption share can be used to decrypt the ciphertext
-            // This part is part of the client API
+        // Now, the decryption share can be used to decrypt the ciphertext
+        // This part is part of the client API
 
-            // In simple variant, we only need `security_threshold` shares to be able to decrypt
-            let decryption_shares =
-                decryption_shares[..security_threshold as usize].to_vec();
+        // In simple variant, we only need `security_threshold` shares to be able to decrypt
+        let decryption_shares =
+            decryption_shares[..security_threshold as usize].to_vec();
 
-            let shared_secret = combine_shares_simple(&decryption_shares);
-            let plaintext =
-                decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
-                    .unwrap();
-            assert_eq!(plaintext, msg);
+        let shared_secret = combine_shares_simple(&decryption_shares);
+        let plaintext =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+                .unwrap();
+        assert_eq!(plaintext, msg);
 
-            // Let's say that we've only received `security_threshold - 1` shares
-            // In this case, we should not be able to decrypt
-            let decryption_shares =
-                decryption_shares[..security_threshold as usize - 1].to_vec();
+        // Let's say that we've only received `security_threshold - 1` shares
+        // In this case, we should not be able to decrypt
+        let decryption_shares =
+            decryption_shares[..security_threshold as usize - 1].to_vec();
 
-            let shared_secret = combine_shares_simple(&decryption_shares);
-            let result =
-                decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
-            assert!(result.is_err());
-        }
+        let shared_secret = combine_shares_simple(&decryption_shares);
+        let result =
+            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
+        assert!(result.is_err());
     }
 
     #[test]
     fn server_side_local_verification() {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        let tau = 1;
         let security_threshold = 3;
         let shares_num = 4;
 
         let (messages, validators, _) =
-            make_test_inputs(rng, tau, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, security_threshold, shares_num);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
         let me = validators[0].clone();
         let mut dkg =
-            Dkg::new(tau, shares_num, security_threshold, &validators, &me)
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
 
         let local_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
@@ -656,12 +643,11 @@ mod test_ferveo_api {
     fn client_side_local_verification() {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        let tau = 1;
         let security_threshold = 3;
         let shares_num = 4;
 
         let (messages, _, _) =
-            make_test_inputs(rng, tau, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, security_threshold, shares_num);
 
         // We only need `security_threshold` transcripts to aggregate
         let messages = &messages[..security_threshold as usize];
@@ -690,7 +676,7 @@ mod test_ferveo_api {
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
         let (bad_messages, _, _) =
-            make_test_inputs(rng, tau, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, security_threshold, shares_num);
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = AggregatedTranscript::new(&mixed_messages);
         let result = bad_aggregate.verify(shares_num, messages);

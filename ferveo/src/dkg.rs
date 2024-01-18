@@ -508,17 +508,17 @@ mod test_dealing {
     fn test_pvss_dealing() {
         let rng = &mut ark_std::test_rng();
 
+        // Create a test DKG instance
+        let (mut dkg, _) = setup_dkg(0);
+
         // Gather everyone's transcripts
         let mut messages = vec![];
-        for i in 0..4 {
-            let (mut dkg, _) = setup_dkg(i);
+        for i in 0..dkg.dkg_params.shares_num() {
+            let (mut dkg, _) = setup_dkg(i as usize);
             let message = dkg.share(rng).unwrap();
             let sender = dkg.me.validator.clone();
             messages.push((sender, message));
         }
-
-        // Create a test DKG instance
-        let (mut dkg, _) = setup_dkg(0);
 
         let mut expected = 0u32;
         for (sender, pvss) in messages.iter() {
