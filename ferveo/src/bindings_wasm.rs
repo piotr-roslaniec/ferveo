@@ -1,5 +1,3 @@
-extern crate group_threshold_cryptography as tpke;
-
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -7,10 +5,10 @@ use std::{
 };
 
 use ferveo_common::{FromBytes, ToBytes};
+use ferveo_tdec::SecretBox;
 use js_sys::Error;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use tpke::SecretBox;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_derive::TryFromJsValue;
 
@@ -202,7 +200,9 @@ generate_common_methods!(DecryptionShareSimple);
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]
-pub struct DecryptionSharePrecomputed(tpke::api::DecryptionSharePrecomputed);
+pub struct DecryptionSharePrecomputed(
+    ferveo_tdec::api::DecryptionSharePrecomputed,
+);
 
 generate_common_methods!(DecryptionSharePrecomputed);
 

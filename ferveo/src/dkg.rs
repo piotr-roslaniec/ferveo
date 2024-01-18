@@ -28,7 +28,7 @@ pub struct DkgValidator<E: Pairing> {
 
 impl<E: Pairing> PartialOrd for DkgValidator<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.share_index.partial_cmp(&other.share_index)
+        Some(self.cmp(other))
     }
 }
 
@@ -66,7 +66,7 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
 
 impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// Create a new DKG context to participate in the DKG
-    /// Every identity in the DKG is linked to an ed25519 public key;
+    /// Every identity in the DKG is linked to a bls12-381 public key;
     /// `validators`: List of validators
     /// `params` contains the parameters of the DKG such as number of shares
     /// `me` the validator creating this instance
@@ -320,7 +320,6 @@ pub(crate) mod test_common {
     use std::str::FromStr;
 
     pub use ark_bls12_381::Bls12_381 as E;
-    pub use ark_ff::UniformRand;
     use ferveo_common::Keypair;
 
     pub use super::*;

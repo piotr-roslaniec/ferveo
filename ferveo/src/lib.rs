@@ -4,7 +4,6 @@
 extern crate alloc;
 
 use ark_ec::pairing::Pairing;
-use group_threshold_cryptography as tpke;
 use itertools::zip_eq;
 
 #[cfg(feature = "bindings-python")]
@@ -31,7 +30,7 @@ pub use validator::*;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    ThresholdEncryptionError(#[from] tpke::Error),
+    ThresholdEncryptionError(#[from] ferveo_tdec::Error),
 
     /// DKG is not in a valid state to deal PVSS shares
     #[error("Invalid DKG state to deal PVSS shares")]
@@ -127,9 +126,8 @@ mod test_dkg_full {
     use ark_poly::EvaluationDomain;
     use ark_std::test_rng;
     use ferveo_common::Keypair;
-    use group_threshold_cryptography as tpke;
-    use group_threshold_cryptography::{
-        DecryptionSharePrecomputed, DecryptionShareSimple, SecretBox,
+    use ferveo_tdec::{
+        self, DecryptionSharePrecomputed, DecryptionShareSimple, SecretBox,
         SharedSecret,
     };
     use itertools::izip;
@@ -142,7 +140,7 @@ mod test_dkg_full {
     fn make_shared_secret_simple_tdec(
         dkg: &PubliclyVerifiableDkg<E>,
         aad: &[u8],
-        ciphertext_header: &tpke::CiphertextHeader<E>,
+        ciphertext_header: &ferveo_tdec::CiphertextHeader<E>,
         validator_keypairs: &[Keypair<E>],
     ) -> (
         PubliclyVerifiableSS<E, Aggregated>,
@@ -178,11 +176,12 @@ mod test_dkg_full {
             .collect::<Vec<_>>();
         assert_eq!(domain_points.len(), decryption_shares.len());
 
-        // TODO: Consider refactor this part into tpke::combine_simple and expose it
-        //  as a public API in tpke::api
+        // TODO: Consider refactor this part into ferveo_tdec::combine_simple and expose it
+        //  as a public API in ferveo_tdec::api
 
-        let lagrange_coeffs = tpke::prepare_combine_simple::<E>(domain_points);
-        let shared_secret = tpke::share_combine_simple::<E>(
+        let lagrange_coeffs =
+            ferveo_tdec::prepare_combine_simple::<E>(domain_points);
+        let shared_secret = ferveo_tdec::share_combine_simple::<E>(
             &decryption_shares,
             &lagrange_coeffs,
         );
@@ -202,7 +201,7 @@ mod test_dkg_full {
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
             let public_key = dkg.public_key();
-            let ciphertext = tpke::encrypt::<E>(
+            let ciphertext = ferveo_tdec::encrypt::<E>(
                 SecretBox::new(msg.clone()),
                 aad,
                 &public_key,
@@ -217,7 +216,7 @@ mod test_dkg_full {
                 validator_keypairs.as_slice(),
             );
 
-            let plaintext = tpke::decrypt_with_shared_secret(
+            let plaintext = ferveo_tdec::decrypt_with_shared_secret(
                 &ciphertext,
                 aad,
                 &shared_secret,
@@ -241,7 +240,7 @@ mod test_dkg_full {
             let msg = "my-msg".as_bytes().to_vec();
             let aad: &[u8] = "my-aad".as_bytes();
             let public_key = dkg.public_key();
-            let ciphertext = tpke::encrypt::<E>(
+            let ciphertext = ferveo_tdec::encrypt::<E>(
                 SecretBox::new(msg.clone()),
                 aad,
                 &public_key,
@@ -279,10 +278,10 @@ mod test_dkg_full {
             assert_eq!(domain_points.len(), decryption_shares.len());
 
             let shared_secret =
-                tpke::share_combine_precomputed::<E>(&decryption_shares);
+                ferveo_tdec::share_combine_precomputed::<E>(&decryption_shares);
 
             // Combination works, let's decrypt
-            let plaintext = tpke::decrypt_with_shared_secret(
+            let plaintext = ferveo_tdec::decrypt_with_shared_secret(
                 &ciphertext,
                 aad,
                 &shared_secret,
@@ -301,9 +300,13 @@ mod test_dkg_full {
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = dkg.public_key();
-        let ciphertext =
-            tpke::encrypt::<E>(SecretBox::new(msg), aad, &public_key, rng)
-                .unwrap();
+        let ciphertext = ferveo_tdec::encrypt::<E>(
+            SecretBox::new(msg),
+            aad,
+            &public_key,
+            rng,
+        )
+        .unwrap();
 
         let (pvss_aggregated, decryption_shares, _) =
             make_shared_secret_simple_tdec(
@@ -364,9 +367,13 @@ mod test_dkg_full {
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.public_key();
-        let ciphertext =
-            tpke::encrypt::<E>(SecretBox::new(msg), aad, public_key, rng)
-                .unwrap();
+        let ciphertext = ferveo_tdec::encrypt::<E>(
+            SecretBox::new(msg),
+            aad,
+            public_key,
+            rng,
+        )
+        .unwrap();
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
@@ -496,9 +503,11 @@ mod test_dkg_full {
         assert_eq!(domain_points.len(), security_threshold as usize);
         assert_eq!(decryption_shares.len(), security_threshold as usize);
 
-        let lagrange = tpke::prepare_combine_simple::<E>(domain_points);
-        let new_shared_secret =
-            tpke::share_combine_simple::<E>(decryption_shares, &lagrange);
+        let lagrange = ferveo_tdec::prepare_combine_simple::<E>(domain_points);
+        let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
+            decryption_shares,
+            &lagrange,
+        );
 
         assert_eq!(
             old_shared_secret, new_shared_secret,
@@ -517,9 +526,13 @@ mod test_dkg_full {
         let msg = "my-msg".as_bytes().to_vec();
         let aad: &[u8] = "my-aad".as_bytes();
         let public_key = &dkg.public_key();
-        let ciphertext =
-            tpke::encrypt::<E>(SecretBox::new(msg), aad, public_key, rng)
-                .unwrap();
+        let ciphertext = ferveo_tdec::encrypt::<E>(
+            SecretBox::new(msg),
+            aad,
+            public_key,
+            rng,
+        )
+        .unwrap();
 
         // Create an initial shared secret
         let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
@@ -594,10 +607,10 @@ mod test_dkg_full {
                 })
                 .collect();
 
-        let lagrange = tpke::prepare_combine_simple::<E>(
+        let lagrange = ferveo_tdec::prepare_combine_simple::<E>(
             &domain_points[..security_threshold as usize],
         );
-        let new_shared_secret = tpke::share_combine_simple::<E>(
+        let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
             &decryption_shares[..security_threshold as usize],
             &lagrange,
         );

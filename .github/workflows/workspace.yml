@@ -148,7 +148,7 @@ jobs:
         target:
           - wasm32-unknown-unknown
         python:
-          - "3.10"
+          - "3.12"
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -176,7 +176,7 @@ jobs:
         working-directory: ferveo-python
 
       - name: Install pip dependencies
-        run: pip install pytest mypy
+        run: pip install pytest mypy ruff
 
       - name: Run pytest
         run: pytest
@@ -184,6 +184,10 @@ jobs:
 
       - name: Run mypy.stubtest
         run: python -m mypy.stubtest ferveo
+        working-directory: ferveo-python
+
+      - name: Run ruff
+        run: ruff check ferveo
         working-directory: ferveo-python
 
   codecov:
@@ -208,6 +212,21 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: true
+
+  compile-benchmarks:
+    # Temporarily replaces "benchmark" job. TODO: Remove this job once the "benchmark" job is fixed.
+    runs-on: ubuntu-latest
+    needs: [ test ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+      - name: Compile benchmarks
+        run: cargo bench --no-run --no-default-features
 
   benchmark:
 

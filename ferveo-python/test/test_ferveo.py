@@ -9,10 +9,9 @@ from ferveo import (
     Validator,
     ValidatorMessage,
     Dkg,
-    AggregatedTranscript,
     DkgPublicKey,
     ThresholdEncryptionError,
-    FerveoVariant
+    FerveoVariant,
 )
 
 
@@ -114,19 +113,27 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
 
 
 def test_simple_tdec_has_enough_messages():
-    scenario_for_variant(FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=3)
+    scenario_for_variant(
+        FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=3
+    )
 
 
 def test_simple_tdec_doesnt_have_enough_messages():
-    scenario_for_variant(FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=2)
+    scenario_for_variant(
+        FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=2
+    )
 
 
 def test_precomputed_tdec_has_enough_messages():
-    scenario_for_variant(FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=4)
+    scenario_for_variant(
+        FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=4
+    )
 
 
 def test_precomputed_tdec_doesnt_have_enough_messages():
-    scenario_for_variant(FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=3)
+    scenario_for_variant(
+        FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=3
+    )
 
 
 PARAMS = [
@@ -143,7 +150,7 @@ PARAMS = [
 ]
 
 TEST_CASES_WITH_THRESHOLD_RANGE = []
-for (shares_num, variant) in PARAMS:
+for shares_num, variant in PARAMS:
     for threshold in range(1, shares_num):
         TEST_CASES_WITH_THRESHOLD_RANGE.append((variant, shares_num, threshold))
 

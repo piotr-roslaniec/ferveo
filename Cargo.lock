@@ -771,9 +771,9 @@ dependencies = [
  "derive_more",
  "digest",
  "ferveo-common-pre-release",
+ "ferveo-tdec",
  "generic-array",
  "getrandom 0.2.9",
- "group-threshold-cryptography-pre-release",
  "hex",
  "itertools",
  "js-sys",
@@ -799,6 +799,34 @@ dependencies = [
  "ferveo-pre-release",
  "pyo3",
  "pyo3-build-config",
+]
+
+[[package]]
+name = "ferveo-tdec"
+version = "0.2.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
+ "ark-std",
+ "bincode",
+ "chacha20poly1305",
+ "criterion 0.4.0",
+ "ferveo-common-pre-release",
+ "hex",
+ "itertools",
+ "miracl_core",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_bytes",
+ "serde_with",
+ "sha2",
+ "subproductdomain-pre-release",
+ "thiserror",
+ "zeroize",
 ]
 
 [[package]]
@@ -878,34 +906,6 @@ name = "gimli"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
-
-[[package]]
-name = "group-threshold-cryptography-pre-release"
-version = "0.2.0"
-dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff",
- "ark-poly",
- "ark-serialize",
- "ark-std",
- "bincode",
- "chacha20poly1305",
- "criterion 0.4.0",
- "ferveo-common-pre-release",
- "hex",
- "itertools",
- "miracl_core",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "serde_bytes",
- "serde_with",
- "sha2",
- "subproductdomain-pre-release",
- "thiserror",
- "zeroize",
-]
 
 [[package]]
 name = "half"
