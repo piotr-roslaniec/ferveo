@@ -243,7 +243,6 @@ pub mod test_common {
                     h,
                 },
                 private_key_share,
-                validator_private_key: b,
                 public_decryption_contexts: vec![],
             });
             public_contexts.push(PublicDecryptionContextSimple::<E> {

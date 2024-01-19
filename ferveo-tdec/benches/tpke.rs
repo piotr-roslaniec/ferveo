@@ -189,7 +189,7 @@ pub fn bench_create_decryption_share(c: &mut Criterion) {
                         .map(|ctx| {
                             // Using create_unchecked here to avoid the cost of verifying the ciphertext
                             DecryptionShareSimple::create_unchecked(
-                                &ctx.validator_private_key,
+                                &ctx.setup_params.b,
                                 &ctx.private_key_share,
                                 &setup.shared.ciphertext.header().unwrap(),
                             )
