@@ -231,17 +231,13 @@ macro_rules! generate_boxed_bytes_serialization {
 
 #[pyfunction]
 pub fn encrypt(
-    message: &[u8],
+    message: Vec<u8>,
     aad: &[u8],
     dkg_public_key: &DkgPublicKey,
 ) -> PyResult<Ciphertext> {
-    let ciphertext = api::encrypt(
-        // TODO: Avoid double-allocation here. `SecretBox` already allocates for its contents.
-        api::SecretBox::new(message.to_vec()),
-        aad,
-        &dkg_public_key.0,
-    )
-    .map_err(FerveoPythonError::FerveoError)?;
+    let ciphertext =
+        api::encrypt(api::SecretBox::new(message), aad, &dkg_public_key.0)
+            .map_err(FerveoPythonError::FerveoError)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -816,7 +812,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let ciphertext = encrypt(MSG, AAD, &dkg_public_key).unwrap();
+        let ciphertext = encrypt(MSG.to_vec(), AAD, &dkg_public_key).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -887,7 +883,7 @@ mod test_ferveo_python {
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let ciphertext = encrypt(MSG, AAD, &dkg_public_key).unwrap();
+        let ciphertext = encrypt(MSG.to_vec(), AAD, &dkg_public_key).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
