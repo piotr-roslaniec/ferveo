@@ -9,7 +9,10 @@ pub use ferveo_tdec::api::{
     prepare_combine_simple, share_combine_precomputed, share_combine_simple,
     Fr, G1Affine, G1Prepared, G2Affine, SecretBox, E,
 };
-use generic_array::{typenum::U48, GenericArray};
+use generic_array::{
+    typenum::{Unsigned, U48},
+    GenericArray,
+};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -19,8 +22,6 @@ pub type Keypair = ferveo_common::Keypair<E>;
 pub type Validator = crate::Validator<E>;
 pub type Transcript = PubliclyVerifiableSS<E>;
 
-// pub type ShareIndex = u32;
-// pub type ValidatorMessage = (ShareIndex, Validator, Transcript);
 pub type ValidatorMessage = (Validator, Transcript);
 
 #[cfg(feature = "bindings-python")]
@@ -167,7 +168,7 @@ impl DkgPublicKey {
     }
 
     pub fn serialized_size() -> usize {
-        48
+        U48::to_usize()
     }
 
     /// Generate a random DKG public key.
@@ -399,11 +400,9 @@ mod test_ferveo_api {
     use rand::{prelude::StdRng, SeedableRng};
     use test_case::test_case;
 
-    use crate::{api::*, dkg::test_common::*};
+    use crate::{api::*, test_common::*};
 
     type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
-
-    const TAU: u32 = 1;
 
     fn make_test_inputs(
         rng: &mut StdRng,
@@ -446,6 +445,7 @@ mod test_ferveo_api {
         let dkg_pk = DkgPublicKey::random();
         let serialized = dkg_pk.to_bytes().unwrap();
         let deserialized = DkgPublicKey::from_bytes(&serialized).unwrap();
+        assert_eq!(serialized.len(), 48_usize);
         assert_eq!(dkg_pk, deserialized);
     }
 
@@ -476,10 +476,9 @@ mod test_ferveo_api {
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext =
-            encrypt(SecretBox::new(msg.clone()), aad, &dkg_public_key).unwrap();
+            encrypt(SecretBox::new(MSG.to_vec()), AAD, &dkg_public_key)
+                .unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -501,7 +500,7 @@ mod test_ferveo_api {
                     .create_decryption_share_precomputed(
                         &dkg,
                         &ciphertext.header().unwrap(),
-                        aad,
+                        AAD,
                         validator_keypair,
                     )
                     .unwrap()
@@ -514,11 +513,11 @@ mod test_ferveo_api {
         let shared_secret = share_combine_precomputed(&decryption_shares);
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
-            aad,
+            AAD,
             &SharedSecret(shared_secret),
         )
         .unwrap();
-        assert_eq!(plaintext, msg);
+        assert_eq!(plaintext, MSG);
 
         // Since we're using a precomputed variant, we need all the shares to be able to decrypt
         // So if we remove one share, we should not be able to decrypt
@@ -528,7 +527,7 @@ mod test_ferveo_api {
         let shared_secret = share_combine_precomputed(&decryption_shares);
         let result = decrypt_with_shared_secret(
             &ciphertext,
-            aad,
+            AAD,
             &SharedSecret(shared_secret),
         );
         assert!(result.is_err());
@@ -562,10 +561,8 @@ mod test_ferveo_api {
         let public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg = "my-msg".as_bytes().to_vec();
-        let aad: &[u8] = "my-aad".as_bytes();
         let ciphertext =
-            encrypt(SecretBox::new(msg.clone()), aad, &public_key).unwrap();
+            encrypt(SecretBox::new(MSG.to_vec()), AAD, &public_key).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
@@ -585,7 +582,7 @@ mod test_ferveo_api {
                     .create_decryption_share_simple(
                         &dkg,
                         &ciphertext.header().unwrap(),
-                        aad,
+                        AAD,
                         validator_keypair,
                     )
                     .unwrap()
@@ -601,9 +598,9 @@ mod test_ferveo_api {
 
         let shared_secret = combine_shares_simple(&decryption_shares);
         let plaintext =
-            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+            decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret)
                 .unwrap();
-        assert_eq!(plaintext, msg);
+        assert_eq!(plaintext, MSG);
 
         // Let's say that we've only received `security_threshold - 1` shares
         // In this case, we should not be able to decrypt
@@ -612,7 +609,7 @@ mod test_ferveo_api {
 
         let shared_secret = combine_shares_simple(&decryption_shares);
         let result =
-            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret);
+            decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret);
         assert!(result.is_err());
     }
 
@@ -620,17 +617,14 @@ mod test_ferveo_api {
     fn server_side_local_verification() {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        let security_threshold = 3;
-        let shares_num = 4;
-
         let (messages, validators, _) =
-            make_test_inputs(rng, TAU, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
         let me = validators[0].clone();
         let mut dkg =
-            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
+            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
                 .unwrap();
 
         let local_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
@@ -643,14 +637,11 @@ mod test_ferveo_api {
     fn client_side_local_verification() {
         let rng = &mut StdRng::seed_from_u64(0);
 
-        let security_threshold = 3;
-        let shares_num = 4;
-
         let (messages, _, _) =
-            make_test_inputs(rng, TAU, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
 
         // We only need `security_threshold` transcripts to aggregate
-        let messages = &messages[..security_threshold as usize];
+        let messages = &messages[..SECURITY_THRESHOLD as usize];
 
         // Create an aggregated transcript on the client side
         let aggregated_transcript = AggregatedTranscript::new(messages);
@@ -659,27 +650,27 @@ mod test_ferveo_api {
         // the aggregate from a side-channel or decide to persist it and verify it later
 
         // Now, the client can verify the aggregated transcript
-        let result = aggregated_transcript.verify(shares_num, messages);
+        let result = aggregated_transcript.verify(SHARES_NUM, messages);
         assert!(result.is_ok());
         assert!(result.unwrap());
 
         // Test negative cases
 
         // Not enough transcripts
-        let not_enough_messages = &messages[..2];
-        assert!(not_enough_messages.len() < security_threshold as usize);
+        let not_enough_messages = &messages[..SECURITY_THRESHOLD as usize - 1];
+        assert!(not_enough_messages.len() < SECURITY_THRESHOLD as usize);
         let insufficient_aggregate =
             AggregatedTranscript::new(not_enough_messages);
-        let result = insufficient_aggregate.verify(shares_num, messages);
+        let result = insufficient_aggregate.verify(SHARES_NUM, messages);
         assert!(result.is_err());
 
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
         let (bad_messages, _, _) =
-            make_test_inputs(rng, TAU, security_threshold, shares_num);
+            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = AggregatedTranscript::new(&mixed_messages);
-        let result = bad_aggregate.verify(shares_num, messages);
+        let result = bad_aggregate.verify(SHARES_NUM, messages);
         assert!(result.is_err());
     }
 }

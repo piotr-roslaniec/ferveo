@@ -595,7 +595,6 @@ impl Keypair {
     }
 }
 
-/// Factory functions for testing
 pub mod test_common {
     use crate::bindings_wasm::*;
 

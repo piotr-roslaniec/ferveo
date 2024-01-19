@@ -462,11 +462,7 @@ mod test_pvss {
     use rand::seq::SliceRandom;
 
     use super::*;
-    use crate::{dkg::test_common::*, utils::is_sorted};
-
-    type ScalarField = <EllipticCurve as Pairing>::ScalarField;
-    type G1 = <EllipticCurve as Pairing>::G1Affine;
-    type G2 = <EllipticCurve as Pairing>::G2Affine;
+    use crate::{test_common::*, utils::is_sorted, DkgParams};
 
     /// Test the happy flow that a pvss with the correct form is created
     /// and that appropriate validations pass

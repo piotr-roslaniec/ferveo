@@ -739,7 +739,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
 mod test_ferveo_python {
     use itertools::izip;
 
-    use crate::bindings_python::*;
+    use crate::{bindings_python::*, test_common::*};
 
     type TestInputs = (Vec<ValidatorMessage>, Vec<Validator>, Vec<Keypair>);
 
@@ -785,21 +785,19 @@ mod test_ferveo_python {
 
     #[test]
     fn test_server_api_tdec_precomputed() {
-        let tau = 1;
-        let shares_num = 4;
         // In precomputed variant, the security threshold is equal to the number of shares
-        let security_threshold = shares_num;
+        let security_threshold = SHARES_NUM;
 
         let (messages, validators, validator_keypairs) =
-            make_test_inputs(tau, security_threshold, shares_num);
+            make_test_inputs(TAU, security_threshold, SHARES_NUM);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
 
         let me = validators[0].clone();
         let mut dkg = Dkg::new(
-            tau,
-            shares_num,
+            TAU,
+            SHARES_NUM,
             security_threshold,
             validators.clone(),
             &me,
@@ -811,24 +809,22 @@ mod test_ferveo_python {
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
         assert!(pvss_aggregated
-            .verify(shares_num, messages.clone())
+            .verify(SHARES_NUM, messages.clone())
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "my-msg".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
+        let ciphertext = encrypt(MSG, AAD, &dkg_public_key).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
             .map(|(validator, validator_keypair)| {
                 // Each validator holds their own instance of DKG and creates their own aggregate
                 let mut dkg = Dkg::new(
-                    tau,
-                    shares_num,
+                    TAU,
+                    SHARES_NUM,
                     security_threshold,
                     validators.clone(),
                     validator,
@@ -837,13 +833,13 @@ mod test_ferveo_python {
                 let aggregate =
                     dkg.aggregate_transcripts(messages.clone()).unwrap();
                 assert!(pvss_aggregated
-                    .verify(shares_num, messages.clone())
+                    .verify(SHARES_NUM, messages.clone())
                     .is_ok());
                 aggregate
                     .create_decryption_share_precomputed(
                         &dkg,
                         &ciphertext.header().unwrap(),
-                        aad,
+                        AAD,
                         validator_keypair,
                     )
                     .unwrap()
@@ -857,56 +853,50 @@ mod test_ferveo_python {
             combine_decryption_shares_precomputed(decryption_shares);
 
         let plaintext =
-            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+            decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret)
                 .unwrap();
-        assert_eq!(plaintext, msg);
+        assert_eq!(plaintext, MSG);
     }
 
     #[test]
     fn test_server_api_tdec_simple() {
-        let tau = 1;
-        let shares_num = 4;
-        let security_threshold = 3;
-
         let (messages, validators, validator_keypairs) =
-            make_test_inputs(tau, security_threshold, shares_num);
+            make_test_inputs(TAU, SECURITY_THRESHOLD, SHARES_NUM);
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
         let me = validators[0].clone();
         let mut dkg = Dkg::new(
-            tau,
-            shares_num,
-            security_threshold,
+            TAU,
+            SHARES_NUM,
+            SECURITY_THRESHOLD,
             validators.clone(),
             &me,
         )
         .unwrap();
 
         // Lets say that we've only receives `security_threshold` transcripts
-        let messages = messages[..security_threshold as usize].to_vec();
+        let messages = messages[..SECURITY_THRESHOLD as usize].to_vec();
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
         assert!(pvss_aggregated
-            .verify(shares_num, messages.clone())
+            .verify(SHARES_NUM, messages.clone())
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
         let dkg_public_key = dkg.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
-        let msg: &[u8] = "my-msg".as_bytes();
-        let aad: &[u8] = "my-aad".as_bytes();
-        let ciphertext = encrypt(msg, aad, &dkg_public_key).unwrap();
+        let ciphertext = encrypt(MSG, AAD, &dkg_public_key).unwrap();
 
         // Having aggregated the transcripts, the validators can now create decryption shares
         let decryption_shares: Vec<_> = izip!(&validators, &validator_keypairs)
             .map(|(validator, validator_keypair)| {
                 // Each validator holds their own instance of DKG and creates their own aggregate
                 let mut dkg = Dkg::new(
-                    tau,
-                    shares_num,
-                    security_threshold,
+                    TAU,
+                    SHARES_NUM,
+                    SECURITY_THRESHOLD,
                     validators.clone(),
                     validator,
                 )
@@ -914,13 +904,13 @@ mod test_ferveo_python {
                 let aggregate =
                     dkg.aggregate_transcripts(messages.clone()).unwrap();
                 assert!(aggregate
-                    .verify(shares_num, messages.clone())
+                    .verify(SHARES_NUM, messages.clone())
                     .unwrap());
                 aggregate
                     .create_decryption_share_simple(
                         &dkg,
                         &ciphertext.header().unwrap(),
-                        aad,
+                        AAD,
                         validator_keypair,
                     )
                     .unwrap()
@@ -933,8 +923,8 @@ mod test_ferveo_python {
         let shared_secret = combine_decryption_shares_simple(decryption_shares);
 
         let plaintext =
-            decrypt_with_shared_secret(&ciphertext, aad, &shared_secret)
+            decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret)
                 .unwrap();
-        assert_eq!(plaintext, msg);
+        assert_eq!(plaintext, MSG);
     }
 }
