@@ -104,6 +104,11 @@ impl From<FerveoPythonError> for PyErr {
                         "{index}"
                     ))
                 },
+                Error::InvalidDkgParametersForPrecomputedVariant(num_shares, security_threshold) => {
+                    InvalidDkgParameters::new_err(format!(
+                        "num_shares: {num_shares}, security_threshold: {security_threshold}"
+                    ))
+                },
             },
             _ => default(),
         }

@@ -114,6 +114,10 @@ pub enum Error {
     /// Failed to access a share for a given share index
     #[error("Invalid share index: {0}")]
     InvalidShareIndex(u32),
+
+    /// Failed to produce a precomputed variant decryption share
+    #[error("Invalid DKG parameters for precomputed variant: number of shares {0}, threshold {1}")]
+    InvalidDkgParametersForPrecomputedVariant(u32, u32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

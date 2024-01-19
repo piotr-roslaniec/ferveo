@@ -309,6 +309,14 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
+        if dkg.0.dkg_params.shares_num()
+            != dkg.0.dkg_params.security_threshold()
+        {
+            return Err(Error::InvalidDkgParametersForPrecomputedVariant(
+                dkg.0.dkg_params.shares_num(),
+                dkg.0.dkg_params.security_threshold(),
+            ));
+        }
         let domain_points: Vec<_> = dkg
             .0
             .domain
@@ -455,8 +463,6 @@ mod test_ferveo_api {
         let rng = &mut StdRng::seed_from_u64(0);
 
         // In precomputed variant, the security threshold is equal to the number of shares
-        // TODO: Refactor DKG constructor to not require security threshold or this case.
-        //  Or figure out a different way to simplify the precomputed variant API.
         let security_threshold = shares_num;
 
         let (messages, validators, validator_keypairs) =

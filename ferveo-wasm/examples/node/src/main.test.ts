@@ -22,11 +22,8 @@ const genEthAddr = (i: number) => {
   return EthereumAddress.fromString(ethAddr);
 };
 
-function setupTest() {
-  const tau = 1;
-  const sharesNum = 4;
-  const threshold = Math.floor((sharesNum * 2) / 3);
-
+const tau = 1;
+function setupTest(sharesNum :number, threshold: number) {
   const validatorKeypairs: Keypair[] = [];
   const validators: Validator[] = [];
   for (let i = 0; i < sharesNum; i++) {
@@ -63,9 +60,6 @@ function setupTest() {
   const ciphertext = ferveoEncrypt(msg, aad, dkg.publicKey());
 
   return {
-    tau,
-    sharesNum,
-    threshold,
     validatorKeypairs,
     validators,
     dkg,
@@ -79,17 +73,16 @@ function setupTest() {
 // This test suite replicates tests from ferveo-wasm/tests/node.rs
 describe("ferveo-wasm", () => {
   it("simple tdec variant", () => {
+      const sharesNum = 4;
+      const threshold = 3;
     const {
-      tau,
-      sharesNum,
-      threshold,
       validatorKeypairs,
       validators,
       messages,
       msg,
       aad,
       ciphertext,
-    } = setupTest();
+    } = setupTest(sharesNum, threshold);
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     const decryptionShares: DecryptionShareSimple[] = [];
@@ -128,17 +121,16 @@ describe("ferveo-wasm", () => {
   });
 
   it("precomputed tdec variant", () => {
+      const sharesNum = 4;
+        const threshold = sharesNum; // threshold is equal to sharesNum in precomputed variant
     const {
-      tau,
-      sharesNum,
-      threshold,
       validatorKeypairs,
       validators,
       messages,
       msg,
       aad,
       ciphertext,
-    } = setupTest();
+    } = setupTest(sharesNum, threshold);
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     const decryptionShares: DecryptionSharePrecomputed[] = [];
