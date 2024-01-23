@@ -29,7 +29,7 @@ pub struct PublicDecryptionContextSimple<E: Pairing> {
 
 #[derive(Clone, Debug)]
 pub struct SetupParams<E: Pairing> {
-    pub b: E::ScalarField,
+    pub b: E::ScalarField, // Validator private key
     pub b_inv: E::ScalarField,
     pub g: E::G1Affine,
     pub g_inv: E::G1Prepared,
@@ -71,8 +71,6 @@ pub struct PrivateDecryptionContextSimple<E: Pairing> {
     pub setup_params: SetupParams<E>,
     pub private_key_share: PrivateKeyShare<E>,
     pub public_decryption_contexts: Vec<PublicDecryptionContextSimple<E>>,
-    // TODO: Remove/replace with `setup_params.b` after refactoring
-    pub validator_private_key: E::ScalarField,
 }
 
 impl<E: Pairing> PrivateDecryptionContextSimple<E> {
@@ -82,7 +80,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
         aad: &[u8],
     ) -> Result<DecryptionShareSimple<E>> {
         DecryptionShareSimple::create(
-            &self.validator_private_key,
+            &self.setup_params.b,
             &self.private_key_share,
             ciphertext_header,
             aad,
@@ -104,7 +102,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
 
         DecryptionSharePrecomputed::new(
             self.index,
-            &self.validator_private_key,
+            &self.setup_params.b,
             &self.private_key_share,
             ciphertext_header,
             aad,

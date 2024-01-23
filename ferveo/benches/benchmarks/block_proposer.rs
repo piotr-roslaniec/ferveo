@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+// TODO: Currently not maintained - see mod.rs
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use ark_bls12_381::*;

@@ -7,9 +7,6 @@ use itertools::zip_eq;
 use wasm_bindgen_test::*;
 
 type TestSetup = (
-    u32,
-    usize,
-    usize,
     Vec<Keypair>,
     Vec<Validator>,
     ValidatorArray,
@@ -19,13 +16,12 @@ type TestSetup = (
     Ciphertext,
 );
 
-fn setup_dkg() -> TestSetup {
-    let tau = 1;
-    let shares_num = 16;
-    let security_threshold = shares_num * 2 / 3;
+const TAU: u32 = 0;
 
-    let validator_keypairs =
-        (0..shares_num).map(gen_keypair).collect::<Vec<Keypair>>();
+fn setup_dkg(shares_num: u32, security_threshold: u32) -> TestSetup {
+    let validator_keypairs = (0..shares_num as usize)
+        .map(gen_keypair)
+        .collect::<Vec<Keypair>>();
     let validators = validator_keypairs
         .iter()
         .enumerate()
@@ -37,9 +33,9 @@ fn setup_dkg() -> TestSetup {
     // validator, including themselves
     let messages = validators.iter().map(|sender| {
         let dkg = Dkg::new(
-            tau,
-            shares_num as u32,
-            security_threshold as u32,
+            TAU,
+            shares_num,
+            security_threshold,
             &validators_js,
             sender,
         )
@@ -53,9 +49,9 @@ fn setup_dkg() -> TestSetup {
     // every validator can aggregate the transcripts
 
     let mut dkg = Dkg::new(
-        tau,
-        shares_num as u32,
-        security_threshold as u32,
+        TAU,
+        shares_num,
+        security_threshold,
         &validators_js,
         &validators[0],
     )
@@ -79,9 +75,6 @@ fn setup_dkg() -> TestSetup {
     let ciphertext = ferveo_encrypt(&msg, &aad, &dkg.public_key()).unwrap();
 
     (
-        tau,
-        shares_num,
-        security_threshold,
         validator_keypairs,
         validators,
         validators_js,
@@ -94,10 +87,9 @@ fn setup_dkg() -> TestSetup {
 
 #[wasm_bindgen_test]
 fn tdec_simple() {
+    let shares_num = 16;
+    let security_threshold = 10;
     let (
-        tau,
-        shares_num,
-        security_threshold,
         validator_keypairs,
         validators,
         validators_js,
@@ -105,15 +97,15 @@ fn tdec_simple() {
         msg,
         aad,
         ciphertext,
-    ) = setup_dkg();
+    ) = setup_dkg(shares_num, security_threshold);
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     let decryption_shares = zip_eq(validators, validator_keypairs)
         .map(|(validator, keypair)| {
             let mut dkg = Dkg::new(
-                tau,
-                shares_num as u32,
-                security_threshold as u32,
+                TAU,
+                shares_num,
+                security_threshold,
                 &validators_js,
                 &validator,
             )
@@ -148,10 +140,9 @@ fn tdec_simple() {
 
 #[wasm_bindgen_test]
 fn tdec_precomputed() {
+    let shares_num = 16;
+    let security_threshold = shares_num; // Must be equal to shares_num in precomputed variant
     let (
-        tau,
-        shares_num,
-        security_threshold,
         validator_keypairs,
         validators,
         validators_js,
@@ -159,15 +150,15 @@ fn tdec_precomputed() {
         msg,
         aad,
         ciphertext,
-    ) = setup_dkg();
+    ) = setup_dkg(shares_num, security_threshold);
 
     // Having aggregated the transcripts, the validators can now create decryption shares
     let decryption_shares = zip_eq(validators, validator_keypairs)
         .map(|(validator, keypair)| {
             let mut dkg = Dkg::new(
-                tau,
-                shares_num as u32,
-                security_threshold as u32,
+                TAU,
+                shares_num,
+                security_threshold,
                 &validators_js,
                 &validator,
             )

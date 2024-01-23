@@ -40,9 +40,6 @@ pub trait Aggregate {}
 /// Apply trait gate to Aggregated marker struct
 impl Aggregate for Aggregated {}
 
-// /// Type alias for non aggregated PVSS transcripts
-// pub type Pvss<E> = PubliclyVerifiableSS<E>;
-
 /// Type alias for aggregated PVSS transcripts
 pub type AggregatedPvss<E> = PubliclyVerifiableSS<E, Aggregated>;
 
@@ -138,7 +135,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     ) -> Result<Self> {
         let phi = SecretPolynomial::<E>::new(
             s,
-            (dkg.dkg_params.security_threshold - 1) as usize,
+            (dkg.dkg_params.security_threshold() - 1) as usize,
             rng,
         );
 
@@ -311,19 +308,19 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         &self,
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
-    ) -> PrivateKeyShare<E> {
+    ) -> Result<PrivateKeyShare<E>> {
         // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
         let private_key_share = self
             .shares
             .get(share_index)
-            .unwrap()
+            .ok_or(Error::InvalidShareIndex(share_index as u32))?
             .mul(
                 validator_decryption_key
                     .inverse()
                     .expect("Validator decryption key must have an inverse"),
             )
             .into_affine();
-        PrivateKeyShare { private_key_share }
+        Ok(PrivateKeyShare { private_key_share })
     }
 
     pub fn make_decryption_share_simple(
@@ -335,7 +332,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
         let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index);
+            .decrypt_private_key_share(validator_decryption_key, share_index)?;
         DecryptionShareSimple::create(
             validator_decryption_key,
             &private_key_share,
@@ -356,7 +353,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
         let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index);
+            .decrypt_private_key_share(validator_decryption_key, share_index)?;
 
         // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
@@ -379,13 +376,16 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
         share_updates: &[E::G2],
-    ) -> PrivateKeyShare<E> {
+    ) -> Result<PrivateKeyShare<E>> {
         // Retrieves their private key share
         let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index);
+            .decrypt_private_key_share(validator_decryption_key, share_index)?;
 
         // And updates their share
-        apply_updates_to_private_share::<E>(&private_key_share, share_updates)
+        Ok(apply_updates_to_private_share::<E>(
+            &private_key_share,
+            share_updates,
+        ))
     }
 }
 
@@ -462,11 +462,7 @@ mod test_pvss {
     use rand::seq::SliceRandom;
 
     use super::*;
-    use crate::{dkg::test_common::*, utils::is_sorted};
-
-    type ScalarField = <EllipticCurve as Pairing>::ScalarField;
-    type G1 = <EllipticCurve as Pairing>::G1Affine;
-    type G2 = <EllipticCurve as Pairing>::G2Affine;
+    use crate::{test_common::*, utils::is_sorted, DkgParams};
 
     /// Test the happy flow that a pvss with the correct form is created
     /// and that appropriate validations pass
@@ -482,7 +478,7 @@ mod test_pvss {
         // Check that a polynomial of the correct degree was created
         assert_eq!(
             pvss.coeffs.len(),
-            dkg.dkg_params.security_threshold as usize
+            dkg.dkg_params.security_threshold() as usize
         );
         // Check that the correct number of shares were created
         assert_eq!(pvss.shares.len(), dkg.validators.len());
@@ -555,11 +551,7 @@ mod test_pvss {
         // And because of that the DKG should fail
         let result = PubliclyVerifiableDkg::new(
             &validators,
-            &DkgParams {
-                tau: 0,
-                security_threshold,
-                shares_num,
-            },
+            &DkgParams::new(0, security_threshold, shares_num).unwrap(),
             &me,
         );
         assert!(result.is_err());
@@ -578,7 +570,7 @@ mod test_pvss {
         // Check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
-            dkg.dkg_params.security_threshold as usize
+            dkg.dkg_params.security_threshold() as usize
         );
         // Check that the correct number of shares were created
         assert_eq!(aggregate.shares.len(), dkg.validators.len());

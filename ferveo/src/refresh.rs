@@ -122,22 +122,18 @@ mod tests_refresh {
     use std::collections::HashMap;
 
     use ark_bls12_381::Fr;
-    use ark_ec::pairing::Pairing;
     use ark_std::{test_rng, UniformRand, Zero};
-    use rand_core::RngCore;
-
-    type E = ark_bls12_381::Bls12_381;
-    type ScalarField = <E as Pairing>::ScalarField;
-
     use ferveo_tdec::{
         test_common::setup_simple, PrivateDecryptionContextSimple,
         PrivateKeyShare,
     };
+    use rand_core::RngCore;
+    use test_case::test_matrix;
 
     use crate::{
         apply_updates_to_private_share, prepare_share_updates_for_recovery,
         prepare_share_updates_for_refresh,
-        recover_share_from_updated_private_shares,
+        recover_share_from_updated_private_shares, test_common::*,
     };
 
     fn make_new_share_fragments_for_recovery<R: RngCore>(
@@ -191,14 +187,13 @@ mod tests_refresh {
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
     /// The new share is intended to restore a previously existing share, e.g., due to loss or corruption.
-    #[test]
-    fn tdec_simple_variant_share_recovery_at_selected_point() {
+    #[test_matrix([4, 7, 11, 16])]
+    fn tdec_simple_variant_share_recovery_at_selected_point(shares_num: usize) {
         let rng = &mut test_rng();
-        let shares_num = 16;
-        let threshold = shares_num * 2 / 3;
+        let security_threshold = shares_num * 2 / 3;
 
         let (_, _, mut contexts) =
-            setup_simple::<E>(threshold, shares_num, rng);
+            setup_simple::<E>(security_threshold, shares_num, rng);
 
         // Prepare participants
 
@@ -220,7 +215,7 @@ mod tests_refresh {
         // Each participant prepares an update for each other participant, and uses it to create a new share fragment
         let new_share_fragments = make_new_share_fragments_for_recovery(
             rng,
-            threshold,
+            security_threshold,
             &x_r,
             &remaining_participants,
         );
@@ -233,8 +228,8 @@ mod tests_refresh {
             .collect::<Vec<_>>();
         let new_private_key_share = recover_share_from_updated_private_shares(
             &x_r,
-            &domain_points[..threshold],
-            &new_share_fragments[..threshold],
+            &domain_points[..security_threshold],
+            &new_share_fragments[..security_threshold],
         );
 
         assert_eq!(new_private_key_share, original_private_key_share);
@@ -244,8 +239,8 @@ mod tests_refresh {
         let incorrect_private_key_share =
             recover_share_from_updated_private_shares(
                 &x_r,
-                &domain_points[..(threshold - 1)],
-                &new_share_fragments[..(threshold - 1)],
+                &domain_points[..(security_threshold - 1)],
+                &new_share_fragments[..(security_threshold - 1)],
             );
 
         assert_ne!(incorrect_private_key_share, original_private_key_share);
@@ -253,10 +248,9 @@ mod tests_refresh {
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
     /// The new share is independent from the previously existing shares. We can use this to on-board a new participant into an existing cohort.
-    #[test]
-    fn tdec_simple_variant_share_recovery_at_random_point() {
+    #[test_matrix([4, 7, 11, 16])]
+    fn tdec_simple_variant_share_recovery_at_random_point(shares_num: usize) {
         let rng = &mut test_rng();
-        let shares_num = 16;
         let threshold = shares_num * 2 / 3;
 
         let (_, shared_private_key, mut contexts) =
@@ -321,10 +315,10 @@ mod tests_refresh {
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share refresh" algorithm.
     /// The output is M new shares (with M <= Ñ), with each of the M new shares substituting the
     /// original share (i.e., the original share is deleted).
-    #[test]
-    fn tdec_simple_variant_share_refreshing() {
+    #[test_matrix([4, 7, 11, 16])]
+
+    fn tdec_simple_variant_share_refreshing(shares_num: usize) {
         let rng = &mut test_rng();
-        let shares_num = 16;
         let threshold = shares_num * 2 / 3;
 
         let (_, shared_private_key, contexts) =

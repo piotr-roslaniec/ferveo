@@ -15,9 +15,50 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DkgParams {
-    pub tau: u32,
-    pub security_threshold: u32,
-    pub shares_num: u32,
+    tau: u32,
+    security_threshold: u32,
+    shares_num: u32,
+}
+
+impl DkgParams {
+    /// Create new DKG parameters
+    /// `tau` is a unique identifier for the DKG (ritual id)
+    /// `security_threshold` is the minimum number of shares required to reconstruct the key
+    /// `shares_num` is the total number of shares to be generated
+    /// Returns an error if the parameters are invalid
+    /// Parameters must hold: `shares_num` >= `security_threshold`
+    pub fn new(
+        tau: u32,
+        security_threshold: u32,
+        shares_num: u32,
+    ) -> Result<Self> {
+        if shares_num < security_threshold
+            || shares_num == 0
+            || security_threshold == 0
+        {
+            return Err(Error::InvalidDkgParameters(
+                shares_num,
+                security_threshold,
+            ));
+        }
+        Ok(Self {
+            tau,
+            security_threshold,
+            shares_num,
+        })
+    }
+
+    pub fn tau(&self) -> u32 {
+        self.tau
+    }
+
+    pub fn security_threshold(&self) -> u32 {
+        self.security_threshold
+    }
+
+    pub fn shares_num(&self) -> u32 {
+        self.shares_num
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -123,6 +164,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             validators,
             state: DkgState::Sharing {
                 accumulated_shares: 0,
+                // TODO: Do we need to keep track of the block number?
                 block: 0,
             },
         })
@@ -151,6 +193,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
+    // TODO: Make private, use `share` instead. Currently used only in bindings
     pub fn create_share<R: RngCore>(
         &self,
         rng: &mut R,
@@ -248,6 +291,10 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                     return Err(Error::UnknownDealer(sender.clone().address));
                 }
 
+                // TODO: Throw error instead of silently accepting excess shares?
+                // if self.vss.len() < self.dkg_params.shares_num as usize {
+                //     self.vss.insert(sender.address.clone(), pvss.clone());
+                // }
                 self.vss.insert(sender.address.clone(), pvss.clone());
 
                 // we keep track of the amount of shares seen until the security
@@ -314,110 +361,14 @@ pub enum Message<E: Pairing> {
     Aggregate(Aggregation<E>),
 }
 
-/// Factory functions for testing
-#[cfg(test)]
-pub(crate) mod test_common {
-    use std::str::FromStr;
-
-    pub use ark_bls12_381::Bls12_381 as E;
-    use ferveo_common::Keypair;
-
-    pub use super::*;
-
-    pub type G1 = <E as Pairing>::G1Affine;
-
-    pub fn gen_keypairs(n: u32) -> Vec<Keypair<E>> {
-        let rng = &mut ark_std::test_rng();
-        (0..n).map(|_| Keypair::<E>::new(rng)).collect()
-    }
-
-    pub fn gen_address(i: usize) -> EthereumAddress {
-        EthereumAddress::from_str(&format!("0x{i:040}")).unwrap()
-    }
-
-    pub fn gen_validators(keypairs: &[Keypair<E>]) -> Vec<Validator<E>> {
-        keypairs
-            .iter()
-            .enumerate()
-            .map(|(i, keypair)| Validator {
-                address: gen_address(i),
-                public_key: keypair.public_key(),
-            })
-            .collect()
-    }
-
-    pub type TestSetup = (PubliclyVerifiableDkg<E>, Vec<Keypair<E>>);
-
-    pub fn setup_dkg_for_n_validators(
-        security_threshold: u32,
-        shares_num: u32,
-        my_index: usize,
-    ) -> TestSetup {
-        let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(keypairs.as_slice());
-        validators.sort();
-        let me = validators[my_index].clone();
-        let dkg = PubliclyVerifiableDkg::new(
-            &validators,
-            &DkgParams {
-                tau: 0,
-                security_threshold,
-                shares_num,
-            },
-            &me,
-        )
-        .expect("Setup failed");
-        (dkg, keypairs)
-    }
-
-    /// Create a test dkg
-    ///
-    /// The [`test_dkg_init`] module checks correctness of this setup
-    pub fn setup_dkg(validator: usize) -> TestSetup {
-        setup_dkg_for_n_validators(2, 4, validator)
-    }
-
-    /// Set up a dkg with enough pvss transcripts to meet the threshold
-    ///
-    /// The correctness of this function is tested in the module [`test_dealing`]
-    pub fn setup_dealt_dkg() -> TestSetup {
-        setup_dealt_dkg_with_n_validators(2, 4)
-    }
-
-    pub fn setup_dealt_dkg_with_n_validators(
-        security_threshold: u32,
-        shares_num: u32,
-    ) -> TestSetup {
-        let rng = &mut ark_std::test_rng();
-
-        // Gather everyone's transcripts
-        let messages: Vec<_> = (0..shares_num)
-            .map(|my_index| {
-                let (mut dkg, _) = setup_dkg_for_n_validators(
-                    security_threshold,
-                    shares_num,
-                    my_index as usize,
-                );
-                let me = dkg.me.validator.clone();
-                let message = dkg.share(rng).unwrap();
-                (me, message)
-            })
-            .collect();
-
-        // Create a test DKG instance
-        let (mut dkg, keypairs) =
-            setup_dkg_for_n_validators(security_threshold, shares_num, 0);
-        messages.iter().for_each(|(sender, message)| {
-            dkg.apply_message(sender, message).expect("Setup failed");
-        });
-        (dkg, keypairs)
-    }
-}
-
 /// Test initializing DKG
 #[cfg(test)]
 mod test_dkg_init {
-    use super::test_common::*;
+    use crate::{
+        dkg::{PubliclyVerifiableDkg, Validator},
+        test_common::*,
+        DkgParams,
+    };
 
     /// Test that dkg fails to start if the `me` input
     /// is not in the validator set
@@ -433,11 +384,7 @@ mod test_dkg_init {
         };
         let err = PubliclyVerifiableDkg::<E>::new(
             &gen_validators(&known_keypairs),
-            &DkgParams {
-                tau: 0,
-                security_threshold: shares_num / 2,
-                shares_num,
-            },
+            &DkgParams::new(TAU, SECURITY_THRESHOLD, SHARES_NUM).unwrap(),
             &unknown_validator,
         )
         .unwrap_err();
@@ -451,8 +398,7 @@ mod test_dkg_init {
 mod test_dealing {
     use ark_ec::AffineRepr;
 
-    use super::test_common::*;
-    use crate::DkgState::Dealt;
+    use crate::{test_common::*, DkgState, DkgState::Dealt, Validator};
 
     /// Test that dealing correct PVSS transcripts
     /// pass verification an application and that
@@ -461,17 +407,17 @@ mod test_dealing {
     fn test_pvss_dealing() {
         let rng = &mut ark_std::test_rng();
 
+        // Create a test DKG instance
+        let (mut dkg, _) = setup_dkg(0);
+
         // Gather everyone's transcripts
         let mut messages = vec![];
-        for i in 0..4 {
-            let (mut dkg, _) = setup_dkg(i);
+        for i in 0..dkg.dkg_params.shares_num() {
+            let (mut dkg, _) = setup_dkg(i as usize);
             let message = dkg.share(rng).unwrap();
             let sender = dkg.me.validator.clone();
             messages.push((sender, message));
         }
-
-        // Create a test DKG instance
-        let (mut dkg, _) = setup_dkg(0);
 
         let mut expected = 0u32;
         for (sender, pvss) in messages.iter() {
@@ -669,7 +615,7 @@ mod test_dealing {
 mod test_aggregation {
     use ark_ec::AffineRepr;
 
-    use super::test_common::*;
+    use crate::{dkg::*, test_common::*, DkgState, Message};
 
     /// Test that if the security threshold is
     /// met, we can create a final key
@@ -749,5 +695,24 @@ mod test_aggregation {
         }
         let sender = dkg.me.validator.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_err());
+    }
+}
+
+/// Test DKG parameters
+#[cfg(test)]
+mod test_dkg_params {
+    use crate::test_common::*;
+
+    #[test]
+    fn test_shares_num_less_than_security_threshold() {
+        let dkg_params = super::DkgParams::new(TAU, SHARES_NUM + 1, SHARES_NUM);
+        assert!(dkg_params.is_err());
+    }
+
+    #[test]
+    fn test_valid_dkg_params() {
+        let dkg_params =
+            super::DkgParams::new(TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        assert!(dkg_params.is_ok());
     }
 }
