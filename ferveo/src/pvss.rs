@@ -150,8 +150,8 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 // ek_{i}^{eval_i}, i = validator index
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
-                    &[evals.evals[validator.share_index]], // one share per validator
-                    validator.validator.public_key.encryption_key.into_group(),
+                    &[evals.evals[validator.share_index as usize]], // one share per validator
+                    validator.public_key.encryption_key.into_group(),
                 )[0]
             })
             .collect::<Vec<ShareEncryptions<E>>>();
@@ -198,17 +198,12 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
     pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
-        let validators = dkg
-            .validators
-            .values()
-            .map(|v| v.validator.clone())
-            .collect::<Vec<_>>();
-        let validators = validators.as_slice();
+        let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_full(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            validators,
+            &validators,
             &dkg.domain,
         )
     }
@@ -287,17 +282,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
     ) -> Result<bool> {
-        let validators = dkg
-            .validators
-            .values()
-            .map(|v| v.validator.clone())
-            .collect::<Vec<_>>();
-        let validators = validators.as_slice();
+        let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_aggregation(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            validators,
+            &validators,
             &dkg.domain,
             &dkg.vss,
         )

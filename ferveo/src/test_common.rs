@@ -91,7 +91,7 @@ pub fn setup_dealt_dkg_with(
                 shares_num,
                 my_index as usize,
             );
-            let me = dkg.me.validator.clone();
+            let me = dkg.me.clone();
             let message = dkg.share(rng).unwrap();
             (me, message)
         })

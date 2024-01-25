@@ -177,7 +177,7 @@ mod test_dkg_full {
                             ciphertext_header,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator.share_index,
+                            validator.share_index as usize,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -277,7 +277,7 @@ mod test_dkg_full {
                             &ciphertext.header().unwrap(),
                             AAD,
                             &validator_keypair.decryption_key,
-                            validator.share_index,
+                            validator.share_index as usize,
                             &domain_points,
                             &dkg.pvss_params.g_inv(),
                         )
@@ -431,12 +431,14 @@ mod test_dkg_full {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .map(|updates| {
+                        *updates.get(validator.share_index as usize).unwrap()
+                    })
                     .collect();
 
                 // Each validator uses their decryption key to update their share
                 let decryption_key = validator_keypairs
-                    .get(validator.share_index)
+                    .get(validator.share_index as usize)
                     .unwrap()
                     .decryption_key;
 
@@ -446,7 +448,7 @@ mod test_dkg_full {
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
-                        validator.share_index,
+                        validator.share_index as usize,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()
@@ -572,12 +574,14 @@ mod test_dkg_full {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .map(|updates| {
+                        *updates.get(validator.share_index as usize).unwrap()
+                    })
                     .collect();
 
                 // Each validator uses their decryption key to update their share
                 let decryption_key = validator_keypairs
-                    .get(validator.share_index)
+                    .get(validator.share_index as usize)
                     .unwrap()
                     .decryption_key;
 
@@ -587,7 +591,7 @@ mod test_dkg_full {
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
-                        validator.share_index,
+                        validator.share_index as usize,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()

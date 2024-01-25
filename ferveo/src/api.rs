@@ -327,7 +327,7 @@ impl AggregatedTranscript {
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me.share_index,
+            dkg.0.me.share_index as usize,
             &domain_points,
             &dkg.0.pvss_params.g_inv(),
         )
@@ -344,12 +344,13 @@ impl AggregatedTranscript {
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me.share_index,
+            dkg.0.me.share_index as usize,
             &dkg.0.pvss_params.g_inv(),
         )?;
+        let domain_point = dkg.0.domain.element(dkg.0.me.share_index as usize);
         Ok(DecryptionShareSimple {
             share,
-            domain_point: dkg.0.domain.element(dkg.0.me.share_index),
+            domain_point,
         })
     }
 }
