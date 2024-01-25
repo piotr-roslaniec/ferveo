@@ -76,7 +76,6 @@ impl From<FerveoPythonError> for PyErr {
                 Error::InvalidTranscriptAggregate => {
                     InvalidTranscriptAggregate::new_err("")
                 }
-                Error::ValidatorsNotSorted => ValidatorsNotSorted::new_err(""),
                 Error::ValidatorPublicKeyMismatch => {
                     ValidatorPublicKeyMismatch::new_err("")
                 }
@@ -107,6 +106,11 @@ impl From<FerveoPythonError> for PyErr {
                 Error::InvalidDkgParametersForPrecomputedVariant(num_shares, security_threshold) => {
                     InvalidDkgParameters::new_err(format!(
                         "num_shares: {num_shares}, security_threshold: {security_threshold}"
+                    ))
+                },
+                Error::DuplicatedShareIndex(index) => {
+                    InvalidShareIndex::new_err(format!(
+                        "{index}"
                     ))
                 },
             },

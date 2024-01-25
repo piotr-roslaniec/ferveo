@@ -19,8 +19,6 @@ pub mod pvss;
 pub mod refresh;
 pub mod validator;
 
-mod utils;
-
 #[cfg(test)]
 mod test_common;
 
@@ -85,10 +83,6 @@ pub enum Error {
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
 
-    /// DKG validators must be sorted by their Ethereum address
-    #[error("DKG validators not sorted")]
-    ValidatorsNotSorted,
-
     /// The validator public key doesn't match the one in the DKG
     #[error("Validator public key mismatch")]
     ValidatorPublicKeyMismatch,
@@ -118,6 +112,10 @@ pub enum Error {
     /// Failed to produce a precomputed variant decryption share
     #[error("Invalid DKG parameters for precomputed variant: number of shares {0}, threshold {1}")]
     InvalidDkgParametersForPrecomputedVariant(u32, u32),
+
+    /// DKG may not contain duplicated share indices
+    #[error("Duplicated share index: {0}")]
+    DuplicatedShareIndex(u32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

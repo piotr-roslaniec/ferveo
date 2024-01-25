@@ -18,8 +18,8 @@ use subproductdomain::fast_multiexp;
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    apply_updates_to_private_share, batch_to_projective_g1,
-    batch_to_projective_g2, utils::is_sorted, Error, PVSSMap,
+    apply_updates_to_private_share, assert_no_share_duplicates,
+    batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
     PubliclyVerifiableDkg, Result, Validator,
 };
 
@@ -225,8 +225,7 @@ pub fn do_verify_full<E: Pairing>(
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
     domain.fft_in_place(&mut commitment);
 
-    // At this point, validators must be sorted
-    assert!(is_sorted(validators));
+    assert_no_share_duplicates(validators).expect("Validators must be unique");
 
     // Each validator checks that their share is correct
     validators
@@ -459,10 +458,9 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
-    use rand::prelude::SliceRandom;
 
     use super::*;
-    use crate::{test_common::*, utils::is_sorted, DkgParams};
+    use crate::{test_common::*, DkgParams};
 
     /// Test the happy flow that a pvss with the correct form is created
     /// and that appropriate validations pass
@@ -532,21 +530,19 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    /// Check that the explicit ordering of validators is expected and enforced
+    /// Check that the canonical share indices of validators are expected and enforced
     /// by the DKG methods.
     #[test]
-    fn test_ordering_of_validators_is_enforced() {
-        let rng = &mut ark_std::test_rng();
-
+    fn test_canonical_share_indices_are_enforced() {
         let shares_num = 4;
         let security_threshold = shares_num - 1;
         let keypairs = gen_keypairs(shares_num);
         let mut validators = gen_validators(&keypairs);
         let me = validators[0].clone();
 
-        // Validators are not sorted
-        validators.shuffle(rng);
-        assert!(!is_sorted(&validators));
+        // Validators (share indices) are not unique
+        let duplicated_index = 0;
+        validators.insert(duplicated_index, me.clone());
 
         // And because of that the DKG should fail
         let result = PubliclyVerifiableDkg::new(
@@ -557,7 +553,7 @@ mod test_pvss {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            Error::ValidatorsNotSorted.to_string()
+            Error::DuplicatedShareIndex(duplicated_index as u32).to_string()
         );
     }
 

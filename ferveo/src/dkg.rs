@@ -9,8 +9,9 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    aggregate, utils::is_sorted, AggregatedPvss, Error, EthereumAddress,
-    PubliclyVerifiableParams, PubliclyVerifiableSS, Result, Validator,
+    aggregate, assert_no_share_duplicates, AggregatedPvss, Error,
+    EthereumAddress, PubliclyVerifiableParams, PubliclyVerifiableSS, Result,
+    Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -122,10 +123,8 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         )
         .expect("unable to construct domain");
 
-        // Sort the validators to verify a global ordering
-        if !is_sorted(validators) {
-            return Err(Error::ValidatorsNotSorted);
-        }
+        assert_no_share_duplicates(validators)?;
+
         let validators: ValidatorsMap<E> = validators
             .iter()
             .enumerate()
