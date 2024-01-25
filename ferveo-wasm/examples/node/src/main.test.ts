@@ -29,7 +29,7 @@ function setupTest(sharesNum :number, threshold: number) {
   for (let i = 0; i < sharesNum; i++) {
     const keypair = Keypair.random();
     validatorKeypairs.push(keypair);
-    const validator = new Validator(genEthAddr(i), keypair.publicKey);
+    const validator = new Validator(genEthAddr(i), keypair.publicKey, i);
     validators.push(validator);
   }
 

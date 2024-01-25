@@ -396,8 +396,9 @@ impl Validator {
     pub fn new(
         address: String,
         public_key: &FerveoPublicKey,
+        share_index: u32,
     ) -> PyResult<Self> {
-        let validator = api::Validator::new(address, public_key.0)
+        let validator = api::Validator::new(address, public_key.0, share_index)
             .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(validator))
     }
@@ -756,8 +757,12 @@ mod test_ferveo_python {
             .iter()
             .enumerate()
             .map(|(i, keypair)| {
-                Validator::new(format!("0x{i:040}"), &keypair.public_key())
-                    .unwrap()
+                Validator::new(
+                    format!("0x{i:040}"),
+                    &keypair.public_key(),
+                    i as u32,
+                )
+                .unwrap()
             })
             .collect();
 

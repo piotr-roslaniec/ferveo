@@ -45,6 +45,8 @@ pub struct Validator<E: Pairing> {
     pub address: EthereumAddress,
     /// The Public key
     pub public_key: PublicKey<E>,
+    /// The index of the validator in the given ritual
+    pub share_index: u32,
 }
 
 impl<E: Pairing> PartialOrd for Validator<E> {
@@ -64,10 +66,12 @@ impl<E: Pairing> Validator<E> {
     pub fn new(
         address: String,
         public_key: PublicKey<E>,
+        share_index: u32,
     ) -> Result<Self, EthereumAddressParseError> {
         Ok(Self {
             address: EthereumAddress::from_str(&address)?,
             public_key,
+            share_index,
         })
     }
 }

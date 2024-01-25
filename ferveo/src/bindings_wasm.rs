@@ -421,6 +421,7 @@ impl EthereumAddress {
 pub struct Validator {
     address: EthereumAddress,
     public_key: FerveoPublicKey,
+    share_index: u32,
 }
 
 #[wasm_bindgen]
@@ -429,11 +430,13 @@ impl Validator {
     pub fn new(
         address: &EthereumAddress,
         public_key: &FerveoPublicKey,
+        share_index: u32,
     ) -> JsResult<Validator> {
         set_panic_hook();
         Ok(Self {
             address: address.clone(),
             public_key: public_key.clone(),
+            share_index,
         })
     }
 
@@ -442,6 +445,7 @@ impl Validator {
         Ok(api::Validator {
             address: self.address.0.clone(),
             public_key: self.public_key.0,
+            share_index: self.share_index,
         })
     }
 
@@ -610,6 +614,7 @@ pub mod test_common {
         Validator {
             address: gen_address(i),
             public_key: keypair.public_key(),
+            share_index: i as u32,
         }
     }
 }

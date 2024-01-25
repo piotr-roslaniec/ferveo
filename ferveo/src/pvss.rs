@@ -459,7 +459,7 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
-    use rand::seq::SliceRandom;
+    use rand::prelude::SliceRandom;
 
     use super::*;
     use crate::{test_common::*, utils::is_sorted, DkgParams};

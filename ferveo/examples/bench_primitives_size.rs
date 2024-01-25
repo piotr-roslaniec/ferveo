@@ -66,6 +66,7 @@ fn gen_validators(
         .map(|i| Validator {
             address: gen_address(i),
             public_key: keypairs[i].public_key(),
+            share_index: i as u32,
         })
         .collect()
 }

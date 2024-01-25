@@ -375,12 +375,12 @@ mod test_dkg_init {
     #[test]
     fn test_dkg_fail_unknown_validator() {
         let rng = &mut ark_std::test_rng();
-        let shares_num = 4;
-        let known_keypairs = gen_keypairs(shares_num);
+        let known_keypairs = gen_keypairs(SHARES_NUM);
         let unknown_keypair = ferveo_common::Keypair::<E>::new(rng);
         let unknown_validator = Validator::<E> {
-            address: gen_address((shares_num + 1) as usize),
+            address: gen_address((SHARES_NUM + 1) as usize),
             public_key: unknown_keypair.public_key(),
+            share_index: SHARES_NUM + 5, // Not in the validator set
         };
         let err = PubliclyVerifiableDkg::<E>::new(
             &gen_validators(&known_keypairs),
@@ -464,6 +464,7 @@ mod test_dealing {
         let sender = Validator::<E> {
             address: gen_address(unknown_validator_i as usize),
             public_key: ferveo_common::Keypair::<E>::new(rng).public_key(),
+            share_index: dkg.dkg_params.shares_num + 5, // Not in the validator set
         };
         // check that verification fails
         assert!(dkg.verify_message(&sender, &pvss).is_err());

@@ -425,6 +425,7 @@ mod test_ferveo_api {
             .map(|(i, keypair)| Validator {
                 address: gen_address(i),
                 public_key: keypair.public_key(),
+                share_index: i as u32,
             })
             .collect::<Vec<_>>();
 
