@@ -422,16 +422,24 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
+    use test_case::test_case;
 
     use super::*;
     use crate::{test_common::*, DkgParams};
 
-    /// Test the happy flow that a pvss with the correct form is created
+    /// Test the happy flow such that the PVSS with the correct form is created
     /// and that appropriate validations pass
-    #[test]
-    fn test_new_pvss() {
+    #[test_case(4,4; "number of validators is equal to the number of shares")]
+    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    fn test_new_pvss(shares_num: u32, validators_num: u32) {
         let rng = &mut ark_std::test_rng();
-        let (dkg, _) = setup_dkg(0);
+        let security_threshold = shares_num - 1;
+
+        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let s = ScalarField::rand(rng);
         let pvss = PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng)
             .expect("Test failed");
@@ -453,7 +461,7 @@ mod test_pvss {
     }
 
     /// Check that if the proof of knowledge is wrong,
-    /// the optimistic verification of PVSS fails
+    /// then the optimistic verification of the PVSS fails
     #[test]
     fn test_verify_pvss_wrong_proof_of_knowledge() {
         let rng = &mut ark_std::test_rng();
@@ -523,10 +531,16 @@ mod test_pvss {
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
-    /// Should have the correct form and validations pass
-    #[test]
-    fn test_aggregate_pvss() {
-        let (dkg, _) = setup_dealt_dkg();
+    /// has the correct form and it's validations passes
+    #[test_case(4,4; "number of validators is equal to the number of shares")]
+    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    fn test_aggregate_pvss(shares_num: u32, validators_num: u32) {
+        let security_threshold = shares_num - 1;
+        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
         let aggregate = aggregate(&pvss_list).unwrap();
         // Check that a polynomial of the correct degree was created

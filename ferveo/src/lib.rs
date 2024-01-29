@@ -195,14 +195,18 @@ mod test_dkg_full {
         (pvss_aggregated, decryption_shares, shared_secret)
     }
 
-    #[test_case(4; "number of shares (validators) is a power of 2")]
-    #[test_case(7; "number of shares (validators) is not a power of 2")]
-    fn test_dkg_simple_tdec(shares_num: u32) {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators is greater than the number of shares")]
+    fn test_dkg_simple_tdec(shares_num: u32, validators_num: u32) {
         let rng = &mut test_rng();
 
-        let threshold = shares_num / 2 + 1;
-        let (dkg, validator_keypairs) =
-            setup_dealt_dkg_with(threshold, shares_num);
+        let security_threshold = shares_num / 2 + 1;
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
 
         let public_key = dkg.public_key();
         let ciphertext = ferveo_tdec::encrypt::<E>(
@@ -230,15 +234,19 @@ mod test_dkg_full {
         assert_eq!(plaintext, MSG);
     }
 
-    #[test_case(4; "number of shares (validators) is a power of 2")]
-    #[test_case(7; "number of shares (validators) is not a power of 2")]
-    fn test_dkg_simple_tdec_precomputed(shares_num: u32) {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators is greater than the number of shares")]
+    fn test_dkg_simple_tdec_precomputed(shares_num: u32, validators_num: u32) {
         let rng = &mut test_rng();
 
         // In precomputed variant, threshold must be equal to shares_num
-        let threshold = shares_num;
-        let (dkg, validator_keypairs) =
-            setup_dealt_dkg_with(threshold, shares_num);
+        let security_threshold = shares_num;
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let public_key = dkg.public_key();
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
@@ -293,12 +301,20 @@ mod test_dkg_full {
         assert_eq!(plaintext, MSG);
     }
 
-    #[test]
-    fn test_dkg_simple_tdec_share_verification() {
+    #[test_case(4, 4; "number of validators is equal to the number of shares")]
+    #[test_case(4, 6; "number of validators is greater than the number of shares")]
+    fn test_dkg_simple_tdec_share_verification(
+        shares_num: u32,
+        validators_num: u32,
+    ) {
         let rng = &mut test_rng();
+        let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) =
-            setup_dealt_dkg_with(SECURITY_THRESHOLD, SHARES_NUM);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let public_key = dkg.public_key();
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),

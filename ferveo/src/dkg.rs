@@ -112,7 +112,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         me: &Validator<E>,
     ) -> Result<Self> {
         let domain = ark_poly::GeneralEvaluationDomain::<E::ScalarField>::new(
-            dkg_params.shares_num as usize,
+            validators.len(),
         )
         .expect("unable to construct domain");
 
@@ -432,11 +432,13 @@ mod test_dealing {
             }
         ));
         let pvss = dkg.share(rng).unwrap();
-        let unknown_validator_i = dkg.dkg_params.shares_num + 1;
+        // Need to make sure this falls outside of the validator set:
+        let unknown_validator_index =
+            dkg.dkg_params.shares_num + VALIDATORS_NUM + 1;
         let sender = Validator::<E> {
-            address: gen_address(unknown_validator_i as usize),
+            address: gen_address(unknown_validator_index as usize),
             public_key: ferveo_common::Keypair::<E>::new(rng).public_key(),
-            share_index: dkg.dkg_params.shares_num + 5, // Not in the validator set
+            share_index: unknown_validator_index,
         };
         // check that verification fails
         assert!(dkg.verify_message(&sender, &pvss).is_err());
@@ -586,14 +588,20 @@ mod test_dealing {
 #[cfg(test)]
 mod test_aggregation {
     use ark_ec::AffineRepr;
+    use test_case::test_case;
 
     use crate::{dkg::*, test_common::*, DkgState, Message};
 
-    /// Test that if the security threshold is
-    /// met, we can create a final key
-    #[test]
-    fn test_aggregate() {
-        let (mut dkg, _) = setup_dealt_dkg();
+    /// Test that if the security threshold is met, we can create a final key
+    #[test_case(4,4; "number of validators is equal to the number of shares")]
+    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    fn test_aggregate(shares_num: u32, validators_num: u32) {
+        let security_threshold = shares_num - 1;
+        let (mut dkg, _) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let aggregate = dkg.aggregate().unwrap();
         let sender = dkg.me.clone();
         assert!(dkg.verify_message(&sender, &aggregate).is_ok());
@@ -601,8 +609,7 @@ mod test_aggregation {
         assert!(matches!(dkg.state, DkgState::Success { .. }));
     }
 
-    /// Test that aggregate only succeeds if we are in
-    /// the state [`DkgState::Dealt]
+    /// Test that aggregate only succeeds if we are in the state [`DkgState::Dealt]
     #[test]
     fn test_aggregate_state_guards() {
         let (mut dkg, _) = setup_dealt_dkg();
@@ -617,9 +624,8 @@ mod test_aggregation {
         assert!(dkg.aggregate().is_err());
     }
 
-    /// Test that aggregate message fail to be verified
-    /// or applied unless dkg.state is
-    /// [`DkgState::Dealt`]
+    /// Test that aggregate message fail to be verified or applied unless
+    /// dkg.state is [`DkgState::Dealt`]
     #[test]
     fn test_aggregate_message_state_guards() {
         let (mut dkg, _) = setup_dealt_dkg();
