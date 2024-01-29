@@ -417,32 +417,6 @@ pub fn aggregate<E: Pairing>(
     }
 }
 
-pub fn aggregate_for_decryption<E: Pairing>(
-    dkg: &PubliclyVerifiableDkg<E>,
-) -> Vec<ShareEncryptions<E>> {
-    // From docs: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
-    // "Two PVSS instances may be aggregated into a single PVSS instance by adding elementwise each of the corresponding group elements."
-    let shares = dkg
-        .vss
-        .values()
-        .map(|pvss| pvss.shares.clone())
-        .collect::<Vec<_>>();
-    let first_share = shares
-        .first()
-        .expect("Need one or more decryption shares to aggregate")
-        .to_vec();
-    shares
-        .into_iter()
-        .skip(1)
-        // We're assuming that in every PVSS instance, the shares are in the same order
-        .fold(first_share, |acc, shares| {
-            acc.into_iter()
-                .zip_eq(shares)
-                .map(|(a, b)| (a + b).into())
-                .collect()
-        })
-}
-
 #[cfg(test)]
 mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
