@@ -246,7 +246,12 @@ impl Dkg {
         for (validator, transcript) in messages {
             self.0.deal(validator, transcript)?;
         }
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0.vss)?))
+        let pvss = messages
+            .iter()
+            .map(|(_, t)| t)
+            .cloned()
+            .collect::<Vec<PubliclyVerifiableSS<E>>>();
+        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss)?))
     }
 
     pub fn public_params(&self) -> DkgPublicParameters {
@@ -269,8 +274,12 @@ pub struct AggregatedTranscript(PubliclyVerifiableSS<E, crate::Aggregated>);
 
 impl AggregatedTranscript {
     pub fn new(messages: &[ValidatorMessage]) -> Result<Self> {
-        let pvss_map = make_pvss_map(messages);
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss_map)?))
+        let pvss_list = messages
+            .iter()
+            .map(|(_, t)| t)
+            .cloned()
+            .collect::<Vec<PubliclyVerifiableSS<E>>>();
+        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss_list)?))
     }
 
     pub fn verify(

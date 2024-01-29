@@ -382,9 +382,9 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 /// into a new PVSS instance
 /// See: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
 pub(crate) fn aggregate<E: Pairing>(
-    pvss_map: &PVSSMap<E>,
+    pvss_list: &[PubliclyVerifiableSS<E>],
 ) -> Result<PubliclyVerifiableSS<E, Aggregated>> {
-    let mut pvss_iter = pvss_map.values();
+    let mut pvss_iter = pvss_list.iter();
     let first_pvss = pvss_iter
         .next()
         .ok_or_else(|| Error::NoTranscriptsToAggregate)?;
@@ -494,6 +494,7 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
+    // TODO: Move this code to dkg.rs
     /// Check that the canonical share indices of validators are expected and enforced
     /// by the DKG methods.
     #[test]
@@ -526,7 +527,8 @@ mod test_pvss {
     #[test]
     fn test_aggregate_pvss() {
         let (dkg, _) = setup_dealt_dkg();
-        let aggregate = aggregate(&dkg.vss).unwrap();
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let aggregate = aggregate(&pvss_list).unwrap();
         // Check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
@@ -547,10 +549,12 @@ mod test_pvss {
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
         let (dkg, _) = setup_dealt_dkg();
-        let mut aggregated = aggregate(&dkg.vss).unwrap();
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let mut aggregated = aggregate(&pvss_list).unwrap();
         while aggregated.coeffs[0] == G1::zero() {
             let (dkg, _) = setup_dkg(0);
-            aggregated = aggregate(&dkg.vss).unwrap();
+            let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+            aggregated = aggregate(&pvss_list).unwrap();
         }
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(

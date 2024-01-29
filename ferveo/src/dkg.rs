@@ -178,8 +178,9 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         match self.state {
             DkgState::Dealt => {
                 let public_key = self.public_key();
+                let pvss_list = self.vss.values().cloned().collect::<Vec<_>>();
                 Ok(Message::Aggregate(Aggregation {
-                    vss: aggregate(&self.vss)?,
+                    vss: aggregate(&pvss_list)?,
                     public_key,
                 }))
             }

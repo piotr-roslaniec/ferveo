@@ -152,7 +152,8 @@ mod test_dkg_full {
         Vec<DecryptionShareSimple<E>>,
         SharedSecret<E>,
     ) {
-        let pvss_aggregated = aggregate(&dkg.vss).unwrap();
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated = aggregate(&pvss_list).unwrap();
         assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
@@ -247,7 +248,8 @@ mod test_dkg_full {
         )
         .unwrap();
 
-        let pvss_aggregated = aggregate(&dkg.vss).unwrap();
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated = aggregate(&pvss_list).unwrap();
         pvss_aggregated.verify_aggregation(&dkg).unwrap();
         let domain_points = dkg
             .domain
@@ -434,7 +436,8 @@ mod test_dkg_full {
 
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
-                let pvss_aggregated = aggregate(&dkg.vss).unwrap();
+                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+                let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
@@ -465,7 +468,9 @@ mod test_dkg_full {
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
                     // TODO: Why not using dkg.aggregate()?
-                    let pvss_aggregated = aggregate(&dkg.vss).unwrap();
+                    let pvss_list =
+                        dkg.vss.values().cloned().collect::<Vec<_>>();
+                    let pvss_aggregated = aggregate(&pvss_list).unwrap();
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext.header().unwrap(),
@@ -577,7 +582,8 @@ mod test_dkg_full {
 
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
-                let pvss_aggregated = aggregate(&dkg.vss).unwrap();
+                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+                let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
