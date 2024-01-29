@@ -30,7 +30,7 @@ use crate::bindings_python;
 use crate::bindings_wasm;
 pub use crate::EthereumAddress;
 use crate::{
-    do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableParams,
+    do_verify_aggregation, Error, Message, PVSSMap, PubliclyVerifiableParams,
     PubliclyVerifiableSS, Result,
 };
 
@@ -222,10 +222,14 @@ impl Dkg {
     }
 
     pub fn generate_transcript<R: RngCore>(
-        &self,
+        &mut self,
         rng: &mut R,
     ) -> Result<Transcript> {
-        self.0.create_share(rng)
+        match self.0.share(rng) {
+            Ok(Message::Deal(transcript)) => Ok(transcript),
+            Err(e) => Err(e),
+            _ => Err(Error::InvalidDkgStateToDeal),
+        }
     }
 
     pub fn aggregate_transcripts(
@@ -435,7 +439,7 @@ mod test_ferveo_api {
         let messages: Vec<_> = validators
             .iter()
             .map(|sender| {
-                let dkg = Dkg::new(
+                let mut dkg = Dkg::new(
                     tau,
                     shares_num,
                     security_threshold,

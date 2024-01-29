@@ -491,7 +491,7 @@ impl Dkg {
         DkgPublicKey(self.0.public_key())
     }
 
-    pub fn generate_transcript(&self) -> PyResult<Transcript> {
+    pub fn generate_transcript(&mut self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self
             .0
@@ -776,7 +776,7 @@ mod test_ferveo_python {
             .iter()
             .cloned()
             .map(|sender| {
-                let dkg = Dkg::new(
+                let mut dkg = Dkg::new(
                     tau,
                     shares_num,
                     security_threshold,

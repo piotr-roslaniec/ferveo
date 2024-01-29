@@ -366,7 +366,7 @@ impl Dkg {
     }
 
     #[wasm_bindgen(js_name = "generateTranscript")]
-    pub fn generate_transcript(&self) -> JsResult<Transcript> {
+    pub fn generate_transcript(&mut self) -> JsResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self.0.generate_transcript(rng).map_err(map_js_err)?;
         Ok(Transcript(transcript))

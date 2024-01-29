@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_poly::EvaluationDomain;
+use ark_std::UniformRand;
 use ferveo_common::PublicKey;
 use measure_time::print_time;
 use rand::RngCore;
@@ -159,22 +160,17 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     /// Returns a PVSS dealing message to post on-chain
     pub fn share<R: RngCore>(&mut self, rng: &mut R) -> Result<Message<E>> {
         print_time!("PVSS Sharing");
-        let vss = self.create_share(rng)?;
         match self.state {
             DkgState::Sharing { .. } | DkgState::Dealt => {
+                let vss = PubliclyVerifiableSS::<E>::new(
+                    &E::ScalarField::rand(rng),
+                    self,
+                    rng,
+                )?;
                 Ok(Message::Deal(vss))
             }
             _ => Err(Error::InvalidDkgStateToDeal),
         }
-    }
-
-    // TODO: Make private, use `share` instead. Currently used only in bindings
-    pub fn create_share<R: RngCore>(
-        &self,
-        rng: &mut R,
-    ) -> Result<PubliclyVerifiableSS<E>> {
-        use ark_std::UniformRand;
-        PubliclyVerifiableSS::<E>::new(&E::ScalarField::rand(rng), self, rng)
     }
 
     /// Aggregate all received PVSS messages into a single message, prepared to post on-chain
