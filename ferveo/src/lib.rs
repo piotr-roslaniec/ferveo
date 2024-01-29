@@ -3,9 +3,6 @@
 #[cfg(feature = "bindings-wasm")]
 extern crate alloc;
 
-use ark_ec::pairing::Pairing;
-use itertools::zip_eq;
-
 #[cfg(feature = "bindings-python")]
 pub mod bindings_python;
 
@@ -119,17 +116,6 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-pub fn make_pvss_map<E: Pairing>(
-    transcripts: &[PubliclyVerifiableSS<E>],
-    validators: &[Validator<E>],
-) -> PVSSMap<E> {
-    let mut pvss_map: PVSSMap<E> = PVSSMap::new();
-    zip_eq(transcripts, validators).for_each(|(transcript, validator)| {
-        pvss_map.insert(validator.address.clone(), transcript.clone());
-    });
-    pvss_map
-}
 
 #[cfg(test)]
 mod test_dkg_full {
