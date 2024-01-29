@@ -507,7 +507,8 @@ impl AggregatedTranscript {
     ) -> JsResult<AggregatedTranscript> {
         set_panic_hook();
         let messages = unwrap_messages_js(messages)?;
-        let aggregated_transcript = api::AggregatedTranscript::new(&messages);
+        let aggregated_transcript =
+            api::AggregatedTranscript::new(&messages).unwrap();
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 

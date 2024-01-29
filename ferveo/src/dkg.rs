@@ -179,7 +179,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             DkgState::Dealt => {
                 let public_key = self.public_key();
                 Ok(Message::Aggregate(Aggregation {
-                    vss: aggregate(&self.vss),
+                    vss: aggregate(&self.vss)?,
                     public_key,
                 }))
             }

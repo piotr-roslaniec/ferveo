@@ -381,13 +381,13 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 /// Aggregate the PVSS instances in `pvss` from DKG session `dkg`
 /// into a new PVSS instance
 /// See: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
-pub fn aggregate<E: Pairing>(
+pub(crate) fn aggregate<E: Pairing>(
     pvss_map: &PVSSMap<E>,
-) -> PubliclyVerifiableSS<E, Aggregated> {
-    let mut pvss_iter = pvss_map.iter();
-    let (_, first_pvss) = pvss_iter
+) -> Result<PubliclyVerifiableSS<E, Aggregated>> {
+    let mut pvss_iter = pvss_map.values();
+    let first_pvss = pvss_iter
         .next()
-        .expect("May not aggregate empty PVSS instances");
+        .ok_or_else(|| Error::NoTranscriptsToAggregate)?;
     let mut coeffs = batch_to_projective_g1::<E>(&first_pvss.coeffs);
     let mut sigma = first_pvss.sigma;
 
@@ -396,25 +396,25 @@ pub fn aggregate<E: Pairing>(
     // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
     // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
-    for (_, next) in pvss_iter {
-        sigma = (sigma + next.sigma).into();
+    for next_pvss in pvss_iter {
+        sigma = (sigma + next_pvss.sigma).into();
         coeffs
             .iter_mut()
-            .zip_eq(next.coeffs.iter())
+            .zip_eq(next_pvss.coeffs.iter())
             .for_each(|(a, b)| *a += b);
         shares
             .iter_mut()
-            .zip_eq(next.shares.iter())
+            .zip_eq(next_pvss.shares.iter())
             .for_each(|(a, b)| *a += b);
     }
     let shares = E::G2::normalize_batch(&shares);
 
-    PubliclyVerifiableSS {
+    Ok(PubliclyVerifiableSS {
         coeffs: E::G1::normalize_batch(&coeffs),
         shares,
         sigma,
         phantom: Default::default(),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -526,7 +526,7 @@ mod test_pvss {
     #[test]
     fn test_aggregate_pvss() {
         let (dkg, _) = setup_dealt_dkg();
-        let aggregate = aggregate(&dkg.vss);
+        let aggregate = aggregate(&dkg.vss).unwrap();
         // Check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
@@ -542,15 +542,15 @@ mod test_pvss {
         assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"),);
     }
 
-    /// Check that if the aggregated pvss transcript has an
+    /// Check that if the aggregated PVSS transcript has an
     /// incorrect constant term, the verification fails
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
         let (dkg, _) = setup_dealt_dkg();
-        let mut aggregated = aggregate(&dkg.vss);
+        let mut aggregated = aggregate(&dkg.vss).unwrap();
         while aggregated.coeffs[0] == G1::zero() {
             let (dkg, _) = setup_dkg(0);
-            aggregated = aggregate(&dkg.vss);
+            aggregated = aggregate(&dkg.vss).unwrap();
         }
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(

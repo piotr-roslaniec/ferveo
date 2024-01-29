@@ -113,6 +113,9 @@ impl From<FerveoPythonError> for PyErr {
                         "{index}"
                     ))
                 },
+                Error::NoTranscriptsToAggregate => {
+                    NoTranscriptsToAggregate::new_err("")
+                },
             },
             _ => default(),
         }
@@ -149,6 +152,7 @@ create_exception!(exceptions, InvalidByteLength, PyValueError);
 create_exception!(exceptions, InvalidVariant, PyValueError);
 create_exception!(exceptions, InvalidDkgParameters, PyValueError);
 create_exception!(exceptions, InvalidShareIndex, PyValueError);
+create_exception!(exceptions, NoTranscriptsToAggregate, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -580,10 +584,12 @@ generate_bytes_serialization!(AggregatedTranscript);
 #[pymethods]
 impl AggregatedTranscript {
     #[new]
-    pub fn new(messages: Vec<ValidatorMessage>) -> Self {
+    pub fn new(messages: Vec<ValidatorMessage>) -> PyResult<Self> {
         let messages: Vec<_> =
             messages.into_iter().map(|vm| vm.to_inner()).collect();
-        Self(api::AggregatedTranscript::new(&messages))
+        let inner = api::AggregatedTranscript::new(&messages)
+            .map_err(FerveoPythonError::FerveoError)?;
+        Ok(Self(inner))
     }
 
     pub fn verify(
