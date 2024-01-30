@@ -94,8 +94,11 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub pvss_params: PubliclyVerifiableParams<E>,
     pub validators: ValidatorsMap<E>,
     pub vss: PVSSMap<E>,
+    // TODO: Remove pub?
+    // TODO: Consider replacing with domain_points entirely
     pub domain: ark_poly::GeneralEvaluationDomain<E::ScalarField>,
     pub me: Validator<E>,
+    // TODO: Remove pub?
     pub state: DkgState<E>,
 }
 
@@ -195,6 +198,21 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .map(|vss| vss.coeffs[0].into_group())
             .sum::<E::G1>()
             .into_affine()
+    }
+
+    // TODO: Use instead of domain.element
+    /// Return a domain point for the share_index
+    pub fn get_domain_point(&self, share_index: u32) -> Result<E::ScalarField> {
+        let domain_points = self.domain_points();
+        domain_points
+            .get(share_index as usize)
+            .ok_or_else(|| Error::InvalidShareIndex(share_index))
+            .copied()
+    }
+
+    /// Return an appropriate amount of domain points for the DKG
+    pub fn domain_points(&self) -> Vec<E::ScalarField> {
+        self.domain.elements().take(self.validators.len()).collect()
     }
 
     /// `payload` is the content of the message
@@ -323,6 +341,8 @@ pub struct Aggregation<E: Pairing> {
     public_key: E::G1Affine,
 }
 
+// TODO: Remove these?
+// TODO: These messages are not actually used anywhere, we use our own ValidatorMessage for Deal, and Aggregate for Message.Aggregate
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(bound(
     serialize = "AggregatedPvss<E>: Serialize, PubliclyVerifiableSS<E>: Serialize",
@@ -593,8 +613,8 @@ mod test_aggregation {
     use crate::{dkg::*, test_common::*, DkgState, Message};
 
     /// Test that if the security threshold is met, we can create a final key
-    #[test_case(4,4; "number of validators is equal to the number of shares")]
-    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    #[test_case(4,4; "number of validators equal to the number of shares")]
+    #[test_case(4,6; "number of validators greater than the number of shares")]
     fn test_aggregate(shares_num: u32, validators_num: u32) {
         let security_threshold = shares_num - 1;
         let (mut dkg, _) = setup_dealt_dkg_with_n_validators(
@@ -602,10 +622,17 @@ mod test_aggregation {
             shares_num,
             validators_num,
         );
-        let aggregate = dkg.aggregate().unwrap();
+        let aggregate_msg = dkg.aggregate().unwrap();
+        if let Message::Aggregate(Aggregation { public_key, .. }) =
+            &aggregate_msg
+        {
+            assert_eq!(public_key, &dkg.public_key());
+        } else {
+            panic!("Expected aggregate message")
+        }
         let sender = dkg.me.clone();
-        assert!(dkg.verify_message(&sender, &aggregate).is_ok());
-        assert!(dkg.apply_message(&sender, &aggregate).is_ok());
+        assert!(dkg.verify_message(&sender, &aggregate_msg).is_ok());
+        assert!(dkg.apply_message(&sender, &aggregate_msg).is_ok());
         assert!(matches!(dkg.state, DkgState::Success { .. }));
     }
 

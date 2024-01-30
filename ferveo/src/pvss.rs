@@ -262,7 +262,7 @@ pub fn do_verify_aggregation<E: Pairing>(
 
     // Now, we verify that the aggregated PVSS transcript is a valid aggregation
     let mut y = E::G1::zero();
-    for (_, pvss) in vss.iter() {
+    for pvss in vss.values() {
         y += pvss.coeffs[0].into_group();
     }
     if y.into_affine() == pvss_agg_coefficients[0] {
@@ -276,7 +276,7 @@ pub fn do_verify_aggregation<E: Pairing>(
 impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     /// Verify that this PVSS instance is a valid aggregation of
     /// the PVSS instances, produced by [`aggregate`],
-    /// and received by the DKG context `dkg`
+    /// and received by the DKG context `dkg`.
     /// Returns the total nr of shares in the aggregated PVSS
     pub fn verify_aggregation(
         &self,
@@ -395,7 +395,7 @@ pub(crate) fn aggregate<E: Pairing>(
 
     // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
-    // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
+    // Aggregating is just adding the corresponding values in PVSS instances, so PVSS_i = PVSS_(i-1)  PVSS_i
     for next_pvss in pvss_iter {
         sigma = (sigma + next_pvss.sigma).into();
         coeffs
@@ -502,7 +502,6 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    // TODO: Move this code to dkg.rs
     /// Check that the canonical share indices of validators are expected and enforced
     /// by the DKG methods.
     #[test]

@@ -324,6 +324,7 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
+        // Prevent users from using the precomputed variant with improper DKG parameters
         if dkg.0.dkg_params.shares_num()
             != dkg.0.dkg_params.security_threshold()
         {
@@ -332,18 +333,12 @@ impl AggregatedTranscript {
                 dkg.0.dkg_params.security_threshold(),
             ));
         }
-        let domain_points: Vec<_> = dkg
-            .0
-            .domain
-            .elements()
-            .take(dkg.0.dkg_params.shares_num() as usize)
-            .collect();
         self.0.make_decryption_share_simple_precomputed(
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
             dkg.0.me.share_index as usize,
-            &domain_points,
+            &dkg.0.domain_points(),
             &dkg.0.pvss_params.g_inv(),
         )
     }
@@ -362,7 +357,7 @@ impl AggregatedTranscript {
             dkg.0.me.share_index as usize,
             &dkg.0.pvss_params.g_inv(),
         )?;
-        let domain_point = dkg.0.domain.element(dkg.0.me.share_index as usize);
+        let domain_point = dkg.0.get_domain_point(dkg.0.me.share_index)?;
         Ok(DecryptionShareSimple {
             share,
             domain_point,
