@@ -109,7 +109,7 @@ impl From<FerveoPythonError> for PyErr {
                     ))
                 },
                 Error::DuplicatedShareIndex(index) => {
-                    InvalidShareIndex::new_err(format!(
+                    DuplicatedShareIndex::new_err(format!(
                         "{index}"
                     ))
                 },
@@ -152,6 +152,7 @@ create_exception!(exceptions, InvalidByteLength, PyValueError);
 create_exception!(exceptions, InvalidVariant, PyValueError);
 create_exception!(exceptions, InvalidDkgParameters, PyValueError);
 create_exception!(exceptions, InvalidShareIndex, PyValueError);
+create_exception!(exceptions, DuplicatedShareIndex, PyValueError);
 create_exception!(exceptions, NoTranscriptsToAggregate, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
