@@ -224,6 +224,7 @@ impl Dkg {
     pub fn generate_transcript<R: RngCore>(
         &mut self,
         rng: &mut R,
+        // TODO: Replace with Message::Deal?
     ) -> Result<Transcript> {
         match self.0.share(rng) {
             Ok(Message::Deal(transcript)) => Ok(transcript),
@@ -235,6 +236,7 @@ impl Dkg {
     pub fn aggregate_transcripts(
         &mut self,
         messages: &[ValidatorMessage],
+        // TODO: Replace with Message::Aggregate?
     ) -> Result<AggregatedTranscript> {
         // We must use `deal` here instead of to produce AggregatedTranscript instead of simply
         // creating an AggregatedTranscript from the messages, because `deal` also updates the
