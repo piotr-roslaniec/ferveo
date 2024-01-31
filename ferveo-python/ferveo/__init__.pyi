@@ -25,11 +25,13 @@ class FerveoPublicKey:
 
 @final
 class Validator:
-    def __init__(self, address: str, public_key: FerveoPublicKey): ...
+    def __init__(self, address: str, public_key: FerveoPublicKey, share_index: int): ...
 
     address: str
 
     public_key: FerveoPublicKey
+
+    share_index: int
 
 @final
 class Transcript:
@@ -104,7 +106,9 @@ class DecryptionSharePrecomputed:
 @final
 class AggregatedTranscript:
     def __init__(self, messages: Sequence[ValidatorMessage]): ...
-    def verify(self, shares_num: int, messages: Sequence[ValidatorMessage]) -> bool: ...
+    def verify(
+        self, validators_num: int, messages: Sequence[ValidatorMessage]
+    ) -> bool: ...
     def create_decryption_share_simple(
         self,
         dkg: Dkg,
@@ -189,11 +193,29 @@ class InsufficientValidators(Exception):
 class InvalidTranscriptAggregate(Exception):
     pass
 
-class ValidatorsNotSorted(Exception):
-    pass
-
 class ValidatorPublicKeyMismatch(Exception):
     pass
 
 class SerializationError(Exception):
+    pass
+
+class InvalidVariant(Exception):
+    pass
+
+class InvalidDkgParameters(Exception):
+    pass
+
+class InvalidDkgParametersForPrecomputedVariant(Exception):
+    pass
+
+class InvalidShareIndex(Exception):
+    pass
+
+class DuplicatedShareIndex(Exception):
+    pass
+
+class NoTranscriptsToAggregate(Exception):
+    pass
+
+class InvalidAggregateVerificationParameters(Exception):
     pass

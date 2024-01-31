@@ -104,7 +104,7 @@ impl From<FerveoPythonError> for PyErr {
                     ))
                 }
                 Error::InvalidDkgParametersForPrecomputedVariant(shares_num, security_threshold) => {
-                    InvalidDkgParameters::new_err(format!(
+                    InvalidDkgParametersForPrecomputedVariant::new_err(format!(
                         "shares_num: {shares_num}, security_threshold: {security_threshold}"
                     ))
                 }
@@ -115,6 +115,11 @@ impl From<FerveoPythonError> for PyErr {
                 }
                 Error::NoTranscriptsToAggregate => {
                     NoTranscriptsToAggregate::new_err("")
+                }
+                Error::InvalidAggregateVerificationParameters(validators_num, messages_num) => {
+                    InvalidAggregateVerificationParameters::new_err(format!(
+                        "validators_num: {validators_num}, messages_num: {messages_num}"
+                    ))
                 }
             },
             _ => default(),
@@ -145,15 +150,24 @@ create_exception!(exceptions, InsufficientTranscriptsForAggregate, PyException);
 create_exception!(exceptions, InvalidDkgPublicKey, PyValueError);
 create_exception!(exceptions, InsufficientValidators, PyValueError);
 create_exception!(exceptions, InvalidTranscriptAggregate, PyValueError);
-create_exception!(exceptions, ValidatorsNotSorted, PyValueError);
 create_exception!(exceptions, ValidatorPublicKeyMismatch, PyValueError);
 create_exception!(exceptions, SerializationError, PyValueError);
 create_exception!(exceptions, InvalidByteLength, PyValueError);
 create_exception!(exceptions, InvalidVariant, PyValueError);
 create_exception!(exceptions, InvalidDkgParameters, PyValueError);
+create_exception!(
+    exceptions,
+    InvalidDkgParametersForPrecomputedVariant,
+    PyValueError
+);
 create_exception!(exceptions, InvalidShareIndex, PyValueError);
 create_exception!(exceptions, DuplicatedShareIndex, PyValueError);
 create_exception!(exceptions, NoTranscriptsToAggregate, PyValueError);
+create_exception!(
+    exceptions,
+    InvalidAggregateVerificationParameters,
+    PyValueError
+);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -421,6 +435,11 @@ impl Validator {
     pub fn public_key(&self) -> FerveoPublicKey {
         FerveoPublicKey(self.0.public_key)
     }
+
+    #[getter]
+    pub fn share_index(&self) -> u32 {
+        self.0.share_index
+    }
 }
 
 #[pyclass(module = "ferveo")]
@@ -595,14 +614,14 @@ impl AggregatedTranscript {
 
     pub fn verify(
         &self,
-        shares_num: u32,
+        validators_num: u32,
         messages: Vec<ValidatorMessage>,
     ) -> PyResult<bool> {
         let messages: Vec<_> =
             messages.into_iter().map(|vm| vm.to_inner()).collect();
         let is_valid = self
             .0
-            .verify(shares_num, &messages)
+            .verify(validators_num, &messages)
             .map_err(FerveoPythonError::FerveoError)?;
         Ok(is_valid)
     }
@@ -736,13 +755,33 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
         "InvalidTranscriptAggregate",
         py.get_type::<InvalidTranscriptAggregate>(),
     )?;
-    m.add("ValidatorsNotSorted", py.get_type::<ValidatorsNotSorted>())?;
     m.add(
         "ValidatorPublicKeyMismatch",
         py.get_type::<ValidatorPublicKeyMismatch>(),
     )?;
     m.add("SerializationError", py.get_type::<SerializationError>())?;
     m.add("InvalidVariant", py.get_type::<InvalidVariant>())?;
+    m.add(
+        "InvalidDkgParameters",
+        py.get_type::<InvalidDkgParameters>(),
+    )?;
+    m.add(
+        "InvalidDkgParametersForPrecomputedVariant",
+        py.get_type::<InvalidDkgParametersForPrecomputedVariant>(),
+    )?;
+    m.add("InvalidShareIndex", py.get_type::<InvalidShareIndex>())?;
+    m.add(
+        "DuplicatedShareIndex",
+        py.get_type::<DuplicatedShareIndex>(),
+    )?;
+    m.add(
+        "NoTranscriptsToAggregate",
+        py.get_type::<NoTranscriptsToAggregate>(),
+    )?;
+    m.add(
+        "InvalidAggregateVerificationParameters",
+        py.get_type::<InvalidAggregateVerificationParameters>(),
+    )?;
 
     Ok(())
 }
@@ -832,7 +871,6 @@ mod test_ferveo_python {
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
-        // TODO: Redo how verification API works;
         assert!(pvss_aggregated
             .verify(validators_num, messages.clone())
             .unwrap());
@@ -859,7 +897,6 @@ mod test_ferveo_python {
                     let aggregate = validator_dkg
                         .aggregate_transcripts(messages.clone())
                         .unwrap();
-                    // TODO: Redo how verification API works;
                     assert!(pvss_aggregated
                         .verify(validators_num, messages.clone())
                         .is_ok());
@@ -912,7 +949,6 @@ mod test_ferveo_python {
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
-        // TODO: Redo how verification API works;
         assert!(pvss_aggregated
             .verify(validators_num, messages.clone())
             .unwrap());
@@ -940,7 +976,6 @@ mod test_ferveo_python {
                         .aggregate_transcripts(messages.clone())
                         .unwrap();
 
-                    // TODO: Redo how verification API works;
                     assert!(aggregate
                         .verify(validators_num, messages.clone())
                         .unwrap());

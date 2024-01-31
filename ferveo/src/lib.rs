@@ -117,6 +117,10 @@ pub enum Error {
     /// Creating a transcript aggregate requires at least one transcript
     #[error("No transcripts to aggregate")]
     NoTranscriptsToAggregate,
+
+    /// The number of messages may not be greater than the number of validators
+    #[error("Invalid aggregate verification parameters: number of validators {0}, number of messages: {1}")]
+    InvalidAggregateVerificationParameters(u32, u32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -557,15 +561,13 @@ mod test_dkg_full {
             validator_keypairs.as_slice(),
         );
 
-        let domain_points = dkg.domain_points();
-
         // Each participant prepares an update for each other participant
         let share_updates = dkg
             .validators
             .keys()
             .map(|v_addr| {
                 let deltas_i = prepare_share_updates_for_refresh::<E>(
-                    &domain_points,
+                    &dkg.domain_points(),
                     &dkg.pvss_params.h.into_affine(),
                     dkg.dkg_params.security_threshold() as usize,
                     rng,
@@ -628,7 +630,7 @@ mod test_dkg_full {
                 .collect();
 
         let lagrange = ferveo_tdec::prepare_combine_simple::<E>(
-            &domain_points[..SECURITY_THRESHOLD as usize],
+            &dkg.domain_points()[..SECURITY_THRESHOLD as usize],
         );
         let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
             &decryption_shares[..SECURITY_THRESHOLD as usize],
