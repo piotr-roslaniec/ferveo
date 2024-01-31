@@ -405,7 +405,7 @@ mod test_dkg_full {
         // dkg.vss.remove(&removed_validator_addr); // TODO: Test whether it makes any difference
 
         // Remember to remove one domain point too
-        let mut domain_points = dkg.domain.elements().collect::<Vec<_>>();
+        let mut domain_points = dkg.domain_points();
         domain_points.pop().unwrap();
 
         // Now, we're going to recover a new share at a random point,
@@ -557,7 +557,7 @@ mod test_dkg_full {
             validator_keypairs.as_slice(),
         );
 
-        let domain_points = dkg.domain.elements().collect::<Vec<_>>();
+        let domain_points = dkg.domain_points();
 
         // Each participant prepares an update for each other participant
         let share_updates = dkg

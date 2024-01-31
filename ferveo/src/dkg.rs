@@ -94,12 +94,9 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub pvss_params: PubliclyVerifiableParams<E>,
     pub validators: ValidatorsMap<E>,
     pub vss: PVSSMap<E>,
-    // TODO: Remove pub?
-    // TODO: Consider replacing with domain_points entirely
     pub domain: ark_poly::GeneralEvaluationDomain<E::ScalarField>,
     pub me: Validator<E>,
-    // TODO: Remove pub?
-    pub state: DkgState<E>,
+    state: DkgState<E>,
 }
 
 impl<E: Pairing> PubliclyVerifiableDkg<E> {
@@ -123,10 +120,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
 
         let validators: ValidatorsMap<E> = validators
             .iter()
-            .enumerate()
-            .map(|(_validator_index, validator)| {
-                (validator.address.clone(), validator.clone())
-            })
+            .map(|validator| (validator.address.clone(), validator.clone()))
             .collect();
 
         // Make sure that `me` is a known validator
@@ -200,7 +194,6 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
             .into_affine()
     }
 
-    // TODO: Use instead of domain.element
     /// Return a domain point for the share_index
     pub fn get_domain_point(&self, share_index: u32) -> Result<E::ScalarField> {
         let domain_points = self.domain_points();

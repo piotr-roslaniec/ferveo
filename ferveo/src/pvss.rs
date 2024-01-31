@@ -4,7 +4,7 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_ff::{Field, Zero};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
-    EvaluationDomain,
+    EvaluationDomain, Polynomial,
 };
 use ferveo_tdec::{
     prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
@@ -140,7 +140,13 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         );
 
         // Evaluations of the polynomial over the domain
-        let evals = phi.0.evaluate_over_domain_by_ref(dkg.domain);
+        let evals = dkg
+            .domain_points()
+            .iter()
+            .map(|x| phi.0.evaluate(x))
+            .collect::<Vec<_>>();
+        debug_assert_eq!(evals.len(), dkg.validators.len());
+
         // commitment to coeffs, F_i
         let coeffs = fast_multiexp(&phi.0.coeffs, dkg.pvss_params.g);
         let shares = dkg
@@ -150,7 +156,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 // ek_{i}^{eval_i}, i = validator index
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
-                    &[evals.evals[validator.share_index as usize]], // one share per validator
+                    &[evals[validator.share_index as usize]], // one share per validator
                     validator.public_key.encryption_key.into_group(),
                 )[0]
             })
