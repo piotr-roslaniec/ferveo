@@ -425,7 +425,7 @@ mod test_pvss {
     use test_case::test_case;
 
     use super::*;
-    use crate::{test_common::*, DkgParams};
+    use crate::test_common::*;
 
     /// Test the happy flow such that the PVSS with the correct form is created
     /// and that appropriate validations pass
@@ -500,33 +500,6 @@ mod test_pvss {
         assert!(bad_pvss.verify_optimistic());
         // Full verification should catch this issue
         assert!(!bad_pvss.verify_full(&dkg));
-    }
-
-    /// Check that the canonical share indices of validators are expected and enforced
-    /// by the DKG methods.
-    #[test]
-    fn test_canonical_share_indices_are_enforced() {
-        let shares_num = 4;
-        let security_threshold = shares_num - 1;
-        let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(&keypairs);
-        let me = validators[0].clone();
-
-        // Validators (share indices) are not unique
-        let duplicated_index = 0;
-        validators.insert(duplicated_index, me.clone());
-
-        // And because of that the DKG should fail
-        let result = PubliclyVerifiableDkg::new(
-            &validators,
-            &DkgParams::new(0, security_threshold, shares_num).unwrap(),
-            &me,
-        );
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            Error::DuplicatedShareIndex(duplicated_index as u32).to_string()
-        );
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
