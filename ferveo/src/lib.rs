@@ -3,9 +3,6 @@
 #[cfg(feature = "bindings-wasm")]
 extern crate alloc;
 
-use ark_ec::pairing::Pairing;
-use itertools::zip_eq;
-
 #[cfg(feature = "bindings-python")]
 pub mod bindings_python;
 
@@ -18,8 +15,6 @@ pub mod primitives;
 pub mod pvss;
 pub mod refresh;
 pub mod validator;
-
-mod utils;
 
 #[cfg(test)]
 mod test_common;
@@ -85,10 +80,6 @@ pub enum Error {
     #[error("Transcript aggregate doesn't match the received PVSS instances")]
     InvalidTranscriptAggregate,
 
-    /// DKG validators must be sorted by their Ethereum address
-    #[error("DKG validators not sorted")]
-    ValidatorsNotSorted,
-
     /// The validator public key doesn't match the one in the DKG
     #[error("Validator public key mismatch")]
     ValidatorPublicKeyMismatch,
@@ -118,20 +109,17 @@ pub enum Error {
     /// Failed to produce a precomputed variant decryption share
     #[error("Invalid DKG parameters for precomputed variant: number of shares {0}, threshold {1}")]
     InvalidDkgParametersForPrecomputedVariant(u32, u32),
+
+    /// DKG may not contain duplicated share indices
+    #[error("Duplicated share index: {0}")]
+    DuplicatedShareIndex(u32),
+
+    /// Creating a transcript aggregate requires at least one transcript
+    #[error("No transcripts to aggregate")]
+    NoTranscriptsToAggregate,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-pub fn make_pvss_map<E: Pairing>(
-    transcripts: &[PubliclyVerifiableSS<E>],
-    validators: &[Validator<E>],
-) -> PVSSMap<E> {
-    let mut pvss_map: PVSSMap<E> = PVSSMap::new();
-    zip_eq(transcripts, validators).for_each(|(transcript, validator)| {
-        pvss_map.insert(validator.address.clone(), transcript.clone());
-    });
-    pvss_map
-}
 
 #[cfg(test)]
 mod test_dkg_full {
@@ -164,7 +152,8 @@ mod test_dkg_full {
         Vec<DecryptionShareSimple<E>>,
         SharedSecret<E>,
     ) {
-        let pvss_aggregated = aggregate(&dkg.vss);
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated = aggregate(&pvss_list).unwrap();
         assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
@@ -179,7 +168,7 @@ mod test_dkg_full {
                             ciphertext_header,
                             aad,
                             &validator_keypair.decryption_key,
-                            validator.share_index,
+                            validator.share_index as usize,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -259,7 +248,8 @@ mod test_dkg_full {
         )
         .unwrap();
 
-        let pvss_aggregated = aggregate(&dkg.vss);
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated = aggregate(&pvss_list).unwrap();
         pvss_aggregated.verify_aggregation(&dkg).unwrap();
         let domain_points = dkg
             .domain
@@ -279,7 +269,7 @@ mod test_dkg_full {
                             &ciphertext.header().unwrap(),
                             AAD,
                             &validator_keypair.decryption_key,
-                            validator.share_index,
+                            validator.share_index as usize,
                             &domain_points,
                             &dkg.pvss_params.g_inv(),
                         )
@@ -433,22 +423,25 @@ mod test_dkg_full {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .map(|updates| {
+                        *updates.get(validator.share_index as usize).unwrap()
+                    })
                     .collect();
 
                 // Each validator uses their decryption key to update their share
                 let decryption_key = validator_keypairs
-                    .get(validator.share_index)
+                    .get(validator.share_index as usize)
                     .unwrap()
                     .decryption_key;
 
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
-                let pvss_aggregated = aggregate(&dkg.vss);
+                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+                let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
-                        validator.share_index,
+                        validator.share_index as usize,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()
@@ -475,7 +468,9 @@ mod test_dkg_full {
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
                     // TODO: Why not using dkg.aggregate()?
-                    let pvss_aggregated = aggregate(&dkg.vss);
+                    let pvss_list =
+                        dkg.vss.values().cloned().collect::<Vec<_>>();
+                    let pvss_aggregated = aggregate(&pvss_list).unwrap();
                     pvss_aggregated
                         .make_decryption_share_simple(
                             &ciphertext.header().unwrap(),
@@ -574,22 +569,25 @@ mod test_dkg_full {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(validator.share_index).unwrap())
+                    .map(|updates| {
+                        *updates.get(validator.share_index as usize).unwrap()
+                    })
                     .collect();
 
                 // Each validator uses their decryption key to update their share
                 let decryption_key = validator_keypairs
-                    .get(validator.share_index)
+                    .get(validator.share_index as usize)
                     .unwrap()
                     .decryption_key;
 
                 // Creates updated private key shares
                 // TODO: Why not using dkg.aggregate()?
-                let pvss_aggregated = aggregate(&dkg.vss);
+                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+                let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .update_private_key_share_for_recovery(
                         &decryption_key,
-                        validator.share_index,
+                        validator.share_index as usize,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()

@@ -66,6 +66,7 @@ fn gen_validators(
         .map(|i| Validator {
             address: gen_address(i),
             public_key: keypairs[i].public_key(),
+            share_index: i as u32,
         })
         .collect()
 }
@@ -95,14 +96,13 @@ fn setup(
     for i in 0..shares_num {
         let mut dkg = setup_dkg(i as usize, shares_num, security_threshold);
         let message = dkg.share(rng).expect("Test failed");
-        let sender = dkg.get_validator(&dkg.me.validator.public_key).unwrap();
+        let sender = dkg.get_validator(&dkg.me.public_key).unwrap();
         transcripts.push((sender.clone(), message.clone()));
     }
 
     let mut dkg = setup_dkg(0, shares_num, security_threshold);
     for (sender, pvss) in transcripts.into_iter() {
-        dkg.apply_message(&sender.validator, &pvss)
-            .expect("Setup failed");
+        dkg.apply_message(&sender, &pvss).expect("Setup failed");
     }
     dkg
 }

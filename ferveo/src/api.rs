@@ -30,7 +30,7 @@ use crate::bindings_python;
 use crate::bindings_wasm;
 pub use crate::EthereumAddress;
 use crate::{
-    do_verify_aggregation, Error, PVSSMap, PubliclyVerifiableParams,
+    do_verify_aggregation, Error, Message, PVSSMap, PubliclyVerifiableParams,
     PubliclyVerifiableSS, Result,
 };
 
@@ -222,15 +222,21 @@ impl Dkg {
     }
 
     pub fn generate_transcript<R: RngCore>(
-        &self,
+        &mut self,
         rng: &mut R,
+        // TODO: Replace with Message::Deal?
     ) -> Result<Transcript> {
-        self.0.create_share(rng)
+        match self.0.share(rng) {
+            Ok(Message::Deal(transcript)) => Ok(transcript),
+            Err(e) => Err(e),
+            _ => Err(Error::InvalidDkgStateToDeal),
+        }
     }
 
     pub fn aggregate_transcripts(
         &mut self,
         messages: &[ValidatorMessage],
+        // TODO: Replace with Message::Aggregate?
     ) -> Result<AggregatedTranscript> {
         // We must use `deal` here instead of to produce AggregatedTranscript instead of simply
         // creating an AggregatedTranscript from the messages, because `deal` also updates the
@@ -242,7 +248,12 @@ impl Dkg {
         for (validator, transcript) in messages {
             self.0.deal(validator, transcript)?;
         }
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&self.0.vss)))
+        let pvss = messages
+            .iter()
+            .map(|(_, t)| t)
+            .cloned()
+            .collect::<Vec<PubliclyVerifiableSS<E>>>();
+        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss)?))
     }
 
     pub fn public_params(&self) -> DkgPublicParameters {
@@ -264,9 +275,13 @@ fn make_pvss_map(messages: &[ValidatorMessage]) -> PVSSMap<E> {
 pub struct AggregatedTranscript(PubliclyVerifiableSS<E, crate::Aggregated>);
 
 impl AggregatedTranscript {
-    pub fn new(messages: &[ValidatorMessage]) -> Self {
-        let pvss_map = make_pvss_map(messages);
-        AggregatedTranscript(crate::pvss::aggregate(&pvss_map))
+    pub fn new(messages: &[ValidatorMessage]) -> Result<Self> {
+        let pvss_list = messages
+            .iter()
+            .map(|(_, t)| t)
+            .cloned()
+            .collect::<Vec<PubliclyVerifiableSS<E>>>();
+        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss_list)?))
     }
 
     pub fn verify(
@@ -327,7 +342,7 @@ impl AggregatedTranscript {
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me.share_index,
+            dkg.0.me.share_index as usize,
             &domain_points,
             &dkg.0.pvss_params.g_inv(),
         )
@@ -344,12 +359,13 @@ impl AggregatedTranscript {
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
-            dkg.0.me.share_index,
+            dkg.0.me.share_index as usize,
             &dkg.0.pvss_params.g_inv(),
         )?;
+        let domain_point = dkg.0.domain.element(dkg.0.me.share_index as usize);
         Ok(DecryptionShareSimple {
             share,
-            domain_point: dkg.0.domain.element(dkg.0.me.share_index),
+            domain_point,
         })
     }
 }
@@ -425,6 +441,7 @@ mod test_ferveo_api {
             .map(|(i, keypair)| Validator {
                 address: gen_address(i),
                 public_key: keypair.public_key(),
+                share_index: i as u32,
             })
             .collect::<Vec<_>>();
 
@@ -433,7 +450,7 @@ mod test_ferveo_api {
         let messages: Vec<_> = validators
             .iter()
             .map(|sender| {
-                let dkg = Dkg::new(
+                let mut dkg = Dkg::new(
                     tau,
                     shares_num,
                     security_threshold,
@@ -619,6 +636,10 @@ mod test_ferveo_api {
         assert!(result.is_err());
     }
 
+    // Note that the server and client code are using the same underlying
+    // implementation for aggregation and aggregate verification.
+    // Here, we focus on testing user-facing APIs for server and client users.
+
     #[test]
     fn server_side_local_verification() {
         let rng = &mut StdRng::seed_from_u64(0);
@@ -637,6 +658,41 @@ mod test_ferveo_api {
         assert!(local_aggregate
             .verify(dkg.0.dkg_params.shares_num(), &messages)
             .is_ok());
+
+        // Test negative cases
+
+        // Notice that the dkg instance is mutable, so we need to get a fresh one
+        // for every test case
+
+        // Should fail if no transcripts are provided
+        let mut dkg =
+            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+                .unwrap();
+        let result = dkg.aggregate_transcripts(&[]);
+        assert!(result.is_err());
+
+        // Not enough transcripts
+        let mut dkg =
+            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+                .unwrap();
+        let not_enough_messages = &messages[..SECURITY_THRESHOLD as usize - 1];
+        assert!(not_enough_messages.len() < SECURITY_THRESHOLD as usize);
+        let insufficient_aggregate =
+            dkg.aggregate_transcripts(not_enough_messages).unwrap();
+        let result = insufficient_aggregate.verify(SHARES_NUM, &messages);
+        assert!(result.is_err());
+
+        // Unexpected transcripts in the aggregate or transcripts from a different ritual
+        // Using same DKG parameters, but different DKG instances and validators
+        let mut dkg =
+            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+                .unwrap();
+        let (bad_messages, _, _) =
+            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
+        let bad_aggregate = dkg.aggregate_transcripts(&mixed_messages).unwrap();
+        let result = bad_aggregate.verify(SHARES_NUM, &messages);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -650,7 +706,8 @@ mod test_ferveo_api {
         let messages = &messages[..SECURITY_THRESHOLD as usize];
 
         // Create an aggregated transcript on the client side
-        let aggregated_transcript = AggregatedTranscript::new(messages);
+        let aggregated_transcript =
+            AggregatedTranscript::new(messages).unwrap();
 
         // We are separating the verification from the aggregation since the client may fetch
         // the aggregate from a side-channel or decide to persist it and verify it later
@@ -662,11 +719,15 @@ mod test_ferveo_api {
 
         // Test negative cases
 
+        // Should fail if no transcripts are provided
+        let result = AggregatedTranscript::new(&[]);
+        assert!(result.is_err());
+
         // Not enough transcripts
         let not_enough_messages = &messages[..SECURITY_THRESHOLD as usize - 1];
         assert!(not_enough_messages.len() < SECURITY_THRESHOLD as usize);
         let insufficient_aggregate =
-            AggregatedTranscript::new(not_enough_messages);
+            AggregatedTranscript::new(not_enough_messages).unwrap();
         let result = insufficient_aggregate.verify(SHARES_NUM, messages);
         assert!(result.is_err());
 
@@ -675,7 +736,7 @@ mod test_ferveo_api {
         let (bad_messages, _, _) =
             make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
-        let bad_aggregate = AggregatedTranscript::new(&mixed_messages);
+        let bad_aggregate = AggregatedTranscript::new(&mixed_messages).unwrap();
         let result = bad_aggregate.verify(SHARES_NUM, messages);
         assert!(result.is_err());
     }

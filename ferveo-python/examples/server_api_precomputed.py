@@ -21,7 +21,7 @@ security_threshold = shares_num
 
 validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
 validators = [
-    Validator(gen_eth_addr(i), keypair.public_key())
+    Validator(gen_eth_addr(i), keypair.public_key(), i)
     for i, keypair in enumerate(validator_keypairs)
 ]
 

@@ -366,7 +366,7 @@ impl Dkg {
     }
 
     #[wasm_bindgen(js_name = "generateTranscript")]
-    pub fn generate_transcript(&self) -> JsResult<Transcript> {
+    pub fn generate_transcript(&mut self) -> JsResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self.0.generate_transcript(rng).map_err(map_js_err)?;
         Ok(Transcript(transcript))
@@ -421,6 +421,7 @@ impl EthereumAddress {
 pub struct Validator {
     address: EthereumAddress,
     public_key: FerveoPublicKey,
+    share_index: u32,
 }
 
 #[wasm_bindgen]
@@ -429,11 +430,13 @@ impl Validator {
     pub fn new(
         address: &EthereumAddress,
         public_key: &FerveoPublicKey,
+        share_index: u32,
     ) -> JsResult<Validator> {
         set_panic_hook();
         Ok(Self {
             address: address.clone(),
             public_key: public_key.clone(),
+            share_index,
         })
     }
 
@@ -442,6 +445,7 @@ impl Validator {
         Ok(api::Validator {
             address: self.address.0.clone(),
             public_key: self.public_key.0,
+            share_index: self.share_index,
         })
     }
 
@@ -503,7 +507,8 @@ impl AggregatedTranscript {
     ) -> JsResult<AggregatedTranscript> {
         set_panic_hook();
         let messages = unwrap_messages_js(messages)?;
-        let aggregated_transcript = api::AggregatedTranscript::new(&messages);
+        let aggregated_transcript =
+            api::AggregatedTranscript::new(&messages).unwrap();
         Ok(AggregatedTranscript(aggregated_transcript))
     }
 
@@ -610,6 +615,7 @@ pub mod test_common {
         Validator {
             address: gen_address(i),
             public_key: keypair.public_key(),
+            share_index: i as u32,
         }
     }
 }

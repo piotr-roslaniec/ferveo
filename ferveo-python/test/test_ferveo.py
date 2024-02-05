@@ -44,7 +44,7 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
     tau = 1
     validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
     validators = [
-        Validator(gen_eth_addr(i), keypair.public_key())
+        Validator(gen_eth_addr(i), keypair.public_key(), i)
         for i, keypair in enumerate(validator_keypairs)
     ]
     validators.sort(key=lambda v: v.address)

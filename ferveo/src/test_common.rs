@@ -35,6 +35,7 @@ pub fn gen_validators(keypairs: &[Keypair<E>]) -> Vec<Validator<E>> {
         .map(|(i, keypair)| Validator {
             address: gen_address(i),
             public_key: keypair.public_key(),
+            share_index: i as u32,
         })
         .collect()
 }
@@ -47,8 +48,7 @@ pub fn setup_dkg_for_n_validators(
     my_validator_index: usize,
 ) -> TestSetup {
     let keypairs = gen_keypairs(shares_num);
-    let mut validators = gen_validators(keypairs.as_slice());
-    validators.sort();
+    let validators = gen_validators(keypairs.as_slice());
     let me = validators[my_validator_index].clone();
     let dkg = PubliclyVerifiableDkg::new(
         &validators,
@@ -91,7 +91,7 @@ pub fn setup_dealt_dkg_with(
                 shares_num,
                 my_index as usize,
             );
-            let me = dkg.me.validator.clone();
+            let me = dkg.me.clone();
             let message = dkg.share(rng).unwrap();
             (me, message)
         })

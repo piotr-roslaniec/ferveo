@@ -32,7 +32,7 @@ fn setup_dkg(shares_num: u32, security_threshold: u32) -> TestSetup {
     // Each validator holds their own DKG instance and generates a transcript every
     // validator, including themselves
     let messages = validators.iter().map(|sender| {
-        let dkg = Dkg::new(
+        let mut dkg = Dkg::new(
             TAU,
             shares_num,
             security_threshold,

@@ -18,8 +18,8 @@ use subproductdomain::fast_multiexp;
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    apply_updates_to_private_share, batch_to_projective_g1,
-    batch_to_projective_g2, utils::is_sorted, Error, PVSSMap,
+    apply_updates_to_private_share, assert_no_share_duplicates,
+    batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
     PubliclyVerifiableDkg, Result, Validator,
 };
 
@@ -150,8 +150,8 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
                 // ek_{i}^{eval_i}, i = validator index
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
-                    &[evals.evals[validator.share_index]], // one share per validator
-                    validator.validator.public_key.encryption_key.into_group(),
+                    &[evals.evals[validator.share_index as usize]], // one share per validator
+                    validator.public_key.encryption_key.into_group(),
                 )[0]
             })
             .collect::<Vec<ShareEncryptions<E>>>();
@@ -198,17 +198,12 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
     pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
-        let validators = dkg
-            .validators
-            .values()
-            .map(|v| v.validator.clone())
-            .collect::<Vec<_>>();
-        let validators = validators.as_slice();
+        let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_full(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            validators,
+            &validators,
             &dkg.domain,
         )
     }
@@ -225,8 +220,7 @@ pub fn do_verify_full<E: Pairing>(
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
     domain.fft_in_place(&mut commitment);
 
-    // At this point, validators must be sorted
-    assert!(is_sorted(validators));
+    assert_no_share_duplicates(validators).expect("Validators must be unique");
 
     // Each validator checks that their share is correct
     validators
@@ -288,17 +282,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
     ) -> Result<bool> {
-        let validators = dkg
-            .validators
-            .values()
-            .map(|v| v.validator.clone())
-            .collect::<Vec<_>>();
-        let validators = validators.as_slice();
+        let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_aggregation(
             &self.coeffs,
             &self.shares,
             &dkg.pvss_params,
-            validators,
+            &validators,
             &dkg.domain,
             &dkg.vss,
         )
@@ -392,13 +381,13 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 /// Aggregate the PVSS instances in `pvss` from DKG session `dkg`
 /// into a new PVSS instance
 /// See: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
-pub fn aggregate<E: Pairing>(
-    pvss_map: &PVSSMap<E>,
-) -> PubliclyVerifiableSS<E, Aggregated> {
-    let mut pvss_iter = pvss_map.iter();
-    let (_, first_pvss) = pvss_iter
+pub(crate) fn aggregate<E: Pairing>(
+    pvss_list: &[PubliclyVerifiableSS<E>],
+) -> Result<PubliclyVerifiableSS<E, Aggregated>> {
+    let mut pvss_iter = pvss_list.iter();
+    let first_pvss = pvss_iter
         .next()
-        .expect("May not aggregate empty PVSS instances");
+        .ok_or_else(|| Error::NoTranscriptsToAggregate)?;
     let mut coeffs = batch_to_projective_g1::<E>(&first_pvss.coeffs);
     let mut sigma = first_pvss.sigma;
 
@@ -407,51 +396,25 @@ pub fn aggregate<E: Pairing>(
     // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
     // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
-    for (_, next) in pvss_iter {
-        sigma = (sigma + next.sigma).into();
+    for next_pvss in pvss_iter {
+        sigma = (sigma + next_pvss.sigma).into();
         coeffs
             .iter_mut()
-            .zip_eq(next.coeffs.iter())
+            .zip_eq(next_pvss.coeffs.iter())
             .for_each(|(a, b)| *a += b);
         shares
             .iter_mut()
-            .zip_eq(next.shares.iter())
+            .zip_eq(next_pvss.shares.iter())
             .for_each(|(a, b)| *a += b);
     }
     let shares = E::G2::normalize_batch(&shares);
 
-    PubliclyVerifiableSS {
+    Ok(PubliclyVerifiableSS {
         coeffs: E::G1::normalize_batch(&coeffs),
         shares,
         sigma,
         phantom: Default::default(),
-    }
-}
-
-pub fn aggregate_for_decryption<E: Pairing>(
-    dkg: &PubliclyVerifiableDkg<E>,
-) -> Vec<ShareEncryptions<E>> {
-    // From docs: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
-    // "Two PVSS instances may be aggregated into a single PVSS instance by adding elementwise each of the corresponding group elements."
-    let shares = dkg
-        .vss
-        .values()
-        .map(|pvss| pvss.shares.clone())
-        .collect::<Vec<_>>();
-    let first_share = shares
-        .first()
-        .expect("Need one or more decryption shares to aggregate")
-        .to_vec();
-    shares
-        .into_iter()
-        .skip(1)
-        // We're assuming that in every PVSS instance, the shares are in the same order
-        .fold(first_share, |acc, shares| {
-            acc.into_iter()
-                .zip_eq(shares)
-                .map(|(a, b)| (a + b).into())
-                .collect()
-        })
+    })
 }
 
 #[cfg(test)]
@@ -459,10 +422,9 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
-    use rand::seq::SliceRandom;
 
     use super::*;
-    use crate::{test_common::*, utils::is_sorted, DkgParams};
+    use crate::{test_common::*, DkgParams};
 
     /// Test the happy flow that a pvss with the correct form is created
     /// and that appropriate validations pass
@@ -532,21 +494,20 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    /// Check that the explicit ordering of validators is expected and enforced
+    // TODO: Move this code to dkg.rs
+    /// Check that the canonical share indices of validators are expected and enforced
     /// by the DKG methods.
     #[test]
-    fn test_ordering_of_validators_is_enforced() {
-        let rng = &mut ark_std::test_rng();
-
+    fn test_canonical_share_indices_are_enforced() {
         let shares_num = 4;
         let security_threshold = shares_num - 1;
         let keypairs = gen_keypairs(shares_num);
         let mut validators = gen_validators(&keypairs);
         let me = validators[0].clone();
 
-        // Validators are not sorted
-        validators.shuffle(rng);
-        assert!(!is_sorted(&validators));
+        // Validators (share indices) are not unique
+        let duplicated_index = 0;
+        validators.insert(duplicated_index, me.clone());
 
         // And because of that the DKG should fail
         let result = PubliclyVerifiableDkg::new(
@@ -557,7 +518,7 @@ mod test_pvss {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            Error::ValidatorsNotSorted.to_string()
+            Error::DuplicatedShareIndex(duplicated_index as u32).to_string()
         );
     }
 
@@ -566,7 +527,8 @@ mod test_pvss {
     #[test]
     fn test_aggregate_pvss() {
         let (dkg, _) = setup_dealt_dkg();
-        let aggregate = aggregate(&dkg.vss);
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let aggregate = aggregate(&pvss_list).unwrap();
         // Check that a polynomial of the correct degree was created
         assert_eq!(
             aggregate.coeffs.len(),
@@ -582,15 +544,17 @@ mod test_pvss {
         assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"),);
     }
 
-    /// Check that if the aggregated pvss transcript has an
+    /// Check that if the aggregated PVSS transcript has an
     /// incorrect constant term, the verification fails
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
         let (dkg, _) = setup_dealt_dkg();
-        let mut aggregated = aggregate(&dkg.vss);
+        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let mut aggregated = aggregate(&pvss_list).unwrap();
         while aggregated.coeffs[0] == G1::zero() {
             let (dkg, _) = setup_dkg(0);
-            aggregated = aggregate(&dkg.vss);
+            let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+            aggregated = aggregate(&pvss_list).unwrap();
         }
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(

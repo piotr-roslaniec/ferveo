@@ -1,9 +1,11 @@
-use std::{cmp::Ordering, fmt::Display, str::FromStr};
+use std::{collections::HashSet, fmt::Display, str::FromStr};
 
 use ark_ec::pairing::Pairing;
 use ferveo_common::PublicKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::Error;
 
 #[derive(
     Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize, Hash,
@@ -45,29 +47,36 @@ pub struct Validator<E: Pairing> {
     pub address: EthereumAddress,
     /// The Public key
     pub public_key: PublicKey<E>,
-}
-
-impl<E: Pairing> PartialOrd for Validator<E> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<E: Pairing> Ord for Validator<E> {
-    // Validators are ordered by their address only
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.address.cmp(&other.address)
-    }
+    /// The index of the validator in the given ritual
+    pub share_index: u32,
 }
 
 impl<E: Pairing> Validator<E> {
     pub fn new(
         address: String,
         public_key: PublicKey<E>,
+        share_index: u32,
     ) -> Result<Self, EthereumAddressParseError> {
         Ok(Self {
             address: EthereumAddress::from_str(&address)?,
             public_key,
+            share_index,
         })
     }
+}
+
+pub fn assert_no_share_duplicates<E: Pairing>(
+    validators: &[Validator<E>],
+) -> Result<(), Error> {
+    let mut set = HashSet::new();
+
+    for validator in validators {
+        if set.contains(&validator.share_index) {
+            return Err(Error::DuplicatedShareIndex(validator.share_index));
+        } else {
+            set.insert(validator.share_index);
+        }
+    }
+
+    Ok(())
 }

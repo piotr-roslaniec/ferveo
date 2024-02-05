@@ -76,7 +76,6 @@ impl From<FerveoPythonError> for PyErr {
                 Error::InvalidTranscriptAggregate => {
                     InvalidTranscriptAggregate::new_err("")
                 }
-                Error::ValidatorsNotSorted => ValidatorsNotSorted::new_err(""),
                 Error::ValidatorPublicKeyMismatch => {
                     ValidatorPublicKeyMismatch::new_err("")
                 }
@@ -108,6 +107,14 @@ impl From<FerveoPythonError> for PyErr {
                     InvalidDkgParameters::new_err(format!(
                         "num_shares: {num_shares}, security_threshold: {security_threshold}"
                     ))
+                },
+                Error::DuplicatedShareIndex(index) => {
+                    InvalidShareIndex::new_err(format!(
+                        "{index}"
+                    ))
+                },
+                Error::NoTranscriptsToAggregate => {
+                    NoTranscriptsToAggregate::new_err("")
                 },
             },
             _ => default(),
@@ -145,6 +152,7 @@ create_exception!(exceptions, InvalidByteLength, PyValueError);
 create_exception!(exceptions, InvalidVariant, PyValueError);
 create_exception!(exceptions, InvalidDkgParameters, PyValueError);
 create_exception!(exceptions, InvalidShareIndex, PyValueError);
+create_exception!(exceptions, NoTranscriptsToAggregate, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -396,8 +404,9 @@ impl Validator {
     pub fn new(
         address: String,
         public_key: &FerveoPublicKey,
+        share_index: u32,
     ) -> PyResult<Self> {
-        let validator = api::Validator::new(address, public_key.0)
+        let validator = api::Validator::new(address, public_key.0, share_index)
             .map_err(|err| FerveoPythonError::Other(err.to_string()))?;
         Ok(Self(validator))
     }
@@ -486,7 +495,7 @@ impl Dkg {
         DkgPublicKey(self.0.public_key())
     }
 
-    pub fn generate_transcript(&self) -> PyResult<Transcript> {
+    pub fn generate_transcript(&mut self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self
             .0
@@ -575,10 +584,12 @@ generate_bytes_serialization!(AggregatedTranscript);
 #[pymethods]
 impl AggregatedTranscript {
     #[new]
-    pub fn new(messages: Vec<ValidatorMessage>) -> Self {
+    pub fn new(messages: Vec<ValidatorMessage>) -> PyResult<Self> {
         let messages: Vec<_> =
             messages.into_iter().map(|vm| vm.to_inner()).collect();
-        Self(api::AggregatedTranscript::new(&messages))
+        let inner = api::AggregatedTranscript::new(&messages)
+            .map_err(FerveoPythonError::FerveoError)?;
+        Ok(Self(inner))
     }
 
     pub fn verify(
@@ -756,8 +767,12 @@ mod test_ferveo_python {
             .iter()
             .enumerate()
             .map(|(i, keypair)| {
-                Validator::new(format!("0x{i:040}"), &keypair.public_key())
-                    .unwrap()
+                Validator::new(
+                    format!("0x{i:040}"),
+                    &keypair.public_key(),
+                    i as u32,
+                )
+                .unwrap()
             })
             .collect();
 
@@ -767,7 +782,7 @@ mod test_ferveo_python {
             .iter()
             .cloned()
             .map(|sender| {
-                let dkg = Dkg::new(
+                let mut dkg = Dkg::new(
                     tau,
                     shares_num,
                     security_threshold,
