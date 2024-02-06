@@ -8,7 +8,7 @@ use ark_poly::{
 };
 use ferveo_tdec::{
     prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
-    DecryptionShareSimple, PrivateKeyShare,
+    DecryptionShareSimple,
 };
 use itertools::Itertools;
 use rand::RngCore;
@@ -18,9 +18,9 @@ use subproductdomain::fast_multiexp;
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    apply_updates_to_private_share, assert_no_share_duplicates,
-    batch_to_projective_g1, batch_to_projective_g2, Error, PVSSMap,
-    PubliclyVerifiableDkg, Result, Validator,
+    assert_no_share_duplicates, batch_to_projective_g1, batch_to_projective_g2,
+    Error, PVSSMap, PrivateKeyShare, PrivateKeyShareUpdate,
+    PubliclyVerifiableDkg, Result, UpdatedPrivateKeyShare, Validator,
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
@@ -305,7 +305,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
     ) -> Result<PrivateKeyShare<E>> {
-        // Decrypt private key shares https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
+        // Decrypt private key share https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
         let private_key_share = self
             .shares
             .get(share_index)
@@ -316,7 +316,10 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
                     .expect("Validator decryption key must have an inverse"),
             )
             .into_affine();
-        Ok(PrivateKeyShare { private_key_share })
+        // TODO: Consider adding a from trait to simplify this conversion
+        let private_key_share =
+            ferveo_tdec::PrivateKeyShare { private_key_share };
+        Ok(PrivateKeyShare(private_key_share))
     }
 
     pub fn make_decryption_share_simple(
@@ -331,7 +334,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             .decrypt_private_key_share(validator_decryption_key, share_index)?;
         DecryptionShareSimple::create(
             validator_decryption_key,
-            &private_key_share,
+            &private_key_share.0,
             ciphertext,
             aad,
             g_inv,
@@ -357,7 +360,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         DecryptionSharePrecomputed::new(
             share_index,
             validator_decryption_key,
-            &private_key_share,
+            &private_key_share.0,
             ciphertext_header,
             aad,
             &lagrange_coeffs[share_index],
@@ -366,22 +369,16 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         .map_err(|e| e.into())
     }
 
-    // TODO: Consider relocate to different place, maybe PrivateKeyShare? (see #162, #163)
-    pub fn update_private_key_share_for_recovery(
+    pub fn make_updated_private_key_share(
         &self,
         validator_decryption_key: &E::ScalarField,
         share_index: usize,
-        share_updates: &[E::G2],
-    ) -> Result<PrivateKeyShare<E>> {
-        // Retrieves their private key share
-        let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index)?;
-
-        // And updates their share
-        Ok(apply_updates_to_private_share::<E>(
-            &private_key_share,
-            share_updates,
-        ))
+        share_updates: &[impl PrivateKeyShareUpdate<E>],
+    ) -> Result<UpdatedPrivateKeyShare<E>> {
+        // Retrieve the private key share and apply the updates
+        Ok(self
+            .decrypt_private_key_share(validator_decryption_key, share_index)?
+            .make_updated_key_share(share_updates))
     }
 }
 
@@ -436,8 +433,8 @@ mod test_pvss {
 
     /// Test the happy flow such that the PVSS with the correct form is created
     /// and that appropriate validations pass
-    #[test_case(4,4; "number of validators is equal to the number of shares")]
-    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    #[test_case(4, 4; "number of validators is equal to the number of shares")]
+    #[test_case(4, 6; "number of validators is greater than the number of shares")]
     fn test_new_pvss(shares_num: u32, validators_num: u32) {
         let rng = &mut ark_std::test_rng();
         let security_threshold = shares_num - 1;
@@ -511,8 +508,8 @@ mod test_pvss {
 
     /// Check that happy flow of aggregating PVSS transcripts
     /// has the correct form and it's validations passes
-    #[test_case(4,4; "number of validators is equal to the number of shares")]
-    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    #[test_case(4, 4; "number of validators is equal to the number of shares")]
+    #[test_case(4, 6; "number of validators is greater than the number of shares")]
     fn test_aggregate_pvss(shares_num: u32, validators_num: u32) {
         let security_threshold = shares_num - 1;
         let (dkg, _) = setup_dealt_dkg_with_n_validators(

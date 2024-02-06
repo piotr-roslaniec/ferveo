@@ -77,8 +77,8 @@ pub mod test_common {
         shares_num: usize,
         rng: &mut impl RngCore,
     ) -> (
-        E::G1Affine,
-        E::G2Affine,
+        PublicKeyShare<E>,
+        PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextFast<E>>,
     ) {
         assert!(shares_num >= threshold);
@@ -138,7 +138,7 @@ pub mod test_common {
         )
         .enumerate()
         {
-            let private_key_share = PrivateKeyShare::<E> {
+            let private_key_share = PrivateKeyShare {
                 private_key_share: *private,
             };
             let b = E::ScalarField::rand(rng);
@@ -171,7 +171,15 @@ pub mod test_common {
             private.public_decryption_contexts = public_contexts.clone();
         }
 
-        (pubkey.into(), privkey.into(), private_contexts)
+        (
+            PublicKeyShare {
+                public_key_share: pubkey.into(),
+            },
+            PrivateKeyShare {
+                private_key_share: privkey.into(),
+            },
+            private_contexts,
+        )
     }
 
     pub fn setup_simple<E: Pairing>(
@@ -179,8 +187,8 @@ pub mod test_common {
         shares_num: usize,
         rng: &mut impl rand::Rng,
     ) -> (
-        E::G1Affine,
-        E::G2Affine,
+        PublicKeyShare<E>,
+        PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextSimple<E>>,
     ) {
         assert!(shares_num >= threshold);
@@ -259,15 +267,23 @@ pub mod test_common {
             private.public_decryption_contexts = public_contexts.clone();
         }
 
-        (pubkey.into(), privkey.into(), private_contexts)
+        (
+            PublicKeyShare {
+                public_key_share: pubkey.into(),
+            },
+            PrivateKeyShare {
+                private_key_share: privkey.into(),
+            },
+            private_contexts,
+        )
     }
 
     pub fn setup_precomputed<E: Pairing>(
         shares_num: usize,
         rng: &mut impl rand::Rng,
     ) -> (
-        E::G1Affine,
-        E::G2Affine,
+        PublicKeyShare<E>,
+        PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextSimple<E>>,
     ) {
         // In precomputed variant, the security threshold is equal to the number of shares

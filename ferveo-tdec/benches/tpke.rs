@@ -1,6 +1,6 @@
 #![allow(clippy::redundant_closure)]
 
-use ark_bls12_381::{Bls12_381, Fr, G1Affine as G1, G2Affine as G2};
+use ark_bls12_381::{Bls12_381, Fr};
 use ark_ec::pairing::Pairing;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
@@ -25,8 +25,8 @@ struct SetupShared {
     shares_num: usize,
     msg: Vec<u8>,
     aad: Vec<u8>,
-    pubkey: G1,
-    privkey: G2,
+    pubkey: PublicKeyShare<E>,
+    privkey: PrivateKeyShare<E>,
     ciphertext: Ciphertext<E>,
     shared_secret: SharedSecret<E>,
 }

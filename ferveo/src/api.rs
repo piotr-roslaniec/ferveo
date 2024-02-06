@@ -7,8 +7,10 @@ use bincode;
 use ferveo_common::serialization;
 pub use ferveo_tdec::api::{
     prepare_combine_simple, share_combine_precomputed, share_combine_simple,
-    Fr, G1Affine, G1Prepared, G2Affine, SecretBox, E,
+    DecryptionSharePrecomputed, Fr, G1Affine, G1Prepared, G2Affine, SecretBox,
+    E,
 };
+use ferveo_tdec::PublicKeyShare;
 use generic_array::{
     typenum::{Unsigned, U48},
     GenericArray,
@@ -16,13 +18,6 @@ use generic_array::{
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-
-pub type PublicKey = ferveo_common::PublicKey<E>;
-pub type Keypair = ferveo_common::Keypair<E>;
-pub type Validator = crate::Validator<E>;
-pub type Transcript = PubliclyVerifiableSS<E>;
-
-pub type ValidatorMessage = (Validator, Transcript);
 
 #[cfg(feature = "bindings-python")]
 use crate::bindings_python;
@@ -34,8 +29,11 @@ use crate::{
     PubliclyVerifiableSS, Result,
 };
 
-pub type DecryptionSharePrecomputed =
-    ferveo_tdec::api::DecryptionSharePrecomputed;
+pub type PublicKey = ferveo_common::PublicKey<E>;
+pub type Keypair = ferveo_common::Keypair<E>;
+pub type Validator = crate::Validator<E>;
+pub type Transcript = PubliclyVerifiableSS<E>;
+pub type ValidatorMessage = (Validator, Transcript);
 
 // Normally, we would use a custom trait for this, but we can't because
 // the arkworks will not let us create a blanket implementation for G1Affine
@@ -58,8 +56,14 @@ pub fn encrypt(
     pubkey: &DkgPublicKey,
 ) -> Result<Ciphertext> {
     let mut rng = rand::thread_rng();
-    let ciphertext =
-        ferveo_tdec::api::encrypt(message, aad, &pubkey.0, &mut rng)?;
+    let ciphertext = ferveo_tdec::api::encrypt(
+        message,
+        aad,
+        &PublicKeyShare {
+            public_key_share: pubkey.0,
+        },
+        &mut rng,
+    )?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -91,7 +95,7 @@ impl Ciphertext {
     }
 }
 
-#[serde_as]
+#[serde_as] // TODO: Redundant serde_as?
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CiphertextHeader(ferveo_tdec::api::CiphertextHeader);
 
@@ -146,6 +150,7 @@ impl From<bindings_wasm::FerveoVariant> for FerveoVariant {
 #[serde_as]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
+    // TODO: Consider not using G1Affine directly here
     #[serde_as(as = "serialization::SerdeAs")] pub(crate) G1Affine,
 );
 
@@ -218,7 +223,7 @@ impl Dkg {
     }
 
     pub fn public_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.public_key())
+        DkgPublicKey(self.0.public_key().public_key_share)
     }
 
     pub fn generate_transcript<R: RngCore>(

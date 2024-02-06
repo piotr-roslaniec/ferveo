@@ -422,13 +422,14 @@ mod test_dkg_full {
         let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
-                let deltas_i = prepare_share_updates_for_recovery::<E>(
-                    &domain_points,
-                    &dkg.pvss_params.h.into_affine(),
-                    &x_r,
-                    dkg.dkg_params.security_threshold() as usize,
-                    rng,
-                );
+                let deltas_i =
+                    ShareRecoveryUpdate::make_share_updates_for_recovery(
+                        &domain_points,
+                        &dkg.pvss_params.h.into_affine(),
+                        &x_r,
+                        dkg.dkg_params.security_threshold() as usize,
+                        rng,
+                    );
                 (v_addr.clone(), deltas_i)
             })
             .collect::<HashMap<_, _>>();
@@ -444,8 +445,9 @@ mod test_dkg_full {
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
                     .map(|updates| {
-                        *updates.get(validator.share_index as usize).unwrap()
+                        updates.get(validator.share_index as usize).unwrap()
                     })
+                    .cloned()
                     .collect();
 
                 // Each validator uses their decryption key to update their share
@@ -459,7 +461,7 @@ mod test_dkg_full {
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
-                    .update_private_key_share_for_recovery(
+                    .make_updated_private_key_share(
                         &decryption_key,
                         validator.share_index as usize,
                         updates_for_participant.as_slice(),
@@ -468,14 +470,13 @@ mod test_dkg_full {
             })
             .collect();
 
-        // TODO: Rename updated_private_shares to something that doesn't imply mutation (see #162, #163)
-
         // Now, we have to combine new share fragments into a new share
-        let new_private_key_share = recover_share_from_updated_private_shares(
-            &x_r,
-            &domain_points,
-            &updated_shares,
-        );
+        let recovered_key_share =
+            PrivateKeyShare::recover_share_from_updated_private_shares(
+                &x_r,
+                &domain_points,
+                &updated_shares,
+            );
 
         // Get decryption shares from remaining participants
         let mut remaining_validator_keypairs = validator_keypairs;
@@ -508,7 +509,7 @@ mod test_dkg_full {
         decryption_shares.push(
             DecryptionShareSimple::create(
                 &new_validator_decryption_key,
-                &new_private_key_share,
+                &recovered_key_share,
                 &ciphertext.header().unwrap(),
                 AAD,
                 &dkg.pvss_params.g_inv(),
@@ -566,12 +567,13 @@ mod test_dkg_full {
             .validators
             .keys()
             .map(|v_addr| {
-                let deltas_i = prepare_share_updates_for_refresh::<E>(
-                    &dkg.domain_points(),
-                    &dkg.pvss_params.h.into_affine(),
-                    dkg.dkg_params.security_threshold() as usize,
-                    rng,
-                );
+                let deltas_i =
+                    ShareRefreshUpdate::make_share_updates_for_refresh(
+                        &dkg.domain_points(),
+                        &dkg.pvss_params.h.into_affine(),
+                        dkg.dkg_params.security_threshold() as usize,
+                        rng,
+                    );
                 (v_addr.clone(), deltas_i)
             })
             .collect::<HashMap<_, _>>();
@@ -580,7 +582,7 @@ mod test_dkg_full {
 
         // Now, every participant separately:
         // TODO: Move this logic outside tests (see #162, #163)
-        let updated_shares: Vec<_> = dkg
+        let updated_private_key_shares: Vec<_> = dkg
             .validators
             .values()
             .map(|validator| {
@@ -588,7 +590,10 @@ mod test_dkg_full {
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
                     .map(|updates| {
-                        *updates.get(validator.share_index as usize).unwrap()
+                        updates
+                            .get(validator.share_index as usize)
+                            .cloned()
+                            .unwrap()
                     })
                     .collect();
 
@@ -603,7 +608,7 @@ mod test_dkg_full {
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
-                    .update_private_key_share_for_recovery(
+                    .make_updated_private_key_share(
                         &decryption_key,
                         validator.share_index as usize,
                         updates_for_participant.as_slice(),
@@ -620,7 +625,12 @@ mod test_dkg_full {
                 .map(|(share_index, validator_keypair)| {
                     DecryptionShareSimple::create(
                         &validator_keypair.decryption_key,
-                        updated_shares.get(share_index).unwrap(),
+                        // In order to proceed with the decryption, we need to convert the updated private key shares
+                        &updated_private_key_shares
+                            .get(share_index)
+                            .unwrap()
+                            .inner()
+                            .0,
                         &ciphertext.header().unwrap(),
                         AAD,
                         &dkg.pvss_params.g_inv(),

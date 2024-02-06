@@ -13,7 +13,10 @@ use serde_with::serde_as;
 use sha2::{digest::Digest, Sha256};
 use zeroize::ZeroizeOnDrop;
 
-use crate::{htp_bls12381_g2, Error, Result, SecretBox, SharedSecret};
+use crate::{
+    htp_bls12381_g2, Error, PrivateKeyShare, PublicKeyShare, Result, SecretBox,
+    SharedSecret,
+};
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,7 +98,7 @@ impl<E: Pairing> CiphertextHeader<E> {
 pub fn encrypt<E: Pairing>(
     message: SecretBox<Vec<u8>>,
     aad: &[u8],
-    pubkey: &E::G1Affine,
+    pubkey: &PublicKeyShare<E>,
     rng: &mut impl rand::Rng,
 ) -> Result<Ciphertext<E>> {
     // r
@@ -105,7 +108,8 @@ pub fn encrypt<E: Pairing>(
     // h
     let h_gen = E::G2Affine::generator();
 
-    let ry_prep = E::G1Prepared::from(pubkey.mul(rand_element).into());
+    let ry_prep =
+        E::G1Prepared::from(pubkey.public_key_share.mul(rand_element).into());
     // s
     let product = E::pairing(ry_prep, h_gen).0;
     // u
@@ -140,13 +144,13 @@ pub fn encrypt<E: Pairing>(
 pub fn decrypt_symmetric<E: Pairing>(
     ciphertext: &Ciphertext<E>,
     aad: &[u8],
-    private_key: &E::G2Affine,
+    private_key: &PrivateKeyShare<E>,
     g_inv: &E::G1Prepared,
 ) -> Result<Vec<u8>> {
     ciphertext.check(aad, g_inv)?;
     let shared_secret = E::pairing(
         E::G1Prepared::from(ciphertext.commitment),
-        E::G2Prepared::from(*private_key),
+        E::G2Prepared::from(private_key.private_key_share),
     )
     .0;
     let shared_secret = SharedSecret(shared_secret);

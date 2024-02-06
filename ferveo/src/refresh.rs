@@ -1,86 +1,155 @@
 use std::{ops::Mul, usize};
 
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_ff::Zero;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
-use ferveo_tdec::{lagrange_basis_at, PrivateKeyShare};
+use ferveo_tdec::lagrange_basis_at;
 use itertools::zip_eq;
 use rand_core::RngCore;
+use zeroize::ZeroizeOnDrop;
 
-// SHARE UPDATE FUNCTIONS:
+type InnerPrivateKeyShare<E> = ferveo_tdec::PrivateKeyShare<E>;
 
-/// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
-pub fn prepare_share_updates_for_recovery<E: Pairing>(
-    domain_points: &[E::ScalarField],
-    h: &E::G2Affine,
-    x_r: &E::ScalarField,
-    threshold: usize,
-    rng: &mut impl RngCore,
-) -> Vec<E::G2> {
-    // Update polynomial has root at x_r
-    prepare_share_updates_with_root::<E>(domain_points, h, x_r, threshold, rng)
-}
+/// Private key share held by a participant in the DKG protocol.
+#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+pub struct PrivateKeyShare<E: Pairing>(pub InnerPrivateKeyShare<E>);
 
-// TODO: Consider relocating to PrivateKeyShare (see #162, #163)
-/// From PSS paper, section 4.2.3, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
-pub fn apply_updates_to_private_share<E: Pairing>(
-    private_key_share: &PrivateKeyShare<E>,
-    share_updates: &[E::G2],
-) -> PrivateKeyShare<E> {
-    let private_key_share = share_updates
-        .iter()
-        .fold(
-            private_key_share.private_key_share.into_group(),
-            |acc, delta| acc + delta,
-        )
-        .into_affine();
-    PrivateKeyShare { private_key_share }
-}
+impl<E: Pairing> PrivateKeyShare<E> {
+    /// From PSS paper, section 4.2.3, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
+    pub fn make_updated_key_share(
+        &self,
+        share_updates: &[impl PrivateKeyShareUpdate<E>],
+    ) -> UpdatedPrivateKeyShare<E> {
+        let updated_key_share = share_updates
+            .iter()
+            .fold(self.0.private_key_share, |acc, delta| {
+                (acc + delta.inner().private_key_share).into()
+            });
+        let updated_key_share = InnerPrivateKeyShare {
+            private_key_share: updated_key_share,
+        };
+        UpdatedPrivateKeyShare(updated_key_share)
+    }
 
-/// From the PSS paper, section 4.2.4, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
-pub fn recover_share_from_updated_private_shares<E: Pairing>(
-    x_r: &E::ScalarField,
-    domain_points: &[E::ScalarField],
-    updated_private_shares: &[PrivateKeyShare<E>],
-) -> PrivateKeyShare<E> {
-    // Interpolate new shares to recover y_r
-    let lagrange = lagrange_basis_at::<E>(domain_points, x_r);
-    let prods = zip_eq(updated_private_shares, lagrange)
-        .map(|(y_j, l)| y_j.private_key_share.mul(l));
-    let y_r = prods.fold(E::G2::zero(), |acc, y_j| acc + y_j);
-
-    PrivateKeyShare {
-        private_key_share: y_r.into_affine(),
+    /// From the PSS paper, section 4.2.4, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
+    pub fn recover_share_from_updated_private_shares(
+        x_r: &E::ScalarField,
+        domain_points: &[E::ScalarField],
+        updated_private_shares: &[UpdatedPrivateKeyShare<E>],
+    ) -> ferveo_tdec::PrivateKeyShare<E> {
+        // Interpolate new shares to recover y_r
+        let lagrange = lagrange_basis_at::<E>(domain_points, x_r);
+        let prods = zip_eq(updated_private_shares, lagrange)
+            .map(|(y_j, l)| y_j.0.private_key_share.mul(l));
+        let y_r = prods.fold(E::G2::zero(), |acc, y_j| acc + y_j);
+        ferveo_tdec::PrivateKeyShare {
+            private_key_share: y_r.into_affine(),
+        }
     }
 }
 
-// SHARE REFRESH FUNCTIONS:
+/// An updated private key share, resulting from an intermediate step in a share recovery or refresh operation.
+#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+pub struct UpdatedPrivateKeyShare<E: Pairing>(InnerPrivateKeyShare<E>);
 
-pub fn prepare_share_updates_for_refresh<E: Pairing>(
-    domain_points: &[E::ScalarField],
-    h: &E::G2Affine,
-    threshold: usize,
-    rng: &mut impl RngCore,
-) -> Vec<E::G2> {
-    // Update polynomial has root at 0
-    prepare_share_updates_with_root::<E>(
-        domain_points,
-        h,
-        &E::ScalarField::zero(),
-        threshold,
-        rng,
-    )
+impl<E: Pairing> UpdatedPrivateKeyShare<E> {
+    /// One-way conversion from `UpdatedPrivateKeyShare` to `PrivateKeyShare`.
+    /// Use this method to eject from the `UpdatedPrivateKeyShare` type and use the resulting `PrivateKeyShare` in further operations.
+    pub fn inner(&self) -> PrivateKeyShare<E> {
+        PrivateKeyShare(self.0.clone())
+    }
 }
 
-// UTILS:
+impl<E: Pairing> UpdatedPrivateKeyShare<E> {
+    pub fn new(private_key_share: InnerPrivateKeyShare<E>) -> Self {
+        Self(private_key_share)
+    }
+}
 
+// TODO: Replace with an into trait?
+/// Trait for types that can be used to update a private key share.
+pub trait PrivateKeyShareUpdate<E: Pairing> {
+    fn inner(&self) -> &InnerPrivateKeyShare<E>; // TODO: Should we return g2affine instead?
+}
+
+/// An update to a private key share generated by a participant in a share recovery operation.
+#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+pub struct ShareRecoveryUpdate<E: Pairing>(InnerPrivateKeyShare<E>);
+
+impl<E: Pairing> PrivateKeyShareUpdate<E> for ShareRecoveryUpdate<E> {
+    fn inner(&self) -> &InnerPrivateKeyShare<E> {
+        &self.0
+    }
+}
+
+impl<E: Pairing> ShareRecoveryUpdate<E> {
+    /// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
+    pub fn make_share_updates_for_recovery(
+        domain_points: &[E::ScalarField],
+        h: &E::G2Affine,
+        x_r: &E::ScalarField,
+        threshold: usize,
+        rng: &mut impl RngCore,
+    ) -> Vec<ShareRecoveryUpdate<E>> {
+        // Update polynomial has root at x_r
+        prepare_share_updates_with_root::<E>(
+            domain_points,
+            h,
+            x_r,
+            threshold,
+            rng,
+        )
+        .iter()
+        .map(|p| Self(p.clone()))
+        .collect()
+    }
+}
+
+/// An update to a private key share generated by a participant in a share refresh operation.
+#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+pub struct ShareRefreshUpdate<E: Pairing>(InnerPrivateKeyShare<E>);
+
+impl<E: Pairing> PrivateKeyShareUpdate<E> for ShareRefreshUpdate<E> {
+    fn inner(&self) -> &InnerPrivateKeyShare<E> {
+        &self.0
+    }
+}
+
+impl<E: Pairing> ShareRefreshUpdate<E> {
+    /// From PSS paper, section 4.2.1, (https://link.springer.com/content/pdf/10.1007/3-540-44750-4_27.pdf)
+    pub fn make_share_updates_for_refresh(
+        domain_points: &[E::ScalarField],
+        h: &E::G2Affine,
+        threshold: usize,
+        rng: &mut impl RngCore,
+    ) -> Vec<ShareRefreshUpdate<E>> {
+        // Update polynomial has root at 0
+        prepare_share_updates_with_root::<E>(
+            domain_points,
+            h,
+            &E::ScalarField::zero(),
+            threshold,
+            rng,
+        )
+        .iter()
+        .cloned()
+        .map(|p| ShareRefreshUpdate(p))
+        .collect()
+    }
+}
+
+/// Prepare share updates with a given root
+/// This is a helper function for `ShareRecoveryUpdate::make_share_updates_for_recovery` and `ShareRefreshUpdate::make_share_updates_for_refresh`
+/// It generates a new random polynomial with a defined root and evaluates it at each of the participants' indices.
+/// The result is a list of share updates.
+/// We represent the share updates as `InnerPrivateKeyShare` to avoid dependency on the concrete implementation of `PrivateKeyShareUpdate`.
 fn prepare_share_updates_with_root<E: Pairing>(
     domain_points: &[E::ScalarField],
     h: &E::G2Affine,
     root: &E::ScalarField,
     threshold: usize,
     rng: &mut impl RngCore,
-) -> Vec<E::G2> {
+) -> Vec<InnerPrivateKeyShare<E>> {
     // Generate a new random polynomial with defined root
     let d_i = make_random_polynomial_with_root::<E>(threshold - 1, root, rng);
 
@@ -89,12 +158,16 @@ fn prepare_share_updates_with_root<E: Pairing>(
         .iter()
         .map(|x_i| {
             let eval = d_i.evaluate(x_i);
-            h.mul(eval)
+            h.mul(eval).into_affine()
+        })
+        .map(|p| InnerPrivateKeyShare {
+            private_key_share: p,
         })
         .collect()
 }
 
-pub fn make_random_polynomial_with_root<E: Pairing>(
+/// Generate a random polynomial with a given root
+fn make_random_polynomial_with_root<E: Pairing>(
     degree: usize,
     root: &E::ScalarField,
     rng: &mut impl RngCore,
@@ -124,23 +197,21 @@ mod tests_refresh {
     use ark_std::{test_rng, UniformRand, Zero};
     use ferveo_tdec::{
         test_common::setup_simple, PrivateDecryptionContextSimple,
-        PrivateKeyShare,
     };
     use rand_core::RngCore;
     use test_case::test_matrix;
 
     use crate::{
-        apply_updates_to_private_share, prepare_share_updates_for_recovery,
-        prepare_share_updates_for_refresh,
-        recover_share_from_updated_private_shares, test_common::*,
+        test_common::*, PrivateKeyShare, ShareRecoveryUpdate,
+        ShareRefreshUpdate, UpdatedPrivateKeyShare,
     };
 
-    fn make_new_share_fragments_for_recovery<R: RngCore>(
+    fn make_updated_private_key_shares<R: RngCore>(
         rng: &mut R,
         threshold: usize,
         x_r: &Fr,
         remaining_participants: &[PrivateDecryptionContextSimple<E>],
-    ) -> Vec<PrivateKeyShare<E>> {
+    ) -> Vec<UpdatedPrivateKeyShare<E>> {
         // Each participant prepares an update for each other participant
         // TODO: Extract as parameter
         let domain_points = remaining_participants[0]
@@ -152,36 +223,36 @@ mod tests_refresh {
         let share_updates = remaining_participants
             .iter()
             .map(|p| {
-                let deltas_i = prepare_share_updates_for_recovery::<E>(
-                    &domain_points,
-                    &h,
-                    x_r,
-                    threshold,
-                    rng,
-                );
+                let deltas_i =
+                    ShareRecoveryUpdate::make_share_updates_for_recovery(
+                        &domain_points,
+                        &h,
+                        x_r,
+                        threshold,
+                        rng,
+                    );
                 (p.index, deltas_i)
             })
             .collect::<HashMap<_, _>>();
 
         // Participants share updates and update their shares
-        let new_share_fragments: Vec<_> = remaining_participants
+        let updated_private_key_shares: Vec<_> = remaining_participants
             .iter()
             .map(|p| {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(p.index).unwrap())
+                    .map(|updates| updates.get(p.index).cloned().unwrap())
                     .collect();
 
                 // And updates their share
-                apply_updates_to_private_share::<E>(
-                    &p.private_key_share,
-                    &updates_for_participant,
-                )
+                // TODO: Remove wrapping after migrating to dkg based tests
+                PrivateKeyShare(p.private_key_share.clone())
+                    .make_updated_key_share(&updates_for_participant)
             })
             .collect();
 
-        new_share_fragments
+        updated_private_key_shares
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share recovery" algorithm, and the output is 1 new share.
@@ -205,14 +276,14 @@ mod tests_refresh {
             .domain;
         let original_private_key_share = selected_participant.private_key_share;
 
-        // Remove one participant from the contexts and all nested structures
+        // Remove the selected participant from the contexts and all nested structures
         let mut remaining_participants = contexts;
         for p in &mut remaining_participants {
             p.public_decryption_contexts.pop().unwrap();
         }
 
         // Each participant prepares an update for each other participant, and uses it to create a new share fragment
-        let new_share_fragments = make_new_share_fragments_for_recovery(
+        let updated_private_key_shares = make_updated_private_key_shares(
             rng,
             security_threshold,
             &x_r,
@@ -225,21 +296,22 @@ mod tests_refresh {
             .iter()
             .map(|ctxt| ctxt.domain)
             .collect::<Vec<_>>();
-        let new_private_key_share = recover_share_from_updated_private_shares(
-            &x_r,
-            &domain_points[..security_threshold],
-            &new_share_fragments[..security_threshold],
-        );
+        let new_private_key_share =
+            PrivateKeyShare::recover_share_from_updated_private_shares(
+                &x_r,
+                &domain_points[..security_threshold],
+                &updated_private_key_shares[..security_threshold],
+            );
 
         assert_eq!(new_private_key_share, original_private_key_share);
 
         // If we don't have enough private share updates, the resulting private share will be incorrect
-        assert_eq!(domain_points.len(), new_share_fragments.len());
+        assert_eq!(domain_points.len(), updated_private_key_shares.len());
         let incorrect_private_key_share =
-            recover_share_from_updated_private_shares(
+            PrivateKeyShare::recover_share_from_updated_private_shares(
                 &x_r,
                 &domain_points[..(security_threshold - 1)],
-                &new_share_fragments[..(security_threshold - 1)],
+                &updated_private_key_shares[..(security_threshold - 1)],
             );
 
         assert_ne!(incorrect_private_key_share, original_private_key_share);
@@ -270,7 +342,7 @@ mod tests_refresh {
         let x_r = ScalarField::rand(rng);
 
         // Each participant prepares an update for each other participant, and uses it to create a new share fragment
-        let new_share_fragments = make_new_share_fragments_for_recovery(
+        let share_recovery_fragmetns = make_updated_private_key_shares(
             rng,
             threshold,
             &x_r,
@@ -283,11 +355,12 @@ mod tests_refresh {
             .iter()
             .map(|ctxt| ctxt.domain)
             .collect::<Vec<_>>();
-        let new_private_key_share = recover_share_from_updated_private_shares(
-            &x_r,
-            &domain_points[..threshold],
-            &new_share_fragments[..threshold],
-        );
+        let recovered_private_key_share =
+            PrivateKeyShare::recover_share_from_updated_private_shares(
+                &x_r,
+                &domain_points[..threshold],
+                &share_recovery_fragmetns[..threshold],
+            );
 
         let mut private_shares = contexts
             .iter()
@@ -297,18 +370,23 @@ mod tests_refresh {
 
         // Finally, let's recreate the shared private key from some original shares and the recovered one
         domain_points.push(x_r);
-        private_shares.push(new_private_key_share);
+        private_shares.push(recovered_private_key_share);
+        // This is a workaround for a type mismatch - We need to convert the private shares to updated private shares
+        // This is just to test that we are able to recover the shared private key from the updated private shares
+        let updated_private_key_shares = private_shares
+            .iter()
+            .cloned()
+            .map(UpdatedPrivateKeyShare::new)
+            .collect::<Vec<_>>();
         let start_from = shares_num - threshold;
-        let new_shared_private_key = recover_share_from_updated_private_shares(
-            &ScalarField::zero(),
-            &domain_points[start_from..],
-            &private_shares[start_from..],
-        );
+        let new_shared_private_key =
+            PrivateKeyShare::recover_share_from_updated_private_shares(
+                &ScalarField::zero(),
+                &domain_points[start_from..],
+                &updated_private_key_shares[start_from..],
+            );
 
-        assert_eq!(
-            shared_private_key,
-            new_shared_private_key.private_key_share
-        );
+        assert_eq!(shared_private_key, new_shared_private_key);
     }
 
     /// Ñ parties (where t <= Ñ <= N) jointly execute a "share refresh" algorithm.
@@ -319,7 +397,7 @@ mod tests_refresh {
         let rng = &mut test_rng();
         let threshold = shares_num * 2 / 3;
 
-        let (_, shared_private_key, contexts) =
+        let (_, private_key_share, contexts) =
             setup_simple::<E>(threshold, shares_num, rng);
 
         let domain_points = &contexts[0]
@@ -333,12 +411,13 @@ mod tests_refresh {
         let share_updates = contexts
             .iter()
             .map(|p| {
-                let deltas_i = prepare_share_updates_for_refresh::<E>(
-                    domain_points,
-                    &h,
-                    threshold,
-                    rng,
-                );
+                let deltas_i =
+                    ShareRefreshUpdate::<E>::make_share_updates_for_refresh(
+                        domain_points,
+                        &h,
+                        threshold,
+                        rng,
+                    );
                 (p.index, deltas_i)
             })
             .collect::<HashMap<_, _>>();
@@ -350,27 +429,24 @@ mod tests_refresh {
                 // Current participant receives updates from other participants
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
-                    .map(|updates| *updates.get(p.index).unwrap())
+                    .map(|updates| updates.get(p.index).cloned().unwrap())
                     .collect();
 
-                // And updates their share
-                apply_updates_to_private_share::<E>(
-                    &p.private_key_share,
-                    &updates_for_participant,
-                )
+                // And creates a new, refreshed share
+                // TODO: Remove wrapping after migrating to dkg based tests
+                PrivateKeyShare(p.private_key_share.clone())
+                    .make_updated_key_share(&updates_for_participant)
             })
             .collect();
 
         // Finally, let's recreate the shared private key from the refreshed shares
-        let new_shared_private_key = recover_share_from_updated_private_shares(
-            &ScalarField::zero(),
-            &domain_points[..threshold],
-            &refreshed_shares[..threshold],
-        );
+        let new_shared_private_key =
+            PrivateKeyShare::recover_share_from_updated_private_shares(
+                &ScalarField::zero(),
+                &domain_points[..threshold],
+                &refreshed_shares[..threshold],
+            );
 
-        assert_eq!(
-            shared_private_key,
-            new_shared_private_key.private_key_share
-        );
+        assert_eq!(private_key_share, new_shared_private_key);
     }
 }
