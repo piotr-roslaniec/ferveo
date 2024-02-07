@@ -11,8 +11,8 @@ use serde_with::serde_as;
 
 use crate::{
     aggregate, assert_no_share_duplicates, AggregatedPvss, Error,
-    EthereumAddress, PubliclyVerifiableParams, PubliclyVerifiableSS, Result,
-    Validator,
+    EthereumAddress, PrivateKeyShare, PubliclyVerifiableParams,
+    PubliclyVerifiableSS, Result, Validator,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -216,13 +216,24 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         self.domain.elements().take(self.validators.len()).collect()
     }
 
-    /// `payload` is the content of the message
+    /// Return a private key for the share_index
+    pub fn get_private_key_share(
+        &self,
+        keypair: &ferveo_common::Keypair<E>,
+    ) -> Result<PrivateKeyShare<E>> {
+        // TODO: Use self.aggregate upon simplifying Message handling
+        let pvss_list = self.vss.values().cloned().collect::<Vec<_>>();
+        aggregate(&pvss_list)
+            .unwrap()
+            .decrypt_private_key_share(keypair, self.me.share_index)
+    }
+
     pub fn verify_message(
         &self,
         sender: &Validator<E>,
-        payload: &Message<E>,
+        message: &Message<E>,
     ) -> Result<()> {
-        match payload {
+        match message {
             Message::Deal(pvss)
                 if matches!(
                     self.state,
@@ -650,8 +661,8 @@ mod test_aggregation {
     use crate::{dkg::*, test_common::*, DkgState, Message};
 
     /// Test that if the security threshold is met, we can create a final key
-    #[test_case(4,4; "number of validators equal to the number of shares")]
-    #[test_case(4,6; "number of validators greater than the number of shares")]
+    #[test_case(4, 4; "number of validators equal to the number of shares")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
     fn test_aggregate(shares_num: u32, validators_num: u32) {
         let security_threshold = shares_num - 1;
         let (mut dkg, _) = setup_dealt_dkg_with_n_validators(

@@ -6,9 +6,9 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain, Polynomial,
 };
+use ferveo_common::Keypair;
 use ferveo_tdec::{
-    prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
-    DecryptionShareSimple,
+    CiphertextHeader, DecryptionSharePrecomputed, DecryptionShareSimple,
 };
 use itertools::Itertools;
 use rand::RngCore;
@@ -24,6 +24,7 @@ use crate::{
 };
 
 /// These are the blinded evaluations of shares of a single random polynomial
+// TODO: Are these really blinded like in tdec or encrypted?
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
@@ -302,82 +303,75 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     pub fn decrypt_private_key_share(
         &self,
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
+        validator_keypair: &Keypair<E>,
+        share_index: u32,
     ) -> Result<PrivateKeyShare<E>> {
         // Decrypt private key share https://nikkolasg.github.io/ferveo/pvss.html#validator-decryption-of-private-key-shares
-        let private_key_share = self
-            .shares
-            .get(share_index)
-            .ok_or(Error::InvalidShareIndex(share_index as u32))?
-            .mul(
-                validator_decryption_key
-                    .inverse()
-                    .expect("Validator decryption key must have an inverse"),
-            )
-            .into_affine();
-        // TODO: Consider adding a from trait to simplify this conversion
         let private_key_share =
-            ferveo_tdec::PrivateKeyShare { private_key_share };
-        Ok(PrivateKeyShare(private_key_share))
+            self.shares
+                .get(share_index as usize)
+                .ok_or(Error::InvalidShareIndex(share_index))?
+                .mul(
+                    validator_keypair.decryption_key.inverse().expect(
+                        "Validator decryption key must have an inverse",
+                    ),
+                )
+                .into_affine();
+        Ok(PrivateKeyShare(ferveo_tdec::PrivateKeyShare {
+            private_key_share,
+        }))
     }
 
+    /// Make a decryption share (simple variant) for a given ciphertext
+    /// With this method, we wrap the PrivateKeyShare method to avoid exposing the private key share
     pub fn make_decryption_share_simple(
         &self,
         ciphertext: &CiphertextHeader<E>,
         aad: &[u8],
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
+        validator_keypair: &Keypair<E>,
+        share_index: u32,
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
-        let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index)?;
-        DecryptionShareSimple::create(
-            validator_decryption_key,
-            &private_key_share.0,
-            ciphertext,
-            aad,
-            g_inv,
-        )
-        .map_err(|e| e.into())
+        self.decrypt_private_key_share(validator_keypair, share_index)?
+            .make_decryption_share_simple(
+                ciphertext,
+                aad,
+                validator_keypair,
+                g_inv,
+            )
     }
 
+    /// Make a decryption share (precomputed variant) for a given ciphertext
+    /// With this method, we wrap the PrivateKeyShare method to avoid exposing the private key share
     pub fn make_decryption_share_simple_precomputed(
         &self,
         ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
+        validator_keypair: &Keypair<E>,
+        share_index: u32,
         domain_points: &[E::ScalarField],
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
-        let private_key_share = self
-            .decrypt_private_key_share(validator_decryption_key, share_index)?;
-
-        // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
-        let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
-
-        DecryptionSharePrecomputed::new(
-            share_index,
-            validator_decryption_key,
-            &private_key_share.0,
-            ciphertext_header,
-            aad,
-            &lagrange_coeffs[share_index],
-            g_inv,
-        )
-        .map_err(|e| e.into())
+        self.decrypt_private_key_share(validator_keypair, share_index)?
+            .make_decryption_share_simple_precomputed(
+                ciphertext_header,
+                aad,
+                validator_keypair,
+                share_index,
+                domain_points,
+                g_inv,
+            )
     }
 
     pub fn make_updated_private_key_share(
         &self,
-        validator_decryption_key: &E::ScalarField,
-        share_index: usize,
+        validator_keypair: &Keypair<E>,
+        share_index: u32,
         share_updates: &[impl PrivateKeyShareUpdate<E>],
     ) -> Result<UpdatedPrivateKeyShare<E>> {
         // Retrieve the private key share and apply the updates
         Ok(self
-            .decrypt_private_key_share(validator_decryption_key, share_index)?
+            .decrypt_private_key_share(validator_keypair, share_index)?
             .make_updated_key_share(share_updates))
     }
 }

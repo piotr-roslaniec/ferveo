@@ -351,8 +351,8 @@ impl AggregatedTranscript {
         self.0.make_decryption_share_simple_precomputed(
             &ciphertext_header.0,
             aad,
-            &validator_keypair.decryption_key,
-            dkg.0.me.share_index as usize,
+            validator_keypair,
+            dkg.0.me.share_index,
             &dkg.0.domain_points(),
             &dkg.0.pvss_params.g_inv(),
         )
@@ -368,8 +368,8 @@ impl AggregatedTranscript {
         let share = self.0.make_decryption_share_simple(
             &ciphertext_header.0,
             aad,
-            &validator_keypair.decryption_key,
-            dkg.0.me.share_index as usize,
+            validator_keypair,
+            dkg.0.me.share_index,
             &dkg.0.pvss_params.g_inv(),
         )?;
         let domain_point = dkg.0.get_domain_point(dkg.0.me.share_index)?;

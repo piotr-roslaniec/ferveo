@@ -171,8 +171,8 @@ mod test_dkg_full {
                         .make_decryption_share_simple(
                             ciphertext_header,
                             aad,
-                            &validator_keypair.decryption_key,
-                            validator.share_index as usize,
+                            validator_keypair,
+                            validator.share_index,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -280,8 +280,8 @@ mod test_dkg_full {
                         .make_decryption_share_simple_precomputed(
                             &ciphertext.header().unwrap(),
                             AAD,
-                            &validator_keypair.decryption_key,
-                            validator.share_index as usize,
+                            validator_keypair,
+                            validator.share_index,
                             &domain_points,
                             &dkg.pvss_params.g_inv(),
                         )
@@ -305,7 +305,8 @@ mod test_dkg_full {
         assert_eq!(plaintext, MSG);
     }
 
-    #[test_case(4, 4; "number of validators equal to the number of shares")]
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
     #[test_case(4, 6; "number of validators greater than the number of shares")]
     fn test_dkg_simple_tdec_share_verification(
         shares_num: u32,
@@ -376,12 +377,21 @@ mod test_dkg_full {
         ));
     }
 
-    #[test]
-    fn test_dkg_simple_tdec_share_recovery() {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn test_dkg_simple_tdec_share_recovery(
+        shares_num: u32,
+        validators_num: u32,
+    ) {
         let rng = &mut test_rng();
+        let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) =
-            setup_dealt_dkg_with(SECURITY_THRESHOLD, SHARES_NUM);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let public_key = &dkg.public_key();
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
@@ -400,6 +410,7 @@ mod test_dkg_full {
         );
 
         // Remove one participant from the contexts and all nested structure
+        // TODO: Improve by removing a random participant and/or adding test cases
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
         let mut remaining_validators = dkg.validators.clone();
@@ -427,7 +438,7 @@ mod test_dkg_full {
                         &domain_points,
                         &dkg.pvss_params.h.into_affine(),
                         &x_r,
-                        dkg.dkg_params.security_threshold() as usize,
+                        dkg.dkg_params.security_threshold(),
                         rng,
                     );
                 (v_addr.clone(), deltas_i)
@@ -451,19 +462,18 @@ mod test_dkg_full {
                     .collect();
 
                 // Each validator uses their decryption key to update their share
-                let decryption_key = validator_keypairs
+                let validator_keypair = validator_keypairs
                     .get(validator.share_index as usize)
-                    .unwrap()
-                    .decryption_key;
+                    .unwrap();
 
                 // Creates updated private key shares
-                // TODO: Why not using dkg.aggregate()?
+                // TODO: Use self.aggregate upon simplifying Message handling
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .make_updated_private_key_share(
-                        &decryption_key,
-                        validator.share_index as usize,
+                        validator_keypair,
+                        validator.share_index,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()
@@ -488,7 +498,7 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
-                    // TODO: Why not using dkg.aggregate()?
+                    // TODO: Use self.aggregate upon simplifying Message handling
                     let pvss_list =
                         dkg.vss.values().cloned().collect::<Vec<_>>();
                     let pvss_aggregated = aggregate(&pvss_list).unwrap();
@@ -496,8 +506,8 @@ mod test_dkg_full {
                         .make_decryption_share_simple(
                             &ciphertext.header().unwrap(),
                             AAD,
-                            &validator_keypair.decryption_key,
-                            share_index,
+                            validator_keypair,
+                            share_index as u32,
                             &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
@@ -509,7 +519,7 @@ mod test_dkg_full {
         decryption_shares.push(
             DecryptionShareSimple::create(
                 &new_validator_decryption_key,
-                &recovered_key_share,
+                &recovered_key_share.0,
                 &ciphertext.header().unwrap(),
                 AAD,
                 &dkg.pvss_params.g_inv(),
@@ -518,14 +528,15 @@ mod test_dkg_full {
         );
 
         domain_points.push(x_r);
-        assert_eq!(domain_points.len(), SHARES_NUM as usize);
-        assert_eq!(decryption_shares.len(), SHARES_NUM as usize);
+        assert_eq!(domain_points.len(), validators_num as usize);
+        assert_eq!(decryption_shares.len(), validators_num as usize);
 
-        // Maybe parametrize this test with [1..] and [..threshold]
-        let domain_points = &domain_points[1..];
-        let decryption_shares = &decryption_shares[1..];
-        assert_eq!(domain_points.len(), SECURITY_THRESHOLD as usize);
-        assert_eq!(decryption_shares.len(), SECURITY_THRESHOLD as usize);
+        // TODO: Maybe parametrize this test with [1..] and [..threshold]
+        let domain_points = &domain_points[..security_threshold as usize];
+        let decryption_shares =
+            &decryption_shares[..security_threshold as usize];
+        assert_eq!(domain_points.len(), security_threshold as usize);
+        assert_eq!(decryption_shares.len(), security_threshold as usize);
 
         let lagrange = ferveo_tdec::prepare_combine_simple::<E>(domain_points);
         let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
@@ -539,12 +550,21 @@ mod test_dkg_full {
         );
     }
 
-    #[test]
-    fn test_dkg_simple_tdec_share_refreshing() {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn test_dkg_simple_tdec_share_refreshing(
+        shares_num: u32,
+        validators_num: u32,
+    ) {
         let rng = &mut test_rng();
+        let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) =
-            setup_dealt_dkg_with(SECURITY_THRESHOLD, SHARES_NUM);
+        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let public_key = &dkg.public_key();
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
@@ -571,7 +591,7 @@ mod test_dkg_full {
                     ShareRefreshUpdate::make_share_updates_for_refresh(
                         &dkg.domain_points(),
                         &dkg.pvss_params.h.into_affine(),
-                        dkg.dkg_params.security_threshold() as usize,
+                        dkg.dkg_params.security_threshold(),
                         rng,
                     );
                 (v_addr.clone(), deltas_i)
@@ -598,19 +618,18 @@ mod test_dkg_full {
                     .collect();
 
                 // Each validator uses their decryption key to update their share
-                let decryption_key = validator_keypairs
+                let validator_keypair = validator_keypairs
                     .get(validator.share_index as usize)
-                    .unwrap()
-                    .decryption_key;
+                    .unwrap();
 
                 // Creates updated private key shares
-                // TODO: Why not using dkg.aggregate()?
+                // TODO: Use self.aggregate upon simplifying Message handling
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
                     .make_updated_private_key_share(
-                        &decryption_key,
-                        validator.share_index as usize,
+                        validator_keypair,
+                        validator.share_index,
                         updates_for_participant.as_slice(),
                     )
                     .unwrap()
@@ -640,10 +659,10 @@ mod test_dkg_full {
                 .collect();
 
         let lagrange = ferveo_tdec::prepare_combine_simple::<E>(
-            &dkg.domain_points()[..SECURITY_THRESHOLD as usize],
+            &dkg.domain_points()[..security_threshold as usize],
         );
         let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
-            &decryption_shares[..SECURITY_THRESHOLD as usize],
+            &decryption_shares[..security_threshold as usize],
             &lagrange,
         );
 
