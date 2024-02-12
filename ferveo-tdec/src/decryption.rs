@@ -37,9 +37,6 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
         // C_i = dk_i^{-1} * U
         let checksum = ciphertext_header
             .commitment
-            // TODO: Should we panic here? I think we should since that would mean that the decryption key is invalid.
-            //   And so, the validator should not be able to create a decryption share.
-            //   And so, the validator should remake their keypair.
             .mul(
                 validator_decryption_key
                     .inverse()

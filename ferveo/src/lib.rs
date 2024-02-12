@@ -121,6 +121,10 @@ pub enum Error {
     /// The number of messages may not be greater than the number of validators
     #[error("Invalid aggregate verification parameters: number of validators {0}, number of messages: {1}")]
     InvalidAggregateVerificationParameters(u32, u32),
+
+    /// Validator not found in the DKG set of validators
+    #[error("Validator not found: {0}")]
+    UnknownValidator(EthereumAddress),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -146,7 +150,7 @@ mod test_dkg_full {
     use super::*;
     use crate::test_common::*;
 
-    fn make_shared_secret_simple_tdec(
+    pub fn create_shared_secret_simple_tdec(
         dkg: &PubliclyVerifiableDkg<E>,
         aad: &[u8],
         ciphertext_header: &ferveo_tdec::CiphertextHeader<E>,
@@ -168,7 +172,7 @@ mod test_dkg_full {
                         .get_validator(&validator_keypair.public_key())
                         .unwrap();
                     pvss_aggregated
-                        .make_decryption_share_simple(
+                        .create_decryption_share_simple(
                             ciphertext_header,
                             aad,
                             validator_keypair,
@@ -185,9 +189,6 @@ mod test_dkg_full {
             .take(decryption_shares.len())
             .collect::<Vec<_>>();
         assert_eq!(domain_points.len(), decryption_shares.len());
-
-        // TODO: Consider refactor this part into ferveo_tdec::combine_simple and expose it
-        //  as a public API in ferveo_tdec::api
 
         let lagrange_coeffs =
             ferveo_tdec::prepare_combine_simple::<E>(domain_points);
@@ -221,7 +222,7 @@ mod test_dkg_full {
         )
         .unwrap();
 
-        let (_, _, shared_secret) = make_shared_secret_simple_tdec(
+        let (_, _, shared_secret) = create_shared_secret_simple_tdec(
             &dkg,
             AAD,
             &ciphertext.header().unwrap(),
@@ -277,7 +278,7 @@ mod test_dkg_full {
                         .get_validator(&validator_keypair.public_key())
                         .unwrap();
                     pvss_aggregated
-                        .make_decryption_share_simple_precomputed(
+                        .create_decryption_share_simple_precomputed(
                             &ciphertext.header().unwrap(),
                             AAD,
                             validator_keypair,
@@ -330,7 +331,7 @@ mod test_dkg_full {
         .unwrap();
 
         let (pvss_aggregated, decryption_shares, _) =
-            make_shared_secret_simple_tdec(
+            create_shared_secret_simple_tdec(
                 &dkg,
                 AAD,
                 &ciphertext.header().unwrap(),
@@ -402,7 +403,7 @@ mod test_dkg_full {
         .unwrap();
 
         // Create an initial shared secret
-        let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
+        let (_, _, old_shared_secret) = create_shared_secret_simple_tdec(
             &dkg,
             AAD,
             &ciphertext.header().unwrap(),
@@ -410,14 +411,17 @@ mod test_dkg_full {
         );
 
         // Remove one participant from the contexts and all nested structure
-        // TODO: Improve by removing a random participant and/or adding test cases
         let removed_validator_addr =
             dkg.validators.keys().last().unwrap().clone();
         let mut remaining_validators = dkg.validators.clone();
         remaining_validators
             .remove(&removed_validator_addr)
             .unwrap();
-        // dkg.vss.remove(&removed_validator_addr); // TODO: Test whether it makes any difference
+
+        let mut remaining_validator_keypairs = validator_keypairs.clone();
+        remaining_validator_keypairs
+            .pop()
+            .expect("Should have a keypair");
 
         // Remember to remove one domain point too
         let mut domain_points = dkg.domain_points();
@@ -433,14 +437,13 @@ mod test_dkg_full {
         let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
-                let deltas_i =
-                    ShareRecoveryUpdate::make_share_updates_for_recovery(
-                        &domain_points,
-                        &dkg.pvss_params.h.into_affine(),
-                        &x_r,
-                        dkg.dkg_params.security_threshold(),
-                        rng,
-                    );
+                let deltas_i = ShareRecoveryUpdate::create_share_updates(
+                    &domain_points,
+                    &dkg.pvss_params.h.into_affine(),
+                    &x_r,
+                    dkg.dkg_params.security_threshold(),
+                    rng,
+                );
                 (v_addr.clone(), deltas_i)
             })
             .collect::<HashMap<_, _>>();
@@ -448,7 +451,6 @@ mod test_dkg_full {
         // Participants share updates and update their shares
 
         // Now, every participant separately:
-        // TODO: Move this logic outside tests (see #162, #163)
         let updated_shares: Vec<_> = remaining_validators
             .values()
             .map(|validator| {
@@ -471,7 +473,7 @@ mod test_dkg_full {
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
-                    .make_updated_private_key_share(
+                    .create_updated_private_key_share(
                         validator_keypair,
                         validator.share_index,
                         updates_for_participant.as_slice(),
@@ -489,10 +491,6 @@ mod test_dkg_full {
             );
 
         // Get decryption shares from remaining participants
-        let mut remaining_validator_keypairs = validator_keypairs;
-        remaining_validator_keypairs
-            .pop()
-            .expect("Should have a keypair");
         let mut decryption_shares: Vec<DecryptionShareSimple<E>> =
             remaining_validator_keypairs
                 .iter()
@@ -503,7 +501,7 @@ mod test_dkg_full {
                         dkg.vss.values().cloned().collect::<Vec<_>>();
                     let pvss_aggregated = aggregate(&pvss_list).unwrap();
                     pvss_aggregated
-                        .make_decryption_share_simple(
+                        .create_decryption_share_simple(
                             &ciphertext.header().unwrap(),
                             AAD,
                             validator_keypair,
@@ -575,7 +573,7 @@ mod test_dkg_full {
         .unwrap();
 
         // Create an initial shared secret
-        let (_, _, old_shared_secret) = make_shared_secret_simple_tdec(
+        let (_, _, old_shared_secret) = create_shared_secret_simple_tdec(
             &dkg,
             AAD,
             &ciphertext.header().unwrap(),
@@ -587,13 +585,12 @@ mod test_dkg_full {
             .validators
             .keys()
             .map(|v_addr| {
-                let deltas_i =
-                    ShareRefreshUpdate::make_share_updates_for_refresh(
-                        &dkg.domain_points(),
-                        &dkg.pvss_params.h.into_affine(),
-                        dkg.dkg_params.security_threshold(),
-                        rng,
-                    );
+                let deltas_i = ShareRefreshUpdate::create_share_updates(
+                    &dkg.domain_points(),
+                    &dkg.pvss_params.h.into_affine(),
+                    dkg.dkg_params.security_threshold(),
+                    rng,
+                );
                 (v_addr.clone(), deltas_i)
             })
             .collect::<HashMap<_, _>>();
@@ -601,7 +598,6 @@ mod test_dkg_full {
         // Participants share updates and update their shares
 
         // Now, every participant separately:
-        // TODO: Move this logic outside tests (see #162, #163)
         let updated_private_key_shares: Vec<_> = dkg
             .validators
             .values()
@@ -627,7 +623,7 @@ mod test_dkg_full {
                 let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
                 let pvss_aggregated = aggregate(&pvss_list).unwrap();
                 pvss_aggregated
-                    .make_updated_private_key_share(
+                    .create_updated_private_key_share(
                         validator_keypair,
                         validator.share_index,
                         updates_for_participant.as_slice(),
@@ -642,14 +638,15 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
+                    // In order to proceed with the decryption, we need to convert the updated private key shares
+                    let private_key_share = &updated_private_key_shares
+                        .get(share_index)
+                        .unwrap()
+                        .inner()
+                        .0;
                     DecryptionShareSimple::create(
                         &validator_keypair.decryption_key,
-                        // In order to proceed with the decryption, we need to convert the updated private key shares
-                        &updated_private_key_shares
-                            .get(share_index)
-                            .unwrap()
-                            .inner()
-                            .0,
+                        private_key_share,
                         &ciphertext.header().unwrap(),
                         AAD,
                         &dkg.pvss_params.g_inv(),

@@ -11,9 +11,11 @@ use serde_with::serde_as;
 
 use crate::{
     aggregate, assert_no_share_duplicates, AggregatedPvss, Error,
-    EthereumAddress, PrivateKeyShare, PubliclyVerifiableParams,
-    PubliclyVerifiableSS, Result, Validator,
+    EthereumAddress, PubliclyVerifiableParams, PubliclyVerifiableSS, Result,
+    Validator,
 };
+
+pub type DomainPoint<E> = <E as Pairing>::ScalarField;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DkgParams {
@@ -89,7 +91,7 @@ impl<E: Pairing> DkgState<E> {
     }
 }
 
-/// The DKG context that holds all of the local state for participating in the DKG
+/// The DKG context that holds all the local state for participating in the DKG
 // TODO: Consider removing Clone to avoid accidentally NOT-mutating state.
 //  Currently, we're assuming that the DKG is only mutated by the owner of the instance.
 //  Consider removing Clone after finalizing ferveo::api
@@ -116,13 +118,12 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         dkg_params: &DkgParams,
         me: &Validator<E>,
     ) -> Result<Self> {
+        assert_no_share_duplicates(validators)?;
+
         let domain = ark_poly::GeneralEvaluationDomain::<E::ScalarField>::new(
             validators.len(),
         )
         .expect("unable to construct domain");
-
-        assert_no_share_duplicates(validators)?;
-
         let validators: ValidatorsMap<E> = validators
             .iter()
             .map(|validator| (validator.address.clone(), validator.clone()))
@@ -165,7 +166,7 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         match self.state {
             DkgState::Sharing { .. } | DkgState::Dealt => {
                 let vss = PubliclyVerifiableSS::<E>::new(
-                    &E::ScalarField::rand(rng),
+                    &DomainPoint::<E>::rand(rng),
                     self,
                     rng,
                 )?;
@@ -203,29 +204,28 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
     }
 
     /// Return a domain point for the share_index
-    pub fn get_domain_point(&self, share_index: u32) -> Result<E::ScalarField> {
-        let domain_points = self.domain_points();
-        domain_points
+    pub fn get_domain_point(&self, share_index: u32) -> Result<DomainPoint<E>> {
+        self.domain_points()
             .get(share_index as usize)
             .ok_or_else(|| Error::InvalidShareIndex(share_index))
             .copied()
     }
 
     /// Return an appropriate amount of domain points for the DKG
-    pub fn domain_points(&self) -> Vec<E::ScalarField> {
+    pub fn domain_points(&self) -> Vec<DomainPoint<E>> {
         self.domain.elements().take(self.validators.len()).collect()
     }
 
-    /// Return a private key for the share_index
-    pub fn get_private_key_share(
-        &self,
-        keypair: &ferveo_common::Keypair<E>,
-    ) -> Result<PrivateKeyShare<E>> {
-        // TODO: Use self.aggregate upon simplifying Message handling
-        let pvss_list = self.vss.values().cloned().collect::<Vec<_>>();
-        aggregate(&pvss_list)
-            .unwrap()
-            .decrypt_private_key_share(keypair, self.me.share_index)
+    pub fn offboard_validator(
+        &mut self,
+        address: &EthereumAddress,
+    ) -> Result<Validator<E>> {
+        if let Some(validator) = self.validators.remove(address) {
+            self.vss.remove(address);
+            Ok(validator)
+        } else {
+            Err(Error::UnknownValidator(address.clone()))
+        }
     }
 
     pub fn verify_message(
@@ -274,9 +274,8 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         }
     }
 
-    /// After consensus has agreed to include a verified
-    /// message on the blockchain, we apply the chains
-    /// to the state machine
+    /// After consensus has agreed to include a verified message on the blockchain,
+    /// we apply the chains to the state machine
     pub fn apply_message(
         &mut self,
         sender: &Validator<E>,

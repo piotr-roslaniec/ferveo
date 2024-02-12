@@ -290,7 +290,7 @@ pub mod test_common {
         setup_simple::<E>(shares_num, shares_num, rng)
     }
 
-    pub fn make_shared_secret<E: Pairing>(
+    pub fn create_shared_secret<E: Pairing>(
         pub_contexts: &[PublicDecryptionContextSimple<E>],
         decryption_shares: &[DecryptionShareSimple<E>],
     ) -> SharedSecret<E> {
@@ -308,7 +308,7 @@ mod tests {
     use ark_std::{test_rng, UniformRand};
     use ferveo_common::{FromBytes, ToBytes};
 
-    use crate::test_common::{make_shared_secret, setup_simple, *};
+    use crate::test_common::{create_shared_secret, setup_simple, *};
 
     type E = ark_bls12_381::Bls12_381;
     type TargetField = <E as Pairing>::TargetField;
@@ -481,7 +481,7 @@ mod tests {
         let pub_contexts =
             contexts[0].public_decryption_contexts[..threshold].to_vec();
         let shared_secret =
-            make_shared_secret(&pub_contexts, &decryption_shares);
+            create_shared_secret(&pub_contexts, &decryption_shares);
 
         test_ciphertext_validation_fails(
             &msg,
@@ -495,7 +495,7 @@ mod tests {
         let decryption_shares = decryption_shares[..threshold - 1].to_vec();
         let pub_contexts = pub_contexts[..threshold - 1].to_vec();
         let shared_secret =
-            make_shared_secret(&pub_contexts, &decryption_shares);
+            create_shared_secret(&pub_contexts, &decryption_shares);
 
         let result =
             decrypt_with_shared_secret(&ciphertext, aad, &shared_secret, g_inv);

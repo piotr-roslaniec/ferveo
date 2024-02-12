@@ -460,7 +460,6 @@ impl Validator {
     }
 }
 
-// TODO: Consider removing and replacing with tuple
 #[derive(TryFromJsValue)]
 #[wasm_bindgen]
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::From)]

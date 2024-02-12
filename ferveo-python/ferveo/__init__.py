@@ -39,4 +39,5 @@ from ._ferveo import (
     DuplicatedShareIndex,
     NoTranscriptsToAggregate,
     InvalidAggregateVerificationParameters,
+    UnknownValidator,
 )

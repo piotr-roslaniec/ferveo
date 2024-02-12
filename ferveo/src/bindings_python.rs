@@ -120,7 +120,12 @@ impl From<FerveoPythonError> for PyErr {
                     InvalidAggregateVerificationParameters::new_err(format!(
                         "validators_num: {validators_num}, messages_num: {messages_num}"
                     ))
-                }
+                },
+                Error::UnknownValidator(validator) => {
+                    UnknownValidator::new_err(validator.to_string())
+                },
+                // Remember to create Python exceptions using `create_exception!` macro, and to register them in the
+                // `make_ferveo_py_module` function. You will have to update the `ferveo/__init__.{py, pyi}` files too.
             },
             _ => default(),
         }
@@ -168,6 +173,7 @@ create_exception!(
     InvalidAggregateVerificationParameters,
     PyValueError
 );
+create_exception!(exceptions, UnknownValidator, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -782,6 +788,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
         "InvalidAggregateVerificationParameters",
         py.get_type::<InvalidAggregateVerificationParameters>(),
     )?;
+    m.add("UnknownValidator", py.get_type::<UnknownValidator>())?;
 
     Ok(())
 }

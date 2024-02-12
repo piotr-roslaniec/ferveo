@@ -6,7 +6,7 @@ use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
     EvaluationDomain, Polynomial,
 };
-use ferveo_common::Keypair;
+use ferveo_common::{serialization, Keypair};
 use ferveo_tdec::{
     CiphertextHeader, DecryptionSharePrecomputed, DecryptionShareSimple,
 };
@@ -19,7 +19,7 @@ use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
     assert_no_share_duplicates, batch_to_projective_g1, batch_to_projective_g2,
-    Error, PVSSMap, PrivateKeyShare, PrivateKeyShareUpdate,
+    DomainPoint, Error, PVSSMap, PrivateKeyShare, PrivateKeyShareUpdate,
     PubliclyVerifiableDkg, Result, UpdatedPrivateKeyShare, Validator,
 };
 
@@ -68,16 +68,16 @@ impl<E: Pairing> Default for PubliclyVerifiableParams<E> {
 
 /// Secret polynomial used in the PVSS protocol
 /// We wrap this in a struct so that we can zeroize it after use
-pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<E::ScalarField>);
+pub struct SecretPolynomial<E: Pairing>(pub DensePolynomial<DomainPoint<E>>);
 
 impl<E: Pairing> SecretPolynomial<E> {
     pub fn new(
-        s: &E::ScalarField,
+        s: &DomainPoint<E>,
         degree: usize,
         rng: &mut impl RngCore,
     ) -> Self {
         // Our random polynomial, \phi(x) = s + \sum_{i=1}^{t-1} a_i x^i
-        let mut phi = DensePolynomial::<E::ScalarField>::rand(degree, rng);
+        let mut phi = DensePolynomial::<DomainPoint<E>>::rand(degree, rng);
         phi.coeffs[0] = *s; // setting the first coefficient to secret value
         Self(phi)
     }
@@ -107,16 +107,17 @@ impl<E: Pairing> ZeroizeOnDrop for SecretPolynomial<E> {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PubliclyVerifiableSS<E: Pairing, T = Unaggregated> {
     /// Used in Feldman commitment to the VSS polynomial, F = g^{\phi}
-    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
+    #[serde_as(as = "serialization::SerdeAs")]
     pub coeffs: Vec<E::G1Affine>,
 
     /// The shares to be dealt to each validator
-    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
-    // pub shares: Vec<ShareEncryptions<E>>, // TODO: Using a custom type instead of referring to E:G2Affine breaks the serialization
+    #[serde_as(as = "serialization::SerdeAs")]
+    // TODO: Using a custom type instead of referring to E:G2Affine breaks the serialization
+    // pub shares: Vec<ShareEncryptions<E>>,
     pub shares: Vec<E::G2Affine>,
 
     /// Proof of Knowledge
-    #[serde_as(as = "ferveo_common::serialization::SerdeAs")]
+    #[serde_as(as = "serialization::SerdeAs")]
     pub sigma: E::G2Affine,
 
     /// Marker struct to distinguish between aggregated and
@@ -172,7 +173,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
 
         // TODO: Cross check proof of knowledge check with the whitepaper; this check proves that there is a relationship between the secret and the pvss transcript
         // Sigma is a proof of knowledge of the secret, sigma = h^s
-        let sigma = E::G2Affine::generator().mul(*s).into(); //todo hash to curve
+        let sigma = E::G2Affine::generator().mul(*s).into(); // TODO: Use hash-to-curve here
         let vss = Self {
             coeffs,
             shares,
@@ -324,17 +325,18 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     /// Make a decryption share (simple variant) for a given ciphertext
     /// With this method, we wrap the PrivateKeyShare method to avoid exposing the private key share
-    pub fn make_decryption_share_simple(
+    // TODO: Consider deprecating to use PrivateKeyShare method directly
+    pub fn create_decryption_share_simple(
         &self,
-        ciphertext: &CiphertextHeader<E>,
+        ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_keypair: &Keypair<E>,
         share_index: u32,
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
         self.decrypt_private_key_share(validator_keypair, share_index)?
-            .make_decryption_share_simple(
-                ciphertext,
+            .create_decryption_share_simple(
+                ciphertext_header,
                 aad,
                 validator_keypair,
                 g_inv,
@@ -343,17 +345,18 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
 
     /// Make a decryption share (precomputed variant) for a given ciphertext
     /// With this method, we wrap the PrivateKeyShare method to avoid exposing the private key share
-    pub fn make_decryption_share_simple_precomputed(
+    // TODO: Consider deprecating to use PrivateKeyShare method directly
+    pub fn create_decryption_share_simple_precomputed(
         &self,
         ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_keypair: &Keypair<E>,
         share_index: u32,
-        domain_points: &[E::ScalarField],
+        domain_points: &[DomainPoint<E>],
         g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
         self.decrypt_private_key_share(validator_keypair, share_index)?
-            .make_decryption_share_simple_precomputed(
+            .create_decryption_share_simple_precomputed(
                 ciphertext_header,
                 aad,
                 validator_keypair,
@@ -363,7 +366,8 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             )
     }
 
-    pub fn make_updated_private_key_share(
+    // TODO: Consider deprecating to use PrivateKeyShare method directly
+    pub fn create_updated_private_key_share(
         &self,
         validator_keypair: &Keypair<E>,
         share_index: u32,
@@ -372,7 +376,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         // Retrieve the private key share and apply the updates
         Ok(self
             .decrypt_private_key_share(validator_keypair, share_index)?
-            .make_updated_key_share(share_updates))
+            .create_updated_key_share(share_updates))
     }
 }
 

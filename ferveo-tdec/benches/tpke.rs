@@ -550,7 +550,7 @@ pub fn bench_decryption_share_validity_checks(c: &mut Criterion) {
 //     for &shares_num in NUM_SHARES_CASES.iter() {
 //         let setup = SetupSimple::new(shares_num, msg_size, rng);
 //         let threshold = setup.shared.threshold;
-//         let polynomial = make_random_polynomial_with_root::<E>(
+//         let polynomial = create_random_polynomial_with_root::<E>(
 //             threshold - 1,
 //             &Fr::zero(),
 //             rng,

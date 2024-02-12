@@ -3,8 +3,11 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::One;
 use ark_std::UniformRand;
+use ferveo_common::serialization;
 use rand_core::RngCore;
-use zeroize::ZeroizeOnDrop;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Debug, Clone)]
 // TODO: Should we rename it to PublicKey or SharedPublicKey?
@@ -49,9 +52,13 @@ impl<E: Pairing> BlindedKeyShare<E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+#[serde_as]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Zeroize, ZeroizeOnDrop,
+)]
 pub struct PrivateKeyShare<E: Pairing> {
     // TODO: Replace with a tuple?
+    #[serde_as(as = "serialization::SerdeAs")]
     pub private_key_share: E::G2Affine,
 }
 
