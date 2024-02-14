@@ -11,13 +11,12 @@ pub use ferveo_tdec::api::{
     DecryptionSharePrecomputed, Fr, G1Affine, G1Prepared, G2Affine, SecretBox,
     E,
 };
-use ferveo_tdec::PublicKeyShare;
 use generic_array::{
     typenum::{Unsigned, U48},
     GenericArray,
 };
 use rand::{thread_rng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 #[cfg(feature = "bindings-python")]
@@ -26,7 +25,7 @@ use crate::bindings_python;
 use crate::bindings_wasm;
 pub use crate::EthereumAddress;
 use crate::{
-    do_verify_aggregation, DomainPoint, Error, Message, PVSSMap,
+    do_verify_aggregation, DomainPoint, Error, PVSSMap,
     PubliclyVerifiableParams, PubliclyVerifiableSS, Result,
 };
 
@@ -54,17 +53,11 @@ pub fn from_bytes<T: CanonicalDeserialize>(bytes: &[u8]) -> Result<T> {
 pub fn encrypt(
     message: SecretBox<Vec<u8>>,
     aad: &[u8],
-    pubkey: &DkgPublicKey,
+    public_key: &DkgPublicKey,
 ) -> Result<Ciphertext> {
-    let mut rng = rand::thread_rng();
-    let ciphertext = ferveo_tdec::api::encrypt(
-        message,
-        aad,
-        &PublicKeyShare {
-            public_key_share: pubkey.0,
-        },
-        &mut rng,
-    )?;
+    let mut rng = thread_rng();
+    let ciphertext =
+        ferveo_tdec::api::encrypt(message, aad, &public_key.0, &mut rng)?;
     Ok(Ciphertext(ciphertext))
 }
 
@@ -147,16 +140,19 @@ impl From<bindings_wasm::FerveoVariant> for FerveoVariant {
     }
 }
 
-#[serde_as]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
-    // TODO: Consider not using G1Affine directly here
-    #[serde_as(as = "serialization::SerdeAs")] pub(crate) G1Affine,
+    #[serde(bound(
+        serialize = "ferveo_tdec::PublicKeyShare<E>: Serialize",
+        deserialize = "ferveo_tdec::PublicKeyShare<E>: DeserializeOwned"
+    ))]
+    pub(crate) ferveo_tdec::PublicKeyShare<E>,
 );
 
+// TODO: Consider moving these implementation details to ferveo_tdec::PublicKeyShare
 impl DkgPublicKey {
     pub fn to_bytes(&self) -> Result<GenericArray<u8, U48>> {
-        let as_bytes = to_bytes(&self.0)?;
+        let as_bytes = to_bytes(&self.0 .0)?;
         Ok(GenericArray::<u8, U48>::from_slice(&as_bytes).to_owned())
     }
 
@@ -169,7 +165,8 @@ impl DkgPublicKey {
                         bytes.len(),
                     )
                 })?;
-        from_bytes(&bytes).map(DkgPublicKey)
+        let pk: G1Affine = from_bytes(&bytes)?;
+        Ok(DkgPublicKey(ferveo_tdec::PublicKeyShare(pk)))
     }
 
     pub fn serialized_size() -> usize {
@@ -179,9 +176,9 @@ impl DkgPublicKey {
     /// Generate a random DKG public key.
     /// Use this for testing only.
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         let g1 = G1Affine::rand(&mut rng);
-        Self(g1)
+        Self(ferveo_tdec::PublicKeyShare(g1))
     }
 }
 
@@ -222,43 +219,23 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
-    pub fn public_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.public_key().public_key_share)
-    }
-
     pub fn generate_transcript<R: RngCore>(
         &mut self,
         rng: &mut R,
     ) -> Result<Transcript> {
-        match self.0.share(rng) {
-            Ok(Message::Deal(transcript)) => Ok(transcript),
-            Err(e) => Err(e),
-            _ => Err(Error::InvalidDkgStateToDeal),
-        }
+        self.0.generate_transcript(rng)
     }
 
     pub fn aggregate_transcripts(
-        &mut self,
+        &self,
         messages: &[ValidatorMessage],
     ) -> Result<AggregatedTranscript> {
-        // We must use `deal` here instead of to produce AggregatedTranscript instead of simply
-        // creating an AggregatedTranscript from the messages, because `deal` also updates the
-        // internal state of the DKG.
-        // If we didn't do that, that would cause the DKG to produce incorrect decryption shares
-        // in the future.
-        // TODO: Remove this dependency on DKG state
-        // TODO: Avoid mutating current state here
-        for (validator, transcript) in messages {
-            self.0.deal(validator, transcript)?;
-        }
-        let pvss = messages
-            .iter()
-            .map(|(_, t)| t)
-            .cloned()
-            .collect::<Vec<PubliclyVerifiableSS<E>>>();
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss)?))
+        self.0
+            .aggregate_transcripts(messages)
+            .map(AggregatedTranscript)
     }
 
+    // TODO: Unused?
     pub fn public_params(&self) -> DkgPublicParameters {
         DkgPublicParameters {
             g1_inv: self.0.pvss_params.g_inv(),
@@ -283,18 +260,17 @@ fn make_pvss_map(messages: &[ValidatorMessage]) -> PVSSMap<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AggregatedTranscript(
-    pub(crate) PubliclyVerifiableSS<E, crate::Aggregated>,
-);
+pub struct AggregatedTranscript(crate::AggregatedTranscript<E>);
 
 impl AggregatedTranscript {
     pub fn new(messages: &[ValidatorMessage]) -> Result<Self> {
-        let pvss_list = messages
+        let transcripts: Vec<_> = messages
             .iter()
-            .map(|(_, t)| t)
-            .cloned()
-            .collect::<Vec<PubliclyVerifiableSS<E>>>();
-        Ok(AggregatedTranscript(crate::pvss::aggregate(&pvss_list)?))
+            .map(|(_, transcript)| transcript.clone())
+            .collect();
+        let aggregated_transcript =
+            crate::AggregatedTranscript::<E>::from_transcripts(&transcripts)?;
+        Ok(AggregatedTranscript(aggregated_transcript))
     }
 
     pub fn verify(
@@ -314,7 +290,7 @@ impl AggregatedTranscript {
             GeneralEvaluationDomain::<Fr>::new(validators_num as usize)
                 .expect("Unable to construct an evaluation domain");
 
-        let is_valid_optimistic = self.0.verify_optimistic();
+        let is_valid_optimistic = self.0.aggregate.verify_optimistic();
         if !is_valid_optimistic {
             return Err(Error::InvalidTranscriptAggregate);
         }
@@ -328,8 +304,8 @@ impl AggregatedTranscript {
 
         // This check also includes `verify_full`. See impl. for details.
         let is_valid = do_verify_aggregation(
-            &self.0.coeffs,
-            &self.0.shares,
+            &self.0.aggregate.coeffs,
+            &self.0.aggregate.shares,
             &pvss_params,
             &validators,
             &domain,
@@ -355,7 +331,7 @@ impl AggregatedTranscript {
                 dkg.0.dkg_params.security_threshold(),
             ));
         }
-        self.0.create_decryption_share_simple_precomputed(
+        self.0.aggregate.create_decryption_share_simple_precomputed(
             &ciphertext_header.0,
             aad,
             validator_keypair,
@@ -373,7 +349,7 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionShareSimple> {
-        let share = self.0.create_decryption_share_simple(
+        let share = self.0.aggregate.create_decryption_share_simple(
             &ciphertext_header.0,
             aad,
             validator_keypair,
@@ -394,10 +370,15 @@ impl AggregatedTranscript {
     ) -> Result<PrivateKeyShare> {
         Ok(PrivateKeyShare(
             self.0
+                .aggregate
                 .decrypt_private_key_share(validator_keypair, share_index)?
                 .0
                 .clone(),
         ))
+    }
+
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key)
     }
 }
 
@@ -406,7 +387,7 @@ impl AggregatedTranscript {
 pub struct DecryptionShareSimple {
     share: ferveo_tdec::api::DecryptionShareSimple,
     #[serde_as(as = "serialization::SerdeAs")]
-    domain_point: Fr,
+    domain_point: DomainPoint<E>,
 }
 
 // TODO: Deprecate?
@@ -450,8 +431,6 @@ pub fn combine_shares_simple(shares: &[DecryptionShareSimple]) -> SharedSecret {
 pub struct SharedSecret(pub ferveo_tdec::api::SharedSecret<E>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-// TODO: serde is failing to serialize E = ark_bls12_381::Bls12_381
-// pub struct ShareRecoveryUpdate(pub crate::refresh::ShareRecoveryUpdate<E>);
 pub struct ShareRecoveryUpdate(pub ferveo_tdec::PrivateKeyShare<E>);
 
 impl ShareRecoveryUpdate {
@@ -678,7 +657,7 @@ mod test_ferveo_api {
         let messages: Vec<_> = validators
             .iter()
             .map(|sender| {
-                let mut dkg = Dkg::new(
+                let dkg = Dkg::new(
                     tau,
                     shares_num,
                     security_threshold,
@@ -686,7 +665,7 @@ mod test_ferveo_api {
                     sender,
                 )
                 .unwrap();
-                (sender.clone(), dkg.generate_transcript(rng).unwrap())
+                (sender.clone(), dkg.0.generate_transcript(rng).unwrap())
             })
             .collect();
 
@@ -719,18 +698,16 @@ mod test_ferveo_api {
             validators_num,
         );
 
-        // Now that every validator holds a dkg instance and a transcript for every other validator,
-        // every validator can aggregate the transcripts
+        // Every validator can aggregate the transcripts
         let me = validators[0].clone();
-        let mut dkg =
+        let dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.public_key();
+        let dkg_public_key = pvss_aggregated.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext =
@@ -742,7 +719,7 @@ mod test_ferveo_api {
             izip!(&validators, &validator_keypairs)
                 .map(|(validator, validator_keypair)| {
                     // Each validator holds their own instance of DKG and creates their own aggregate
-                    let mut dkg = Dkg::new(
+                    let dkg = Dkg::new(
                         TAU,
                         shares_num,
                         security_threshold,
@@ -812,7 +789,7 @@ mod test_ferveo_api {
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
-        let mut dkg = Dkg::new(
+        let dkg = Dkg::new(
             TAU,
             shares_num,
             security_threshold,
@@ -820,12 +797,11 @@ mod test_ferveo_api {
             &validators[0],
         )
         .unwrap();
-
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let public_key = dkg.public_key();
+        let public_key = pvss_aggregated.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext =
@@ -836,7 +812,7 @@ mod test_ferveo_api {
             izip!(&validators, &validator_keypairs)
                 .map(|(validator, validator_keypair)| {
                     // Each validator holds their own instance of DKG and creates their own aggregate
-                    let mut dkg = Dkg::new(
+                    let dkg = Dkg::new(
                         TAU,
                         shares_num,
                         security_threshold,
@@ -907,10 +883,9 @@ mod test_ferveo_api {
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
         let me = validators[0].clone();
-        let mut dkg =
+        let dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-
         let good_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(good_aggregate.verify(validators_num, &messages).is_ok());
 
@@ -926,7 +901,7 @@ mod test_ferveo_api {
         ));
 
         // Should fail if no transcripts are provided
-        let mut dkg =
+        let dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
         assert!(matches!(
@@ -935,7 +910,7 @@ mod test_ferveo_api {
         ));
 
         // Not enough transcripts
-        let mut dkg =
+        let dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
         let not_enough_messages = &messages[..security_threshold as usize - 1];
@@ -947,19 +922,51 @@ mod test_ferveo_api {
             Err(Error::InvalidTranscriptAggregate)
         ));
 
+        // Duplicated transcripts
+        let message_with_duplicated_validator = (
+            // Duplicating the validator but with a different, valid transcript
+            messages[0].0.clone(),
+            messages[security_threshold as usize].1.clone(),
+        );
+        let mut messages_with_duplicates = messages.clone();
+        messages_with_duplicates.push(message_with_duplicated_validator);
+        // assert_eq!(messages_with_duplicates.len(), security_threshold as usize);
+        assert!(dkg
+            .aggregate_transcripts(&messages_with_duplicates)
+            .is_err());
+
+        // TODO: Transcripts are not hashable?
+        // let message_with_duplicated_transcript = (
+        //     // Duplicating the transcript but with a different, valid validator
+        //     validators[security_threshold as usize - 1].clone(),
+        //     messages[security_threshold as usize - 1].1.clone(),
+        // );
+        // let messages_with_duplicates = [
+        //     &messages[..(security_threshold - 1) as usize],
+        //     &[message_with_duplicated_transcript],
+        // ]
+        // .concat();
+        // assert_eq!(messages_with_duplicates.len(), security_threshold as usize);
+        // assert!(dkg
+        //     .aggregate_transcripts(&messages_with_duplicates)
+        //     .is_err());
+
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
         let mut dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let (bad_messages, _, _) = make_test_inputs(
-            rng,
-            TAU,
-            security_threshold,
-            shares_num,
-            validators_num,
+        let bad_message = (
+            // Reusing a good validator, but giving them a bad transcript
+            messages[security_threshold as usize - 1].0.clone(),
+            dkg.generate_transcript(rng).unwrap(),
         );
-        let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
+        let mixed_messages = [
+            &messages[..(security_threshold - 1) as usize],
+            &[bad_message],
+        ]
+        .concat();
+        assert_eq!(mixed_messages.len(), security_threshold as usize);
         let bad_aggregate = dkg.aggregate_transcripts(&mixed_messages).unwrap();
         assert!(matches!(
             bad_aggregate.verify(validators_num, &messages),
@@ -1058,7 +1065,7 @@ mod test_ferveo_api {
             shares_num,
             validators_num,
         );
-        let mut dkgs = validators
+        let dkgs = validators
             .iter()
             .map(|validator| {
                 Dkg::new(
@@ -1071,17 +1078,25 @@ mod test_ferveo_api {
                 .unwrap()
             })
             .collect::<Vec<_>>();
-        let pvss_aggregated = dkgs[0].aggregate_transcripts(&messages).unwrap();
+
+        // Creating a copy to avoiding accidentally changing DKG state
+        let mut dkg = dkgs[0].clone();
+        let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
         assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
 
         // Create an initial shared secret for testing purposes
-        let public_key = &dkgs[0].public_key();
+        let public_key = pvss_aggregated.public_key();
         let ciphertext =
-            encrypt(SecretBox::new(MSG.to_vec()), AAD, public_key).unwrap();
+            encrypt(SecretBox::new(MSG.to_vec()), AAD, &public_key).unwrap();
         let ciphertext_header = ciphertext.header().unwrap();
+        for (validator, transcript) in messages.iter() {
+            dkg.0
+                .vss
+                .insert(validator.address.clone(), transcript.clone());
+        }
         let (_, _, old_shared_secret) =
             crate::test_dkg_full::create_shared_secret_simple_tdec(
-                &dkgs[0].0,
+                &dkg.0,
                 AAD,
                 &ciphertext_header.0,
                 validator_keypairs.as_slice(),

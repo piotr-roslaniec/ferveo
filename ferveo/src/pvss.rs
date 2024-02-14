@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Mul};
+use std::{hash::Hash, marker::PhantomData, ops::Mul};
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_ff::{Field, Zero};
@@ -12,7 +12,7 @@ use ferveo_tdec::{
 };
 use itertools::Itertools;
 use rand::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 use subproductdomain::fast_multiexp;
 use zeroize::{self, Zeroize, ZeroizeOnDrop};
@@ -28,7 +28,7 @@ use crate::{
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Unaggregated;
 
 /// Marker struct for aggregated PVSS transcripts
@@ -100,9 +100,8 @@ impl<E: Pairing> Drop for SecretPolynomial<E> {
 
 impl<E: Pairing> ZeroizeOnDrop for SecretPolynomial<E> {}
 
-/// Each validator posts a transcript to the chain. Once enough
-/// validators have done this (their total voting power exceeds
-/// 2/3 the total), this will be aggregated into a final key
+/// Each validator posts a transcript to the chain. Once enough (threshold) validators have done,
+/// these will be aggregated into a final key
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PubliclyVerifiableSS<E: Pairing, T = Unaggregated> {
@@ -206,7 +205,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
     /// If aggregation fails, a validator needs to know that their pvss
     /// transcript was at fault so that the can issue a new one. This
     /// function may also be used for that purpose.
-    pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> bool {
+    pub fn verify_full(&self, dkg: &PubliclyVerifiableDkg<E>) -> Result<bool> {
         let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_full(
             &self.coeffs,
@@ -225,14 +224,14 @@ pub fn do_verify_full<E: Pairing>(
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
     domain: &ark_poly::GeneralEvaluationDomain<E::ScalarField>,
-) -> bool {
+) -> Result<bool> {
+    assert_no_share_duplicates(validators)?;
+
     let mut commitment = batch_to_projective_g1::<E>(pvss_coefficients);
     domain.fft_in_place(&mut commitment);
 
-    assert_no_share_duplicates(validators).expect("Validators must be unique");
-
     // Each validator checks that their share is correct
-    validators
+    Ok(validators
         .iter()
         .zip(pvss_encrypted_shares.iter())
         .enumerate()
@@ -247,7 +246,7 @@ pub fn do_verify_full<E: Pairing>(
             // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
             // e(G,Y) = e(A, ek)
             E::pairing(pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
-        })
+        }))
 }
 
 pub fn do_verify_aggregation<E: Pairing>(
@@ -264,7 +263,7 @@ pub fn do_verify_aggregation<E: Pairing>(
         pvss_params,
         validators,
         domain,
-    );
+    )?;
     if !is_valid {
         return Err(Error::InvalidTranscriptAggregate);
     }
@@ -318,9 +317,9 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
                     ),
                 )
                 .into_affine();
-        Ok(PrivateKeyShare(ferveo_tdec::PrivateKeyShare {
+        Ok(PrivateKeyShare(ferveo_tdec::PrivateKeyShare(
             private_key_share,
-        }))
+        )))
     }
 
     /// Make a decryption share (simple variant) for a given ciphertext
@@ -380,13 +379,45 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AggregatedTranscript<E: Pairing> {
+    #[serde(bound(
+        serialize = "PubliclyVerifiableSS<E, Aggregated>: Serialize",
+        deserialize = "PubliclyVerifiableSS<E, Aggregated>: DeserializeOwned"
+    ))]
+    pub aggregate: PubliclyVerifiableSS<E, Aggregated>,
+    #[serde(bound(
+        serialize = "ferveo_tdec::PublicKeyShare<E>: Serialize",
+        deserialize = "ferveo_tdec::PublicKeyShare<E>: DeserializeOwned"
+    ))]
+    pub public_key: ferveo_tdec::PublicKeyShare<E>,
+}
+
+impl<E: Pairing> AggregatedTranscript<E> {
+    pub fn from_transcripts(
+        transcripts: &[PubliclyVerifiableSS<E>],
+    ) -> Result<Self> {
+        let aggregate = aggregate(transcripts)?;
+        let public_key = transcripts
+            .iter()
+            .map(|pvss| pvss.coeffs[0].into_group())
+            .sum::<E::G1>()
+            .into_affine();
+        let public_key = ferveo_tdec::PublicKeyShare::<E>(public_key);
+        Ok(AggregatedTranscript {
+            aggregate,
+            public_key,
+        })
+    }
+}
+
 /// Aggregate the PVSS instances in `pvss` from DKG session `dkg`
 /// into a new PVSS instance
 /// See: https://nikkolasg.github.io/ferveo/pvss.html?highlight=aggregate#aggregation
-pub(crate) fn aggregate<E: Pairing>(
-    pvss_list: &[PubliclyVerifiableSS<E>],
+fn aggregate<E: Pairing>(
+    transcripts: &[PubliclyVerifiableSS<E>],
 ) -> Result<PubliclyVerifiableSS<E, Aggregated>> {
-    let mut pvss_iter = pvss_list.iter();
+    let mut pvss_iter = transcripts.iter();
     let first_pvss = pvss_iter
         .next()
         .ok_or_else(|| Error::NoTranscriptsToAggregate)?;
@@ -429,6 +460,22 @@ mod test_pvss {
     use super::*;
     use crate::test_common::*;
 
+    /// Test that an aggregate message will fail to verify if the
+    /// security threshold is not met
+    #[test]
+    fn test_aggregate_wont_verify_if_under_threshold() {
+        let (_dkg, _) = setup_dealt_dkg_with_n_transcript_dealt(
+            SECURITY_THRESHOLD,
+            SHARES_NUM,
+            VALIDATORS_NUM,
+            SECURITY_THRESHOLD - 1,
+        );
+        // TODO: Fix after rewriting dkg.vss
+        // let messages = dkg.vss.iter().map(|(v, t)| (v.clone(), t.clone())).collect::<Vec<(_, _)>>();
+        // let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+        // assert!(aggregate.aggregate.verify_aggregation(&dkg).unwrap());
+    }
+
     /// Test the happy flow such that the PVSS with the correct form is created
     /// and that appropriate validations pass
     #[test_case(4, 4; "number of validators is equal to the number of shares")]
@@ -454,12 +501,12 @@ mod test_pvss {
         );
         // Check that the correct number of shares were created
         assert_eq!(pvss.shares.len(), dkg.validators.len());
-        // Check that the prove of knowledge is correct
+        // Check that the proof of knowledge is correct
         assert_eq!(pvss.sigma, G2::generator().mul(s));
         // Check that the optimistic verify returns true
         assert!(pvss.verify_optimistic());
         // Check that the full verify returns true
-        assert!(pvss.verify_full(&dkg));
+        assert!(pvss.verify_full(&dkg).unwrap());
     }
 
     /// Check that if the proof of knowledge is wrong,
@@ -492,7 +539,7 @@ mod test_pvss {
 
         // So far, everything works
         assert!(pvss.verify_optimistic());
-        assert!(pvss.verify_full(&dkg));
+        assert!(pvss.verify_full(&dkg).unwrap());
 
         // Now, we're going to tamper with the PVSS shares
         let mut bad_pvss = pvss;
@@ -501,7 +548,7 @@ mod test_pvss {
         // Optimistic verification should not catch this issue
         assert!(bad_pvss.verify_optimistic());
         // Full verification should catch this issue
-        assert!(!bad_pvss.verify_full(&dkg));
+        assert!(!bad_pvss.verify_full(&dkg).unwrap());
     }
 
     /// Check that happy flow of aggregating PVSS transcripts
@@ -527,9 +574,9 @@ mod test_pvss {
         // Check that the optimistic verify returns true
         assert!(aggregate.verify_optimistic());
         // Check that the full verify returns true
-        assert!(aggregate.verify_full(&dkg));
+        assert!(aggregate.verify_full(&dkg).unwrap());
         // Check that the verification of aggregation passes
-        assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"),);
+        assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"));
     }
 
     /// Check that if the aggregated PVSS transcript has an

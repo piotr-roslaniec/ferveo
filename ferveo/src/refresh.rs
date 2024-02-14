@@ -37,12 +37,8 @@ impl<E: Pairing> PrivateKeyShare<E> {
     ) -> UpdatedPrivateKeyShare<E> {
         let updated_key_share = share_updates
             .iter()
-            .fold(self.0.private_key_share, |acc, delta| {
-                (acc + delta.inner().private_key_share).into()
-            });
-        let updated_key_share = InnerPrivateKeyShare {
-            private_key_share: updated_key_share,
-        };
+            .fold(self.0 .0, |acc, delta| (acc + delta.inner().0).into());
+        let updated_key_share = ferveo_tdec::PrivateKeyShare(updated_key_share);
         UpdatedPrivateKeyShare(updated_key_share)
     }
 
@@ -56,11 +52,9 @@ impl<E: Pairing> PrivateKeyShare<E> {
         // Interpolate new shares to recover y_r
         let lagrange = lagrange_basis_at::<E>(domain_points, x_r);
         let prods = zip_eq(updated_private_shares, lagrange)
-            .map(|(y_j, l)| y_j.0.private_key_share.mul(l));
+            .map(|(y_j, l)| y_j.0 .0.mul(l));
         let y_r = prods.fold(E::G2::zero(), |acc, y_j| acc + y_j);
-        PrivateKeyShare(ferveo_tdec::PrivateKeyShare {
-            private_key_share: y_r.into_affine(),
-        })
+        PrivateKeyShare(ferveo_tdec::PrivateKeyShare(y_r.into_affine()))
     }
 
     pub fn create_decryption_share_simple(
@@ -226,9 +220,7 @@ fn prepare_share_updates_with_root<E: Pairing>(
             let eval = d_i.evaluate(x_i);
             h.mul(eval).into_affine()
         })
-        .map(|p| InnerPrivateKeyShare {
-            private_key_share: p,
-        })
+        .map(ferveo_tdec::PrivateKeyShare)
         .collect()
 }
 

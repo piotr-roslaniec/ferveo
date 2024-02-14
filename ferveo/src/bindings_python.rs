@@ -58,8 +58,8 @@ impl From<FerveoPythonError> for PyErr {
                 Error::DuplicateDealer(dealer) => {
                     DuplicateDealer::new_err(dealer.to_string())
                 }
-                Error::InvalidPvssTranscript => {
-                    InvalidPvssTranscript::new_err("")
+                Error::InvalidPvssTranscript(validator_addr) => {
+                    InvalidPvssTranscript::new_err(validator_addr.to_string())
                 }
                 Error::InsufficientTranscriptsForAggregate(
                     expected,
@@ -124,6 +124,11 @@ impl From<FerveoPythonError> for PyErr {
                 Error::UnknownValidator(validator) => {
                     UnknownValidator::new_err(validator.to_string())
                 },
+                Error::TooManyTranscripts(expected, received) => {
+                    TooManyTranscripts::new_err(format!(
+                        "expected: {expected}, received: {received}"
+                    ))
+                }
                 // Remember to create Python exceptions using `create_exception!` macro, and to register them in the
                 // `make_ferveo_py_module` function. You will have to update the `ferveo/__init__.{py, pyi}` files too.
             },
@@ -174,6 +179,7 @@ create_exception!(
     PyValueError
 );
 create_exception!(exceptions, UnknownValidator, PyValueError);
+create_exception!(exceptions, TooManyTranscripts, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -516,11 +522,6 @@ impl Dkg {
         Ok(Self(dkg))
     }
 
-    #[getter]
-    pub fn public_key(&self) -> DkgPublicKey {
-        DkgPublicKey(self.0.public_key())
-    }
-
     pub fn generate_transcript(&mut self) -> PyResult<Transcript> {
         let rng = &mut thread_rng();
         let transcript = self
@@ -669,6 +670,11 @@ impl AggregatedTranscript {
             .map_err(FerveoPythonError::FerveoError)?;
         Ok(DecryptionShareSimple(decryption_share))
     }
+
+    #[getter]
+    pub fn public_key(&self) -> DkgPublicKey {
+        DkgPublicKey(self.0.public_key())
+    }
 }
 
 // Since adding functions in pyo3 requires a two-step process
@@ -789,6 +795,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
         py.get_type::<InvalidAggregateVerificationParameters>(),
     )?;
     m.add("UnknownValidator", py.get_type::<UnknownValidator>())?;
+    m.add("TooManyTranscripts", py.get_type::<TooManyTranscripts>())?;
 
     Ok(())
 }
@@ -883,7 +890,7 @@ mod test_ferveo_python {
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.public_key();
+        let dkg_public_key = pvss_aggregated.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext = encrypt(MSG.to_vec(), AAD, &dkg_public_key).unwrap();
@@ -961,7 +968,7 @@ mod test_ferveo_python {
             .unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = dkg.public_key();
+        let dkg_public_key = pvss_aggregated.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext = encrypt(MSG.to_vec(), AAD, &dkg_public_key).unwrap();

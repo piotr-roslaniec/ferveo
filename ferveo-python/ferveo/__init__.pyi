@@ -105,6 +105,7 @@ class DecryptionSharePrecomputed:
 
 @final
 class AggregatedTranscript:
+    public_key: DkgPublicKey
     def __init__(self, messages: Sequence[ValidatorMessage]): ...
     def verify(
         self, validators_num: int, messages: Sequence[ValidatorMessage]
@@ -221,4 +222,7 @@ class InvalidAggregateVerificationParameters(Exception):
     pass
 
 class UnknownValidator(Exception):
+    pass
+
+class TooManyTranscripts(Exception):
     pass

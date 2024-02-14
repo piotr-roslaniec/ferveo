@@ -40,4 +40,5 @@ from ._ferveo import (
     NoTranscriptsToAggregate,
     InvalidAggregateVerificationParameters,
     UnknownValidator,
+    TooManyTranscripts,
 )

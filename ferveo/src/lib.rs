@@ -59,8 +59,8 @@ pub enum Error {
     DuplicateDealer(EthereumAddress),
 
     /// DKG received an invalid transcript for which optimistic verification failed
-    #[error("DKG received an invalid transcript")]
-    InvalidPvssTranscript,
+    #[error("DKG received an invalid transcript from validator: {0}")]
+    InvalidPvssTranscript(EthereumAddress),
 
     /// Aggregation failed because the DKG did not receive enough PVSS transcripts
     #[error(
@@ -125,6 +125,14 @@ pub enum Error {
     /// Validator not found in the DKG set of validators
     #[error("Validator not found: {0}")]
     UnknownValidator(EthereumAddress),
+
+    /// Too many transcripts received by the DKG
+    #[error("Too many transcripts. Expected: {0}, got: {1}")]
+    TooManyTranscripts(u32, u32),
+    // TODO: Transcripts are not hashable?
+    // /// Received a duplicated transcript from a validator
+    // #[error("Received a duplicated transcript from validator: {0}")]
+    // DuplicateTranscript(EthereumAddress),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -156,13 +164,14 @@ mod test_dkg_full {
         ciphertext_header: &ferveo_tdec::CiphertextHeader<E>,
         validator_keypairs: &[Keypair<E>],
     ) -> (
-        PubliclyVerifiableSS<E, Aggregated>,
+        AggregatedTranscript<E>,
         Vec<DecryptionShareSimple<E>>,
         SharedSecret<E>,
     ) {
-        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
-        let pvss_aggregated = aggregate(&pvss_list).unwrap();
-        assert!(pvss_aggregated.verify_aggregation(dkg).is_ok());
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated =
+            AggregatedTranscript::from_transcripts(&transcripts).unwrap();
+        assert!(pvss_aggregated.aggregate.verify_aggregation(dkg).is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
@@ -172,6 +181,7 @@ mod test_dkg_full {
                         .get_validator(&validator_keypair.public_key())
                         .unwrap();
                     pvss_aggregated
+                        .aggregate
                         .create_decryption_share_simple(
                             ciphertext_header,
                             aad,
@@ -213,7 +223,10 @@ mod test_dkg_full {
             validators_num,
         );
 
-        let public_key = dkg.public_key();
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let public_key = AggregatedTranscript::from_transcripts(&transcripts)
+            .unwrap()
+            .public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
             AAD,
@@ -252,7 +265,11 @@ mod test_dkg_full {
             shares_num,
             validators_num,
         );
-        let public_key = dkg.public_key();
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_aggregated =
+            AggregatedTranscript::from_transcripts(&transcripts).unwrap();
+        pvss_aggregated.aggregate.verify_aggregation(&dkg).unwrap();
+        let public_key = pvss_aggregated.public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
             AAD,
@@ -261,9 +278,6 @@ mod test_dkg_full {
         )
         .unwrap();
 
-        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
-        let pvss_aggregated = aggregate(&pvss_list).unwrap();
-        pvss_aggregated.verify_aggregation(&dkg).unwrap();
         let domain_points = dkg
             .domain
             .elements()
@@ -278,6 +292,7 @@ mod test_dkg_full {
                         .get_validator(&validator_keypair.public_key())
                         .unwrap();
                     pvss_aggregated
+                        .aggregate
                         .create_decryption_share_simple_precomputed(
                             &ciphertext.header().unwrap(),
                             AAD,
@@ -321,7 +336,10 @@ mod test_dkg_full {
             shares_num,
             validators_num,
         );
-        let public_key = dkg.public_key();
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let public_key = AggregatedTranscript::from_transcripts(&transcripts)
+            .unwrap()
+            .public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
             AAD,
@@ -339,7 +357,7 @@ mod test_dkg_full {
             );
 
         izip!(
-            &pvss_aggregated.shares,
+            &pvss_aggregated.aggregate.shares,
             &validator_keypairs,
             &decryption_shares,
         )
@@ -361,7 +379,7 @@ mod test_dkg_full {
         let mut with_bad_decryption_share = decryption_share.clone();
         with_bad_decryption_share.decryption_share = TargetField::zero();
         assert!(!with_bad_decryption_share.verify(
-            &pvss_aggregated.shares[0],
+            &pvss_aggregated.aggregate.shares[0],
             &validator_keypairs[0].public_key().encryption_key,
             &dkg.pvss_params.h,
             &ciphertext,
@@ -371,7 +389,7 @@ mod test_dkg_full {
         let mut with_bad_checksum = decryption_share;
         with_bad_checksum.validator_checksum.checksum = G1Affine::zero();
         assert!(!with_bad_checksum.verify(
-            &pvss_aggregated.shares[0],
+            &pvss_aggregated.aggregate.shares[0],
             &validator_keypairs[0].public_key().encryption_key,
             &dkg.pvss_params.h,
             &ciphertext,
@@ -393,11 +411,14 @@ mod test_dkg_full {
             shares_num,
             validators_num,
         );
-        let public_key = &dkg.public_key();
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let public_key = AggregatedTranscript::from_transcripts(&transcripts)
+            .unwrap()
+            .public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
             AAD,
-            public_key,
+            &public_key,
             rng,
         )
         .unwrap();
@@ -469,10 +490,9 @@ mod test_dkg_full {
                     .unwrap();
 
                 // Creates updated private key shares
-                // TODO: Use self.aggregate upon simplifying Message handling
-                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
-                let pvss_aggregated = aggregate(&pvss_list).unwrap();
-                pvss_aggregated
+                AggregatedTranscript::from_transcripts(&transcripts)
+                    .unwrap()
+                    .aggregate
                     .create_updated_private_key_share(
                         validator_keypair,
                         validator.share_index,
@@ -496,11 +516,9 @@ mod test_dkg_full {
                 .iter()
                 .enumerate()
                 .map(|(share_index, validator_keypair)| {
-                    // TODO: Use self.aggregate upon simplifying Message handling
-                    let pvss_list =
-                        dkg.vss.values().cloned().collect::<Vec<_>>();
-                    let pvss_aggregated = aggregate(&pvss_list).unwrap();
-                    pvss_aggregated
+                    AggregatedTranscript::from_transcripts(&transcripts)
+                        .unwrap()
+                        .aggregate
                         .create_decryption_share_simple(
                             &ciphertext.header().unwrap(),
                             AAD,
@@ -563,11 +581,14 @@ mod test_dkg_full {
             shares_num,
             validators_num,
         );
-        let public_key = &dkg.public_key();
+        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let public_key = AggregatedTranscript::from_transcripts(&transcripts)
+            .unwrap()
+            .public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
             AAD,
-            public_key,
+            &public_key,
             rng,
         )
         .unwrap();
@@ -619,10 +640,9 @@ mod test_dkg_full {
                     .unwrap();
 
                 // Creates updated private key shares
-                // TODO: Use self.aggregate upon simplifying Message handling
-                let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
-                let pvss_aggregated = aggregate(&pvss_list).unwrap();
-                pvss_aggregated
+                AggregatedTranscript::from_transcripts(&transcripts)
+                    .unwrap()
+                    .aggregate
                     .create_updated_private_key_share(
                         validator_keypair,
                         validator.share_index,
