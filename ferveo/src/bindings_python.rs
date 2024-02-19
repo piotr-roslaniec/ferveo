@@ -129,6 +129,9 @@ impl From<FerveoPythonError> for PyErr {
                         "expected: {expected}, received: {received}"
                     ))
                 }
+                Error::DuplicateTranscript(validator) => {
+                    DuplicateTranscript::new_err(validator.to_string())
+                }
                 // Remember to create Python exceptions using `create_exception!` macro, and to register them in the
                 // `make_ferveo_py_module` function. You will have to update the `ferveo/__init__.{py, pyi}` files too.
             },
@@ -180,6 +183,7 @@ create_exception!(
 );
 create_exception!(exceptions, UnknownValidator, PyValueError);
 create_exception!(exceptions, TooManyTranscripts, PyValueError);
+create_exception!(exceptions, DuplicateTranscript, PyValueError);
 
 fn from_py_bytes<T: FromBytes>(bytes: &[u8]) -> PyResult<T> {
     T::from_bytes(bytes)
@@ -796,6 +800,7 @@ pub fn make_ferveo_py_module(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     )?;
     m.add("UnknownValidator", py.get_type::<UnknownValidator>())?;
     m.add("TooManyTranscripts", py.get_type::<TooManyTranscripts>())?;
+    m.add("DuplicateTranscript", py.get_type::<DuplicateTranscript>())?;
 
     Ok(())
 }

@@ -13,7 +13,7 @@ use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use zeroize::ZeroizeOnDrop;
 
-use crate::{DomainPoint, Error, Result};
+use crate::{DomainPoint, Error, PubliclyVerifiableParams, Result};
 
 // TODO: Rename refresh.rs to key_share.rs?
 
@@ -62,14 +62,14 @@ impl<E: Pairing> PrivateKeyShare<E> {
         ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_keypair: &Keypair<E>,
-        g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
+        let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
         DecryptionShareSimple::create(
             &validator_keypair.decryption_key,
             &self.0,
             ciphertext_header,
             aad,
-            g_inv,
+            &g_inv,
         )
         .map_err(|e| e.into())
     }

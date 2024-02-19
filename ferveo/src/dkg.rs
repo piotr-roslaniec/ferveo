@@ -76,8 +76,6 @@ pub struct PubliclyVerifiableDkg<E: Pairing> {
     pub dkg_params: DkgParams,
     pub pvss_params: PubliclyVerifiableParams<E>,
     pub validators: ValidatorsMap<E>,
-    // TODO: Remove vss?
-    pub vss: PVSSMap<E>,
     pub domain: ark_poly::GeneralEvaluationDomain<E::ScalarField>,
     pub me: Validator<E>,
 }
@@ -117,7 +115,6 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         Ok(Self {
             dkg_params: *dkg_params,
             pvss_params: PubliclyVerifiableParams::<E>::default(),
-            vss: PVSSMap::<E>::new(),
             domain,
             me: me.clone(),
             validators,
@@ -170,42 +167,26 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
         self.domain.elements().take(self.validators.len()).collect()
     }
 
-    /// Remove a validator from the DKG
-    pub fn offboard_validator(
-        &mut self,
-        address: &EthereumAddress,
-    ) -> Result<Validator<E>> {
-        if let Some(validator) = self.validators.remove(address) {
-            self.vss.remove(address);
-            Ok(validator)
-        } else {
-            Err(Error::UnknownValidator(address.clone()))
-        }
-    }
-
     /// Verify PVSS transcripts against the set of validators in the DKG
-    // TODO: Make private?
-    pub fn verify_transcripts(
+    fn verify_transcripts(
         &self,
         messages: &[ValidatorMessage<E>],
     ) -> Result<()> {
         let mut validator_set = HashSet::<EthereumAddress>::new();
-        // TODO: Transcripts are not hashable?
-        // let mut transcript_set = HashSet::<PubliclyVerifiableSS<E>>::new();
+        let mut transcript_set = HashSet::<PubliclyVerifiableSS<E>>::new();
         for (sender, transcript) in messages.iter() {
             let sender = &sender.address;
             if !self.validators.contains_key(sender) {
                 return Err(Error::UnknownDealer(sender.clone()));
             } else if validator_set.contains(sender) {
                 return Err(Error::DuplicateDealer(sender.clone()));
-                // } else if !transcript_set.contains(transcript) {
-                //     return Err(Error::DuplicateTranscript(sender.clone()));
+            } else if transcript_set.contains(transcript) {
+                return Err(Error::DuplicateTranscript(sender.clone()));
             } else if !transcript.verify_optimistic() {
                 return Err(Error::InvalidPvssTranscript(sender.clone()));
-            } else {
-                validator_set.insert(sender.clone());
-                // transcript_set.insert(sender.clone());
             }
+            validator_set.insert(sender.clone());
+            transcript_set.insert(transcript.clone());
         }
 
         if validator_set.len() > self.validators.len() {
@@ -214,12 +195,12 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
                 validator_set.len() as u32,
             ));
         }
-        // if transcript_set.len() > self.validators.len() {
-        //     return Err(Error::TooManyTranscripts(
-        //         self.validators.len() as u32,
-        //         transcript_set.len() as u32,
-        //     ));
-        // }
+        if transcript_set.len() > self.validators.len() {
+            return Err(Error::TooManyTranscripts(
+                self.validators.len() as u32,
+                transcript_set.len() as u32,
+            ));
+        }
 
         Ok(())
     }
@@ -360,8 +341,7 @@ mod test_aggregation {
     /// Test that if the security threshold is met, we can create a final key
     #[test_case(4, 4; "number of validators equal to the number of shares")]
     #[test_case(4, 6; "number of validators greater than the number of shares")]
-    fn test_aggregate(shares_num: u32, _validators_num: u32) {
-        let _security_threshold = shares_num - 1;
+    fn test_aggregate(_shares_num: u32, _validators_num: u32) {
         let rng = &mut ark_std::test_rng();
         let (dkg, _) = setup_dkg(0);
         let all_messages = make_messages(rng, &dkg);

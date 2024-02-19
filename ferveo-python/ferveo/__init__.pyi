@@ -226,3 +226,6 @@ class UnknownValidator(Exception):
 
 class TooManyTranscripts(Exception):
     pass
+
+class DuplicateTranscript(Exception):
+    pass

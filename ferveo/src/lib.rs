@@ -129,10 +129,10 @@ pub enum Error {
     /// Too many transcripts received by the DKG
     #[error("Too many transcripts. Expected: {0}, got: {1}")]
     TooManyTranscripts(u32, u32),
-    // TODO: Transcripts are not hashable?
-    // /// Received a duplicated transcript from a validator
-    // #[error("Received a duplicated transcript from validator: {0}")]
-    // DuplicateTranscript(EthereumAddress),
+
+    /// Received a duplicated transcript from a validator
+    #[error("Received a duplicated transcript from validator: {0}")]
+    DuplicateTranscript(EthereumAddress),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -163,15 +163,18 @@ mod test_dkg_full {
         aad: &[u8],
         ciphertext_header: &ferveo_tdec::CiphertextHeader<E>,
         validator_keypairs: &[Keypair<E>],
+        transcripts: &[PubliclyVerifiableSS<E>],
     ) -> (
         AggregatedTranscript<E>,
         Vec<DecryptionShareSimple<E>>,
         SharedSecret<E>,
     ) {
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
         let pvss_aggregated =
-            AggregatedTranscript::from_transcripts(&transcripts).unwrap();
-        assert!(pvss_aggregated.aggregate.verify_aggregation(dkg).is_ok());
+            AggregatedTranscript::from_transcripts(transcripts).unwrap();
+        assert!(pvss_aggregated
+            .aggregate
+            .verify_aggregation(dkg, transcripts)
+            .is_ok());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
@@ -187,7 +190,6 @@ mod test_dkg_full {
                             aad,
                             validator_keypair,
                             validator.share_index,
-                            &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
                 })
@@ -217,13 +219,14 @@ mod test_dkg_full {
         let rng = &mut test_rng();
 
         let security_threshold = shares_num / 2 + 1;
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
-            security_threshold,
-            shares_num,
-            validators_num,
-        );
-
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, validator_keypairs, messages) =
+            setup_dealt_dkg_with_n_validators(
+                security_threshold,
+                shares_num,
+                validators_num,
+            );
+        let transcripts =
+            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -240,6 +243,7 @@ mod test_dkg_full {
             AAD,
             &ciphertext.header().unwrap(),
             validator_keypairs.as_slice(),
+            &transcripts,
         );
 
         let plaintext = ferveo_tdec::decrypt_with_shared_secret(
@@ -260,15 +264,20 @@ mod test_dkg_full {
 
         // In precomputed variant, threshold must be equal to shares_num
         let security_threshold = shares_num;
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
-            security_threshold,
-            shares_num,
-            validators_num,
-        );
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, validator_keypairs, messangers) =
+            setup_dealt_dkg_with_n_validators(
+                security_threshold,
+                shares_num,
+                validators_num,
+            );
+        let transcripts =
+            messangers.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
         let pvss_aggregated =
             AggregatedTranscript::from_transcripts(&transcripts).unwrap();
-        pvss_aggregated.aggregate.verify_aggregation(&dkg).unwrap();
+        pvss_aggregated
+            .aggregate
+            .verify_aggregation(&dkg, &transcripts)
+            .unwrap();
         let public_key = pvss_aggregated.public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
@@ -331,12 +340,14 @@ mod test_dkg_full {
         let rng = &mut test_rng();
         let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
-            security_threshold,
-            shares_num,
-            validators_num,
-        );
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, validator_keypairs, messages) =
+            setup_dealt_dkg_with_n_validators(
+                security_threshold,
+                shares_num,
+                validators_num,
+            );
+        let transcripts =
+            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -354,6 +365,7 @@ mod test_dkg_full {
                 AAD,
                 &ciphertext.header().unwrap(),
                 validator_keypairs.as_slice(),
+                &transcripts,
             );
 
         izip!(
@@ -406,12 +418,14 @@ mod test_dkg_full {
         let rng = &mut test_rng();
         let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
-            security_threshold,
-            shares_num,
-            validators_num,
-        );
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, validator_keypairs, messages) =
+            setup_dealt_dkg_with_n_validators(
+                security_threshold,
+                shares_num,
+                validators_num,
+            );
+        let transcripts =
+            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -429,6 +443,7 @@ mod test_dkg_full {
             AAD,
             &ciphertext.header().unwrap(),
             validator_keypairs.as_slice(),
+            &transcripts,
         );
 
         // Remove one participant from the contexts and all nested structure
@@ -524,7 +539,6 @@ mod test_dkg_full {
                             AAD,
                             validator_keypair,
                             share_index as u32,
-                            &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
                 })
@@ -576,12 +590,14 @@ mod test_dkg_full {
         let rng = &mut test_rng();
         let security_threshold = shares_num / 2 + 1;
 
-        let (dkg, validator_keypairs) = setup_dealt_dkg_with_n_validators(
-            security_threshold,
-            shares_num,
-            validators_num,
-        );
-        let transcripts = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, validator_keypairs, messages) =
+            setup_dealt_dkg_with_n_validators(
+                security_threshold,
+                shares_num,
+                validators_num,
+            );
+        let transcripts =
+            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -599,6 +615,7 @@ mod test_dkg_full {
             AAD,
             &ciphertext.header().unwrap(),
             validator_keypairs.as_slice(),
+            &transcripts,
         );
 
         // Each participant prepares an update for each other participant

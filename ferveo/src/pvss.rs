@@ -19,7 +19,7 @@ use zeroize::{self, Zeroize, ZeroizeOnDrop};
 
 use crate::{
     assert_no_share_duplicates, batch_to_projective_g1, batch_to_projective_g2,
-    DomainPoint, Error, PVSSMap, PrivateKeyShare, PrivateKeyShareUpdate,
+    DomainPoint, Error, PrivateKeyShare, PrivateKeyShareUpdate,
     PubliclyVerifiableDkg, Result, UpdatedPrivateKeyShare, Validator,
 };
 
@@ -28,7 +28,7 @@ use crate::{
 pub type ShareEncryptions<E> = <E as Pairing>::G2Affine;
 
 /// Marker struct for unaggregated PVSS transcripts
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Unaggregated;
 
 /// Marker struct for aggregated PVSS transcripts
@@ -122,6 +122,15 @@ pub struct PubliclyVerifiableSS<E: Pairing, T = Unaggregated> {
     /// Marker struct to distinguish between aggregated and
     /// non aggregated PVSS transcripts
     phantom: PhantomData<T>,
+}
+
+// Manually implementing Hash trait because of the PhantomData
+impl<E: Pairing> Hash for PubliclyVerifiableSS<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.coeffs.hash(state);
+        self.shares.hash(state);
+        self.sigma.hash(state);
+    }
 }
 
 impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
@@ -255,7 +264,7 @@ pub fn do_verify_aggregation<E: Pairing>(
     pvss_params: &PubliclyVerifiableParams<E>,
     validators: &[Validator<E>],
     domain: &ark_poly::GeneralEvaluationDomain<E::ScalarField>,
-    vss: &PVSSMap<E>,
+    pvss: &[PubliclyVerifiableSS<E>],
 ) -> Result<bool> {
     let is_valid = do_verify_full(
         pvss_agg_coefficients,
@@ -269,10 +278,9 @@ pub fn do_verify_aggregation<E: Pairing>(
     }
 
     // Now, we verify that the aggregated PVSS transcript is a valid aggregation
-    let mut y = E::G1::zero();
-    for pvss in vss.values() {
-        y += pvss.coeffs[0].into_group();
-    }
+    let y = pvss
+        .iter()
+        .fold(E::G1::zero(), |acc, pvss| acc + pvss.coeffs[0].into_group());
     if y.into_affine() == pvss_agg_coefficients[0] {
         Ok(true)
     } else {
@@ -289,6 +297,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     pub fn verify_aggregation(
         &self,
         dkg: &PubliclyVerifiableDkg<E>,
+        pvss: &[PubliclyVerifiableSS<E>],
     ) -> Result<bool> {
         let validators = dkg.validators.values().cloned().collect::<Vec<_>>();
         do_verify_aggregation(
@@ -297,7 +306,7 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
             &dkg.pvss_params,
             &validators,
             &dkg.domain,
-            &dkg.vss,
+            pvss,
         )
     }
 
@@ -331,14 +340,12 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         aad: &[u8],
         validator_keypair: &Keypair<E>,
         share_index: u32,
-        g_inv: &E::G1Prepared,
     ) -> Result<DecryptionShareSimple<E>> {
         self.decrypt_private_key_share(validator_keypair, share_index)?
             .create_decryption_share_simple(
                 ciphertext_header,
                 aad,
                 validator_keypair,
-                g_inv,
             )
     }
 
@@ -464,16 +471,16 @@ mod test_pvss {
     /// security threshold is not met
     #[test]
     fn test_aggregate_wont_verify_if_under_threshold() {
-        let (_dkg, _) = setup_dealt_dkg_with_n_transcript_dealt(
+        let (dkg, _, messages) = setup_dealt_dkg_with_n_transcript_dealt(
             SECURITY_THRESHOLD,
             SHARES_NUM,
             VALIDATORS_NUM,
             SECURITY_THRESHOLD - 1,
         );
-        // TODO: Fix after rewriting dkg.vss
-        // let messages = dkg.vss.iter().map(|(v, t)| (v.clone(), t.clone())).collect::<Vec<(_, _)>>();
-        // let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-        // assert!(aggregate.aggregate.verify_aggregation(&dkg).unwrap());
+        let pvss_list =
+            messages.iter().map(|(_, pvss)| pvss).cloned().collect_vec();
+        let aggregate = aggregate(&pvss_list).unwrap();
+        assert!(aggregate.verify_aggregation(&dkg, &pvss_list).unwrap());
     }
 
     /// Test the happy flow such that the PVSS with the correct form is created
@@ -484,7 +491,7 @@ mod test_pvss {
         let rng = &mut ark_std::test_rng();
         let security_threshold = shares_num - 1;
 
-        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+        let (dkg, _, _) = setup_dealt_dkg_with_n_validators(
             security_threshold,
             shares_num,
             validators_num,
@@ -557,12 +564,13 @@ mod test_pvss {
     #[test_case(4, 6; "number of validators is greater than the number of shares")]
     fn test_aggregate_pvss(shares_num: u32, validators_num: u32) {
         let security_threshold = shares_num - 1;
-        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+        let (dkg, _, messages) = setup_dealt_dkg_with_n_validators(
             security_threshold,
             shares_num,
             validators_num,
         );
-        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let pvss_list =
+            messages.iter().map(|(_, pvss)| pvss).cloned().collect_vec();
         let aggregate = aggregate(&pvss_list).unwrap();
         // Check that a polynomial of the correct degree was created
         assert_eq!(
@@ -576,25 +584,27 @@ mod test_pvss {
         // Check that the full verify returns true
         assert!(aggregate.verify_full(&dkg).unwrap());
         // Check that the verification of aggregation passes
-        assert!(aggregate.verify_aggregation(&dkg).expect("Test failed"));
+        assert!(aggregate
+            .verify_aggregation(&dkg, &pvss_list)
+            .expect("Test failed"));
     }
 
     /// Check that if the aggregated PVSS transcript has an
     /// incorrect constant term, the verification fails
     #[test]
     fn test_verify_aggregation_fails_if_constant_term_wrong() {
-        let (dkg, _) = setup_dealt_dkg();
-        let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+        let (dkg, _, messages) = setup_dealt_dkg();
+        let pvss_list =
+            messages.iter().map(|(_, pvss)| pvss).cloned().collect_vec();
         let mut aggregated = aggregate(&pvss_list).unwrap();
         while aggregated.coeffs[0] == G1::zero() {
-            let (dkg, _) = setup_dkg(0);
-            let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
+            let (_dkg, _) = setup_dkg(0);
             aggregated = aggregate(&pvss_list).unwrap();
         }
         aggregated.coeffs[0] = G1::zero();
         assert_eq!(
             aggregated
-                .verify_aggregation(&dkg)
+                .verify_aggregation(&dkg, &pvss_list)
                 .expect_err("Test failed")
                 .to_string(),
             "Transcript aggregate doesn't match the received PVSS instances"

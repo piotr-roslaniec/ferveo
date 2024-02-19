@@ -9,7 +9,7 @@ use rand::{seq::SliceRandom, Rng};
 
 use crate::{
     DkgParams, EthereumAddress, PubliclyVerifiableDkg, PubliclyVerifiableSS,
-    Validator,
+    Validator, ValidatorMessage,
 };
 
 pub type ScalarField = <E as Pairing>::ScalarField;
@@ -77,10 +77,16 @@ pub fn setup_dkg(my_validator_index: usize) -> TestSetup {
     )
 }
 
+pub type DealtTestSetup = (
+    PubliclyVerifiableDkg<E>,
+    Vec<Keypair<E>>,
+    Vec<ValidatorMessage<E>>,
+);
+
 /// Set up a dkg with enough pvss transcripts to meet the threshold
 ///
 /// The correctness of this function is tested in the module [`crate::dkg::test_dealing`]
-pub fn setup_dealt_dkg() -> TestSetup {
+pub fn setup_dealt_dkg() -> DealtTestSetup {
     setup_dealt_dkg_with(SECURITY_THRESHOLD, SHARES_NUM)
 }
 
@@ -89,7 +95,7 @@ pub fn setup_dealt_dkg() -> TestSetup {
 pub fn setup_dealt_dkg_with(
     security_threshold: u32,
     shares_num: u32,
-) -> TestSetup {
+) -> DealtTestSetup {
     setup_dealt_dkg_with_n_validators(
         security_threshold,
         shares_num,
@@ -101,7 +107,7 @@ pub fn setup_dealt_dkg_with_n_validators(
     security_threshold: u32,
     shares_num: u32,
     validators_num: u32,
-) -> TestSetup {
+) -> DealtTestSetup {
     setup_dealt_dkg_with_n_transcript_dealt(
         security_threshold,
         shares_num,
@@ -129,11 +135,12 @@ pub fn setup_dealt_dkg_with_n_transcript_dealt(
     shares_num: u32,
     validators_num: u32,
     transcripts_to_use: u32,
-) -> TestSetup {
+) -> DealtTestSetup {
     let rng = &mut ark_std::test_rng();
 
     // Gather everyone's transcripts
-    let mut transcripts: Vec<_> = (0..validators_num)
+    // Use only the first `transcripts_to_use` transcripts
+    let mut transcripts: Vec<_> = (0..transcripts_to_use)
         .map(|my_index| {
             let (dkg, _) = setup_dkg_for_n_validators(
                 security_threshold,
@@ -148,23 +155,13 @@ pub fn setup_dealt_dkg_with_n_transcript_dealt(
         .collect();
 
     // Create a test DKG instance
-    let (mut dkg, keypairs) = setup_dkg_for_n_validators(
+    let (dkg, keypairs) = setup_dkg_for_n_validators(
         security_threshold,
         shares_num,
         0,
         validators_num,
     );
-
     // The ordering of messages should not matter
     transcripts.shuffle(rng);
-    // Use only the first `transcripts_to_use` transcripts
-    transcripts
-        .iter()
-        .take(transcripts_to_use as usize)
-        .for_each(|(sender, message)| {
-            // TODO: How to do this in user-facing API?
-            // TODO: just return transcripts after getting rid of the dkg.vss
-            dkg.vss.insert(sender.address.clone(), message.clone());
-        });
-    (dkg, keypairs)
+    (dkg, keypairs, transcripts)
 }

@@ -41,4 +41,5 @@ from ._ferveo import (
     InvalidAggregateVerificationParameters,
     UnknownValidator,
     TooManyTranscripts,
+    DuplicateTranscript,
 )
