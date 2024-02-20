@@ -36,8 +36,8 @@ pub type Transcript = PubliclyVerifiableSS<E>;
 pub type ValidatorMessage = (Validator, Transcript);
 
 // Normally, we would use a custom trait for this, but we can't because
-// the arkworks will not let us create a blanket implementation for G1Affine
-// and Fr types. So instead, we're using this shared utility function:
+// the `arkworks` will not let us create a blanket implementation for G1Affine
+// and `Fr` types. So instead, we're using this shared utility function:
 pub fn to_bytes<T: CanonicalSerialize>(item: &T) -> Result<Vec<u8>> {
     let mut writer = Vec::new();
     item.serialize_compressed(&mut writer)?;
@@ -356,9 +356,7 @@ impl AggregatedTranscript {
         Ok(PrivateKeyShare(
             self.0
                 .aggregate
-                .decrypt_private_key_share(validator_keypair, share_index)?
-                .0
-                .clone(),
+                .decrypt_private_key_share(validator_keypair, share_index)?,
         ))
     }
 
@@ -426,7 +424,7 @@ impl ShareRecoveryUpdate {
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ShareRefreshUpdate(pub ferveo_tdec::PrivateKeyShare<E>);
+pub struct ShareRefreshUpdate(pub crate::ShareRefreshUpdate<E>);
 
 impl ShareRefreshUpdate {
     pub fn create_share_updates(dkg: &Dkg) -> Result<Vec<ShareRefreshUpdate>> {
@@ -437,8 +435,8 @@ impl ShareRefreshUpdate {
             dkg.0.dkg_params.security_threshold(),
             rng,
         )
-        .iter()
-        .map(|update| ShareRefreshUpdate(update.0.clone()))
+        .into_iter()
+        .map(ShareRefreshUpdate)
         .collect();
         Ok(updates)
     }
@@ -454,11 +452,11 @@ impl ShareRefreshUpdate {
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UpdatedPrivateKeyShare(pub ferveo_tdec::PrivateKeyShare<E>);
+pub struct UpdatedPrivateKeyShare(pub crate::UpdatedPrivateKeyShare<E>);
 
 impl UpdatedPrivateKeyShare {
     pub fn into_private_key_share(self) -> PrivateKeyShare {
-        PrivateKeyShare(self.0)
+        PrivateKeyShare(self.0.inner())
     }
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         bincode::serialize(self).map_err(|e| e.into())
@@ -469,9 +467,8 @@ impl UpdatedPrivateKeyShare {
     }
 }
 
-#[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrivateKeyShare(pub ferveo_tdec::PrivateKeyShare<E>);
+pub struct PrivateKeyShare(pub crate::PrivateKeyShare<E>);
 
 impl PrivateKeyShare {
     pub fn create_updated_private_key_share_for_recovery(
@@ -480,12 +477,12 @@ impl PrivateKeyShare {
     ) -> Result<UpdatedPrivateKeyShare> {
         let share_updates: Vec<_> = share_updates
             .iter()
-            .map(|update| crate::refresh::ShareRecoveryUpdate(update.0.clone()))
+            .cloned()
+            .map(|update| crate::refresh::ShareRecoveryUpdate(update.0))
             .collect();
         // TODO: Remove this wrapping after figuring out serde_as
-        let updated_key_share = crate::PrivateKeyShare(self.0.clone())
-            .create_updated_key_share(&share_updates);
-        Ok(UpdatedPrivateKeyShare(updated_key_share.0.clone()))
+        let updated_key_share = self.0.create_updated_key_share(&share_updates);
+        Ok(UpdatedPrivateKeyShare(updated_key_share))
     }
 
     pub fn create_updated_private_key_share_for_refresh(
@@ -494,11 +491,11 @@ impl PrivateKeyShare {
     ) -> Result<UpdatedPrivateKeyShare> {
         let share_updates: Vec<_> = share_updates
             .iter()
-            .map(|update| crate::refresh::ShareRefreshUpdate(update.0.clone()))
+            .cloned()
+            .map(|update| update.0)
             .collect();
-        let updated_key_share = crate::PrivateKeyShare(self.0.clone())
-            .create_updated_key_share(&share_updates);
-        Ok(UpdatedPrivateKeyShare(updated_key_share.0.clone()))
+        let updated_key_share = self.0.create_updated_key_share(&share_updates);
+        Ok(UpdatedPrivateKeyShare(updated_key_share))
     }
 
     /// Recover a private key share from updated private key shares
@@ -509,8 +506,8 @@ impl PrivateKeyShare {
     ) -> Result<PrivateKeyShare> {
         let updated_shares: Vec<_> = updated_shares
             .iter()
-            // TODO: Remove this wrapping after figuring out serde_as
-            .map(|s| crate::refresh::UpdatedPrivateKeyShare(s.0.clone()))
+            .cloned()
+            .map(|updated| updated.0)
             .collect();
         let share =
             crate::PrivateKeyShare::recover_share_from_updated_private_shares(
@@ -518,7 +515,7 @@ impl PrivateKeyShare {
                 domain_points,
                 &updated_shares[..],
             );
-        Ok(PrivateKeyShare(share.0.clone()))
+        Ok(PrivateKeyShare(share))
     }
 
     /// Make a decryption share (simple variant) for a given ciphertext
@@ -529,12 +526,11 @@ impl PrivateKeyShare {
         validator_keypair: &Keypair,
         aad: &[u8],
     ) -> Result<DecryptionShareSimple> {
-        let share = crate::PrivateKeyShare(self.0.clone())
-            .create_decryption_share_simple(
-                &ciphertext_header.0,
-                aad,
-                validator_keypair,
-            )?;
+        let share = self.0.create_decryption_share_simple(
+            &ciphertext_header.0,
+            aad,
+            validator_keypair,
+        )?;
         let domain_point = dkg.0.get_domain_point(dkg.0.me.share_index)?;
         Ok(DecryptionShareSimple {
             share,
@@ -552,15 +548,14 @@ impl PrivateKeyShare {
         domain_points: &[DomainPoint<E>],
     ) -> Result<DecryptionSharePrecomputed> {
         let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
-        let share = crate::PrivateKeyShare(self.0.clone())
-            .create_decryption_share_simple_precomputed(
-                &ciphertext_header.0,
-                aad,
-                validator_keypair,
-                share_index,
-                domain_points,
-                &g_inv,
-            )?;
+        let share = self.0.create_decryption_share_simple_precomputed(
+            &ciphertext_header.0,
+            aad,
+            validator_keypair,
+            share_index,
+            domain_points,
+            &g_inv,
+        )?;
         Ok(share)
     }
 
