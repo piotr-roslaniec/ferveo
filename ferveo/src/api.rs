@@ -143,13 +143,13 @@ impl From<bindings_wasm::FerveoVariant> for FerveoVariant {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DkgPublicKey(
     #[serde(bound(
-        serialize = "ferveo_tdec::PublicKeyShare<E>: Serialize",
-        deserialize = "ferveo_tdec::PublicKeyShare<E>: DeserializeOwned"
+        serialize = "ferveo_tdec::PublicKey<E>: Serialize",
+        deserialize = "ferveo_tdec::PublicKey<E>: DeserializeOwned"
     ))]
-    pub(crate) ferveo_tdec::PublicKeyShare<E>,
+    pub(crate) ferveo_tdec::PublicKey<E>,
 );
 
-// TODO: Consider moving these implementation details to ferveo_tdec::PublicKeyShare
+// TODO: Consider moving these implementation details to ferveo_tdec::PublicKey
 impl DkgPublicKey {
     pub fn to_bytes(&self) -> Result<GenericArray<u8, U48>> {
         let as_bytes = to_bytes(&self.0 .0)?;
@@ -166,7 +166,7 @@ impl DkgPublicKey {
                     )
                 })?;
         let pk: G1Affine = from_bytes(&bytes)?;
-        Ok(DkgPublicKey(ferveo_tdec::PublicKeyShare(pk)))
+        Ok(DkgPublicKey(ferveo_tdec::PublicKey(pk)))
     }
 
     pub fn serialized_size() -> usize {
@@ -178,7 +178,7 @@ impl DkgPublicKey {
     pub fn random() -> Self {
         let mut rng = thread_rng();
         let g1 = G1Affine::rand(&mut rng);
-        Self(ferveo_tdec::PublicKeyShare(g1))
+        Self(ferveo_tdec::PublicKey(g1))
     }
 }
 

@@ -77,7 +77,7 @@ pub mod test_common {
         shares_num: usize,
         rng: &mut impl RngCore,
     ) -> (
-        PublicKeyShare<E>,
+        PublicKey<E>,
         PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextFast<E>>,
     ) {
@@ -157,7 +157,7 @@ pub mod test_common {
             });
             public_contexts.push(PublicDecryptionContextFast::<E> {
                 domain: *domain,
-                public_key_share: PublicKeyShare::<E>(*public),
+                public_key: PublicKey::<E>(*public),
                 blinded_key_share: blinded_key_shares,
                 lagrange_n_0: *domain,
                 h_inv: E::G2Prepared::from(-h.into_group()),
@@ -168,7 +168,7 @@ pub mod test_common {
         }
 
         (
-            PublicKeyShare(pubkey.into()),
+            PublicKey(pubkey.into()),
             PrivateKeyShare(privkey.into()),
             private_contexts,
         )
@@ -179,7 +179,7 @@ pub mod test_common {
         shares_num: usize,
         rng: &mut impl rand::Rng,
     ) -> (
-        PublicKeyShare<E>,
+        PublicKey<E>,
         PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextSimple<E>>,
     ) {
@@ -245,7 +245,7 @@ pub mod test_common {
             });
             public_contexts.push(PublicDecryptionContextSimple::<E> {
                 domain: *domain,
-                public_key_share: PublicKeyShare::<E>(*public),
+                public_key: PublicKey::<E>(*public),
                 blinded_key_share,
                 h,
                 validator_public_key: h.mul(b),
@@ -256,7 +256,7 @@ pub mod test_common {
         }
 
         (
-            PublicKeyShare(pubkey.into()),
+            PublicKey(pubkey.into()),
             PrivateKeyShare(privkey.into()),
             private_contexts,
         )
@@ -266,7 +266,7 @@ pub mod test_common {
         shares_num: usize,
         rng: &mut impl rand::Rng,
     ) -> (
-        PublicKeyShare<E>,
+        PublicKey<E>,
         PrivateKeyShare<E>,
         Vec<PrivateDecryptionContextSimple<E>>,
     ) {

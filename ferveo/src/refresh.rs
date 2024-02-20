@@ -122,7 +122,6 @@ impl<E: Pairing> UpdatedPrivateKeyShare<E> {
     }
 }
 
-// TODO: Replace with an into trait?
 /// Trait for types that can be used to update a private key share.
 pub trait PrivateKeyShareUpdate<E: Pairing> {
     fn inner(&self) -> &InnerPrivateKeyShare<E>;

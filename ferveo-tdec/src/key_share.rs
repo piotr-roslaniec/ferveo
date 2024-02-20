@@ -11,8 +11,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[serde_as]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-// TODO: Should we rename it to PublicKey or SharedPublicKey?
-pub struct PublicKeyShare<E: Pairing>(
+pub struct PublicKey<E: Pairing>(
     #[serde_as(as = "serialization::SerdeAs")] pub E::G1Affine, // A_{i, \omega_i}
 );
 
@@ -25,15 +24,14 @@ pub struct BlindedKeyShare<E: Pairing> {
 impl<E: Pairing> BlindedKeyShare<E> {
     pub fn verify_blinding<R: RngCore>(
         &self,
-        public_key_share: &PublicKeyShare<E>,
+        public_key: &PublicKey<E>,
         rng: &mut R,
     ) -> bool {
         let g = E::G1Affine::generator();
         let alpha = E::ScalarField::rand(rng);
 
-        let alpha_a = E::G1Prepared::from(
-            g + public_key_share.0.mul(alpha).into_affine(),
-        );
+        let alpha_a =
+            E::G1Prepared::from(g + public_key.0.mul(alpha).into_affine());
 
         // \sum_i(Y_i)
         let alpha_z = E::G2Prepared::from(
