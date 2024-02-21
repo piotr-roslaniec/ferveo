@@ -154,6 +154,7 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
             .values()
             .map(|validator| {
                 // ek_{i}^{eval_i}, i = validator index
+                // TODO: Replace with regular, single-element exponentiation
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
                     &[evals[validator.share_index as usize]], // one share per validator
@@ -399,9 +400,9 @@ pub(crate) fn aggregate<E: Pairing>(
 
     let mut shares = batch_to_projective_g2::<E>(&first_pvss.shares);
 
-    // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
+    // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
-    // Aggregating is just adding the corresponding values in PVSS instances, so PVSS_i = PVSS_(i-1)  PVSS_i
+    // Aggregating is just adding the corresponding values in PVSS instances, so PVSS = PVSS + PVSS_i
     for next_pvss in pvss_iter {
         sigma = (sigma + next_pvss.sigma).into();
         coeffs

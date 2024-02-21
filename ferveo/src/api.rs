@@ -272,7 +272,9 @@ fn make_pvss_map(messages: &[ValidatorMessage]) -> PVSSMap<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AggregatedTranscript(PubliclyVerifiableSS<E, crate::Aggregated>);
+pub struct AggregatedTranscript(
+    pub(crate) PubliclyVerifiableSS<E, crate::Aggregated>,
+);
 
 impl AggregatedTranscript {
     pub fn new(messages: &[ValidatorMessage]) -> Result<Self> {
@@ -689,16 +691,19 @@ mod test_ferveo_api {
         // for every test case
 
         // Should fail if the number of validators is less than the number of messages
-        assert!(good_aggregate
-            .verify(messages.len() as u32 - 1, &messages)
-            .is_err());
+        assert!(matches!(
+            good_aggregate.verify(messages.len() as u32 - 1, &messages),
+            Err(Error::InvalidAggregateVerificationParameters(_, _))
+        ));
 
         // Should fail if no transcripts are provided
         let mut dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let result = dkg.aggregate_transcripts(&[]);
-        assert!(result.is_err());
+        assert!(matches!(
+            dkg.aggregate_transcripts(&[]),
+            Err(Error::NoTranscriptsToAggregate)
+        ));
 
         // Not enough transcripts
         let mut dkg =
@@ -708,8 +713,10 @@ mod test_ferveo_api {
         assert!(not_enough_messages.len() < security_threshold as usize);
         let insufficient_aggregate =
             dkg.aggregate_transcripts(not_enough_messages).unwrap();
-        let result = insufficient_aggregate.verify(validators_num, &messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            insufficient_aggregate.verify(validators_num, &messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
 
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
@@ -725,8 +732,10 @@ mod test_ferveo_api {
         );
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = dkg.aggregate_transcripts(&mixed_messages).unwrap();
-        let result = bad_aggregate.verify(validators_num, &messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            bad_aggregate.verify(validators_num, &messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
     }
 
     #[test_case(4, 4; "number of shares (validators) is a power of 2")]
@@ -761,21 +770,27 @@ mod test_ferveo_api {
         // Test negative cases
 
         // Should fail if the number of validators is less than the number of messages
-        assert!(good_aggregate
-            .verify(messages.len() as u32 - 1, messages)
-            .is_err());
+        assert!(matches!(
+            good_aggregate.verify(messages.len() as u32 - 1, messages),
+            Err(Error::InvalidAggregateVerificationParameters(_, _))
+        ));
 
         // Should fail if no transcripts are provided
-        let result = AggregatedTranscript::new(&[]);
-        assert!(result.is_err());
+        assert!(matches!(
+            AggregatedTranscript::new(&[]),
+            Err(Error::NoTranscriptsToAggregate)
+        ));
 
         // Not enough transcripts
         let not_enough_messages = &messages[..security_threshold as usize - 1];
         assert!(not_enough_messages.len() < security_threshold as usize);
         let insufficient_aggregate =
             AggregatedTranscript::new(not_enough_messages).unwrap();
-        let result = insufficient_aggregate.verify(validators_num, messages);
-        assert!(result.is_err());
+        let _result = insufficient_aggregate.verify(validators_num, messages);
+        assert!(matches!(
+            insufficient_aggregate.verify(validators_num, messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
 
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
@@ -788,7 +803,9 @@ mod test_ferveo_api {
         );
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = AggregatedTranscript::new(&mixed_messages).unwrap();
-        let result = bad_aggregate.verify(validators_num, messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            bad_aggregate.verify(validators_num, messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
     }
 }
