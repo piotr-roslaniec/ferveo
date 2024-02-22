@@ -5,6 +5,7 @@ from ferveo import (
     combine_decryption_shares_simple,
     combine_decryption_shares_precomputed,
     decrypt_with_shared_secret,
+    AggregatedTranscript,
     Keypair,
     Validator,
     ValidatorMessage,
@@ -37,18 +38,29 @@ def combine_shares_for_variant(v: FerveoVariant, decryption_shares):
         raise ValueError("Unknown variant")
 
 
-def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_to_use):
+def scenario_for_variant(
+    variant: FerveoVariant, shares_num, validators_num, threshold, shares_to_use
+):
     if variant not in [FerveoVariant.Simple, FerveoVariant.Precomputed]:
         raise ValueError("Unknown variant: " + variant)
 
+    if validators_num < shares_num:
+        raise ValueError("validators_num must be >= shares_num")
+
+    if variant == FerveoVariant.Precomputed and shares_to_use != validators_num:
+        raise ValueError(
+            "In precomputed variant, shares_to_use must be equal to validators_num"
+        )
+
     tau = 1
-    validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
+    validator_keypairs = [Keypair.random() for _ in range(0, validators_num)]
     validators = [
         Validator(gen_eth_addr(i), keypair.public_key(), i)
         for i, keypair in enumerate(validator_keypairs)
     ]
-    validators.sort(key=lambda v: v.address)
 
+    # Each validator holds their own DKG instance and generates a transcript every
+    # validator, including themselves
     messages = []
     for sender in validators:
         dkg = Dkg(
@@ -60,6 +72,7 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
         )
         messages.append(ValidatorMessage(sender, dkg.generate_transcript()))
 
+    # Both client and server should be able to verify the aggregated transcript
     dkg = Dkg(
         tau=tau,
         shares_num=shares_num,
@@ -67,18 +80,23 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
         validators=validators,
         me=validators[0],
     )
-    pvss_aggregated = dkg.aggregate_transcripts(messages)
-    assert pvss_aggregated.verify(shares_num, messages)
+    server_aggregate = dkg.aggregate_transcripts(messages)
+    assert server_aggregate.verify(validators_num, messages)
 
-    dkg_pk_bytes = bytes(dkg.public_key)
-    dkg_pk = DkgPublicKey.from_bytes(dkg_pk_bytes)
+    client_aggregate = AggregatedTranscript(messages)
+    assert client_aggregate.verify(validators_num, messages)
 
+    # Client creates a ciphertext and requests decryption shares from validators
     msg = "abc".encode()
     aad = "my-aad".encode()
-    ciphertext = encrypt(msg, aad, dkg_pk)
+    ciphertext = encrypt(msg, aad, dkg.public_key)
 
+    # Having aggregated the transcripts, the validators can now create decryption shares
     decryption_shares = []
     for validator, validator_keypair in zip(validators, validator_keypairs):
+        assert validator.public_key == validator_keypair.public_key()
+        print("validator: ", validator.share_index)
+
         dkg = Dkg(
             tau=tau,
             shares_num=shares_num,
@@ -87,15 +105,17 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
             me=validator,
         )
         pvss_aggregated = dkg.aggregate_transcripts(messages)
-        assert pvss_aggregated.verify(shares_num, messages)
+        assert pvss_aggregated.verify(validators_num, messages)
 
         decryption_share = decryption_share_for_variant(variant, pvss_aggregated)(
             dkg, ciphertext.header, aad, validator_keypair
         )
         decryption_shares.append(decryption_share)
 
-    decryption_shares = decryption_shares[:shares_to_use]
+    # We are limiting the number of decryption shares to use for testing purposes
+    # decryption_shares = decryption_shares[:shares_to_use]
 
+    # Client combines the decryption shares and decrypts the ciphertext
     shared_secret = combine_shares_for_variant(variant, decryption_shares)
 
     if variant == FerveoVariant.Simple and len(decryption_shares) < threshold:
@@ -103,7 +123,7 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
             decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
 
-    if variant == FerveoVariant.Precomputed and len(decryption_shares) < shares_num:
+    if variant == FerveoVariant.Precomputed and len(decryption_shares) < threshold:
         with pytest.raises(ThresholdEncryptionError):
             decrypt_with_shared_secret(ciphertext, aad, shared_secret)
         return
@@ -113,27 +133,55 @@ def scenario_for_variant(variant: FerveoVariant, shares_num, threshold, shares_t
 
 
 def test_simple_tdec_has_enough_messages():
-    scenario_for_variant(
-        FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=3
-    )
+    shares_num = 4
+    threshold = shares_num - 1
+    for validators_num in [shares_num, shares_num + 2]:
+        scenario_for_variant(
+            FerveoVariant.Simple,
+            shares_num=shares_num,
+            validators_num=validators_num,
+            threshold=threshold,
+            shares_to_use=threshold,
+        )
 
 
 def test_simple_tdec_doesnt_have_enough_messages():
-    scenario_for_variant(
-        FerveoVariant.Simple, shares_num=4, threshold=3, shares_to_use=2
-    )
+    shares_num = 4
+    threshold = shares_num - 1
+    for validators_num in [shares_num, shares_num + 2]:
+        scenario_for_variant(
+            FerveoVariant.Simple,
+            shares_num=shares_num,
+            validators_num=validators_num,
+            threshold=threshold,
+            shares_to_use=validators_num - 1,
+        )
 
 
 def test_precomputed_tdec_has_enough_messages():
-    scenario_for_variant(
-        FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=4
-    )
+    shares_num = 4
+    threshold = shares_num  # in precomputed variant, we need all shares
+    for validators_num in [shares_num, shares_num + 2]:
+        scenario_for_variant(
+            FerveoVariant.Precomputed,
+            shares_num=shares_num,
+            validators_num=validators_num,
+            threshold=threshold,
+            shares_to_use=validators_num,
+        )
 
 
 def test_precomputed_tdec_doesnt_have_enough_messages():
-    scenario_for_variant(
-        FerveoVariant.Precomputed, shares_num=4, threshold=4, shares_to_use=3
-    )
+    shares_num = 4
+    threshold = shares_num  # in precomputed variant, we need all shares
+    for validators_num in [shares_num, shares_num + 2]:
+        scenario_for_variant(
+            FerveoVariant.Simple,
+            shares_num=shares_num,
+            validators_num=validators_num,
+            threshold=threshold,
+            shares_to_use=threshold - 1,
+        )
 
 
 PARAMS = [

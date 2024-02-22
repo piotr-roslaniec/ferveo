@@ -515,13 +515,15 @@ impl AggregatedTranscript {
     #[wasm_bindgen]
     pub fn verify(
         &self,
-        shares_num: u32,
+        validators_num: u32,
         messages: &ValidatorMessageArray,
     ) -> JsResult<bool> {
         set_panic_hook();
         let messages = unwrap_messages_js(messages)?;
-        let is_valid =
-            self.0.verify(shares_num, &messages).map_err(map_js_err)?;
+        let is_valid = self
+            .0
+            .verify(validators_num, &messages)
+            .map_err(map_js_err)?;
         Ok(is_valid)
     }
 

@@ -22,11 +22,16 @@ const genEthAddr = (i: number) => {
   return EthereumAddress.fromString(ethAddr);
 };
 
-const tau = 1;
-function setupTest(sharesNum :number, threshold: number) {
+const TAU = 1;
+
+function setupTest(
+  sharesNum: number,
+  validatorsNum: number,
+  threshold: number
+) {
   const validatorKeypairs: Keypair[] = [];
   const validators: Validator[] = [];
-  for (let i = 0; i < sharesNum; i++) {
+  for (let i = 0; i < validatorsNum; i++) {
     const keypair = Keypair.random();
     validatorKeypairs.push(keypair);
     const validator = new Validator(genEthAddr(i), keypair.publicKey, i);
@@ -37,7 +42,7 @@ function setupTest(sharesNum :number, threshold: number) {
   // validator, including themselves
   const messages: ValidatorMessage[] = [];
   validators.forEach((sender) => {
-    const dkg = new Dkg(tau, sharesNum, threshold, validators, sender);
+    const dkg = new Dkg(TAU, sharesNum, threshold, validators, sender);
     const transcript = dkg.generateTranscript();
     const message = new ValidatorMessage(sender, transcript);
     messages.push(message);
@@ -45,16 +50,16 @@ function setupTest(sharesNum :number, threshold: number) {
 
   // Now that every validator holds a dkg instance and a transcript for every other validator,
   // every validator can aggregate the transcripts
-  const dkg = new Dkg(tau, sharesNum, threshold, validators, validators[0]);
+  const dkg = new Dkg(TAU, sharesNum, threshold, validators, validators[0]);
 
   const serverAggregate = dkg.aggregateTranscript(messages);
-  expect(serverAggregate.verify(sharesNum, messages)).toBe(true);
+  expect(serverAggregate.verify(validatorsNum, messages)).toBe(true);
 
   // Client can also aggregate the transcripts and verify them
   const clientAggregate = new AggregatedTranscript(messages);
-  expect(clientAggregate.verify(sharesNum, messages)).toBe(true);
+  expect(clientAggregate.verify(validatorsNum, messages)).toBe(true);
 
-  // In the meantime, the client creates a ciphertext and decryption request
+  // Client creates a ciphertext and requests decryption shares from validators
   const msg = Buffer.from("my-msg");
   const aad = Buffer.from("my-aad");
   const ciphertext = ferveoEncrypt(msg, aad, dkg.publicKey());
@@ -73,94 +78,78 @@ function setupTest(sharesNum :number, threshold: number) {
 // This test suite replicates tests from ferveo-wasm/tests/node.rs
 describe("ferveo-wasm", () => {
   it("simple tdec variant", () => {
-      const sharesNum = 4;
-      const threshold = 3;
-    const {
-      validatorKeypairs,
-      validators,
-      messages,
-      msg,
-      aad,
-      ciphertext,
-    } = setupTest(sharesNum, threshold);
+    const sharesNum = 4;
+    const threshold = sharesNum - 1;
+    [sharesNum, sharesNum + 2].forEach((validatorsNum) => {
+      const { validatorKeypairs, validators, messages, msg, aad, ciphertext } =
+        setupTest(sharesNum, validatorsNum, threshold);
 
-    // Having aggregated the transcripts, the validators can now create decryption shares
-    const decryptionShares: DecryptionShareSimple[] = [];
-    zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
-      expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
+      // Having aggregated the transcripts, the validators can now create decryption shares
+      const decryptionShares: DecryptionShareSimple[] = [];
+      zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
+        expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
-      const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(messages);
-      const isValid = aggregate.verify(sharesNum, messages);
-      expect(isValid).toBe(true);
+        const dkg = new Dkg(TAU, sharesNum, threshold, validators, validator);
+        const aggregate = dkg.aggregateTranscript(messages);
+        const isValid = aggregate.verify(validatorsNum, messages);
+        expect(isValid).toBe(true);
 
-      const decryptionShare = aggregate.createDecryptionShareSimple(
-        dkg,
-        ciphertext.header,
-        aad,
-        keypair
-      );
-      decryptionShares.push(decryptionShare);
+        const decryptionShare = aggregate.createDecryptionShareSimple(
+          dkg,
+          ciphertext.header,
+          aad,
+          keypair
+        );
+        decryptionShares.push(decryptionShare);
+      });
+
+      // Now, the decryption share can be used to decrypt the ciphertext
+      // This part is in the client API
+
+      const sharedSecret = combineDecryptionSharesSimple(decryptionShares);
+
+      // The client should have access to the public parameters of the DKG
+
+      const plaintext = decryptWithSharedSecret(ciphertext, aad, sharedSecret);
+      expect(Buffer.from(plaintext)).toEqual(msg);
     });
-
-    // Now, the decryption share can be used to decrypt the ciphertext
-    // This part is in the client API
-
-    const sharedSecret = combineDecryptionSharesSimple(
-      decryptionShares,
-    );
-
-    // The client should have access to the public parameters of the DKG
-
-    const plaintext = decryptWithSharedSecret(
-      ciphertext,
-      aad,
-      sharedSecret,
-    );
-    expect(Buffer.from(plaintext)).toEqual(msg);
   });
 
   it("precomputed tdec variant", () => {
-      const sharesNum = 4;
-        const threshold = sharesNum; // threshold is equal to sharesNum in precomputed variant
-    const {
-      validatorKeypairs,
-      validators,
-      messages,
-      msg,
-      aad,
-      ciphertext,
-    } = setupTest(sharesNum, threshold);
+    const sharesNum = 4;
+    const threshold = sharesNum; // threshold is equal to sharesNum in precomputed variant
+    [sharesNum, sharesNum + 2].forEach((validatorsNum) => {
+      const { validatorKeypairs, validators, messages, msg, aad, ciphertext } =
+        setupTest(sharesNum, validatorsNum, threshold);
 
-    // Having aggregated the transcripts, the validators can now create decryption shares
-    const decryptionShares: DecryptionSharePrecomputed[] = [];
-    zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
-      const dkg = new Dkg(tau, sharesNum, threshold, validators, validator);
-      const aggregate = dkg.aggregateTranscript(messages);
-      const isValid = aggregate.verify(sharesNum, messages);
-      expect(isValid).toBe(true);
+      // Having aggregated the transcripts, the validators can now create decryption shares
+      const decryptionShares: DecryptionSharePrecomputed[] = [];
+      zip(validators, validatorKeypairs).forEach(([validator, keypair]) => {
+        expect(validator.publicKey.equals(keypair.publicKey)).toBe(true);
 
-      const decryptionShare = aggregate.createDecryptionSharePrecomputed(
-        dkg,
-        ciphertext.header,
-        aad,
-        keypair
-      );
-      decryptionShares.push(decryptionShare);
+        const dkg = new Dkg(TAU, sharesNum, threshold, validators, validator);
+        const aggregate = dkg.aggregateTranscript(messages);
+        const isValid = aggregate.verify(validatorsNum, messages);
+        expect(isValid).toBe(true);
+
+        const decryptionShare = aggregate.createDecryptionSharePrecomputed(
+          dkg,
+          ciphertext.header,
+          aad,
+          keypair
+        );
+        decryptionShares.push(decryptionShare);
+      });
+
+      // Now, the decryption share can be used to decrypt the ciphertext
+      // This part is in the client API
+
+      const sharedSecret = combineDecryptionSharesPrecomputed(decryptionShares);
+
+      // The client should have access to the public parameters of the DKG
+
+      const plaintext = decryptWithSharedSecret(ciphertext, aad, sharedSecret);
+      expect(Buffer.from(plaintext)).toEqual(msg);
     });
-
-    // Now, the decryption share can be used to decrypt the ciphertext
-    // This part is in the client API
-
-    const sharedSecret = combineDecryptionSharesPrecomputed(decryptionShares);
-
-    // The client should have access to the public parameters of the DKG
-
-    const plaintext = decryptWithSharedSecret(
-      ciphertext,
-      aad,
-      sharedSecret,
-    );
-    expect(Buffer.from(plaintext)).toEqual(msg);
   });
 });

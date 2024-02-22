@@ -118,7 +118,6 @@ pub fn make_random_polynomial_with_root<E: Pairing>(
 
 #[cfg(test)]
 mod tests_refresh {
-
     use std::collections::HashMap;
 
     use ark_bls12_381::Fr;
@@ -316,7 +315,6 @@ mod tests_refresh {
     /// The output is M new shares (with M <= Ñ), with each of the M new shares substituting the
     /// original share (i.e., the original share is deleted).
     #[test_matrix([4, 7, 11, 16])]
-
     fn tdec_simple_variant_share_refreshing(shares_num: usize) {
         let rng = &mut test_rng();
         let threshold = shares_num * 2 / 3;

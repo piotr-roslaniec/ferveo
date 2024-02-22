@@ -16,17 +16,15 @@ def gen_eth_addr(i: int) -> str:
 
 tau = 1
 shares_num = 4
+validators_num = shares_num + 2
 # In precomputed variant, security threshold must be equal to shares_num
 security_threshold = shares_num
 
-validator_keypairs = [Keypair.random() for _ in range(0, shares_num)]
+validator_keypairs = [Keypair.random() for _ in range(0, validators_num)]
 validators = [
     Validator(gen_eth_addr(i), keypair.public_key(), i)
     for i, keypair in enumerate(validator_keypairs)
 ]
-
-# Validators must be sorted by their public key
-validators.sort(key=lambda v: v.address)
 
 # Each validator holds their own DKG instance and generates a transcript every
 # validator, including themselves
@@ -52,11 +50,11 @@ dkg = Dkg(
 
 # Server can aggregate the transcripts
 server_aggregate = dkg.aggregate_transcripts(messages)
-assert server_aggregate.verify(shares_num, messages)
+assert server_aggregate.verify(validators_num, messages)
 
 # And the client can also aggregate and verify the transcripts
 client_aggregate = AggregatedTranscript(messages)
-assert client_aggregate.verify(shares_num, messages)
+assert client_aggregate.verify(validators_num, messages)
 
 # In the meantime, the client creates a ciphertext and decryption request
 msg = "abc".encode()
@@ -76,7 +74,7 @@ for validator, validator_keypair in zip(validators, validator_keypairs):
 
     # We can also obtain the aggregated transcript from the side-channel (deserialize)
     aggregate = AggregatedTranscript(messages)
-    assert aggregate.verify(shares_num, messages)
+    assert aggregate.verify(validators_num, messages)
 
     # The ciphertext is obtained from the client
 

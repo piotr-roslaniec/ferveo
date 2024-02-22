@@ -272,7 +272,9 @@ fn make_pvss_map(messages: &[ValidatorMessage]) -> PVSSMap<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AggregatedTranscript(PubliclyVerifiableSS<E, crate::Aggregated>);
+pub struct AggregatedTranscript(
+    pub(crate) PubliclyVerifiableSS<E, crate::Aggregated>,
+);
 
 impl AggregatedTranscript {
     pub fn new(messages: &[ValidatorMessage]) -> Result<Self> {
@@ -286,12 +288,20 @@ impl AggregatedTranscript {
 
     pub fn verify(
         &self,
-        shares_num: u32,
+        validators_num: u32,
         messages: &[ValidatorMessage],
     ) -> Result<bool> {
+        if validators_num < messages.len() as u32 {
+            return Err(Error::InvalidAggregateVerificationParameters(
+                validators_num,
+                messages.len() as u32,
+            ));
+        }
+
         let pvss_params = PubliclyVerifiableParams::<E>::default();
-        let domain = GeneralEvaluationDomain::<Fr>::new(shares_num as usize)
-            .expect("Unable to construct an evaluation domain");
+        let domain =
+            GeneralEvaluationDomain::<Fr>::new(validators_num as usize)
+                .expect("Unable to construct an evaluation domain");
 
         let is_valid_optimistic = self.0.verify_optimistic();
         if !is_valid_optimistic {
@@ -324,6 +334,7 @@ impl AggregatedTranscript {
         aad: &[u8],
         validator_keypair: &Keypair,
     ) -> Result<DecryptionSharePrecomputed> {
+        // Prevent users from using the precomputed variant with improper DKG parameters
         if dkg.0.dkg_params.shares_num()
             != dkg.0.dkg_params.security_threshold()
         {
@@ -332,18 +343,12 @@ impl AggregatedTranscript {
                 dkg.0.dkg_params.security_threshold(),
             ));
         }
-        let domain_points: Vec<_> = dkg
-            .0
-            .domain
-            .elements()
-            .take(dkg.0.dkg_params.shares_num() as usize)
-            .collect();
         self.0.make_decryption_share_simple_precomputed(
             &ciphertext_header.0,
             aad,
             &validator_keypair.decryption_key,
             dkg.0.me.share_index as usize,
-            &domain_points,
+            &dkg.0.domain_points(),
             &dkg.0.pvss_params.g_inv(),
         )
     }
@@ -362,7 +367,7 @@ impl AggregatedTranscript {
             dkg.0.me.share_index as usize,
             &dkg.0.pvss_params.g_inv(),
         )?;
-        let domain_point = dkg.0.domain.element(dkg.0.me.share_index as usize);
+        let domain_point = dkg.0.get_domain_point(dkg.0.me.share_index)?;
         Ok(DecryptionShareSimple {
             share,
             domain_point,
@@ -433,8 +438,9 @@ mod test_ferveo_api {
         tau: u32,
         security_threshold: u32,
         shares_num: u32,
+        validators_num: u32,
     ) -> TestInputs {
-        let validator_keypairs = gen_keypairs(shares_num);
+        let validator_keypairs = gen_keypairs(validators_num);
         let validators = validator_keypairs
             .iter()
             .enumerate()
@@ -474,16 +480,22 @@ mod test_ferveo_api {
         assert_eq!(dkg_pk, deserialized);
     }
 
-    #[test_case(4; "number of shares (validators) is a power of 2")]
-    #[test_case(7; "number of shares (validators) is not a power of 2")]
-    fn test_server_api_tdec_precomputed(shares_num: u32) {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn test_server_api_tdec_precomputed(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
 
         // In precomputed variant, the security threshold is equal to the number of shares
         let security_threshold = shares_num;
 
-        let (messages, validators, validator_keypairs) =
-            make_test_inputs(rng, TAU, security_threshold, shares_num);
+        let (messages, validators, validator_keypairs) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
@@ -493,7 +505,7 @@ mod test_ferveo_api {
                 .unwrap();
 
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-        assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
+        assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
         let dkg_public_key = dkg.public_key();
@@ -516,7 +528,9 @@ mod test_ferveo_api {
                 )
                 .unwrap();
                 let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-                assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
+                assert!(pvss_aggregated
+                    .verify(validators_num, &messages)
+                    .unwrap());
 
                 // And then each validator creates their own decryption share
                 aggregate
@@ -556,15 +570,21 @@ mod test_ferveo_api {
         assert!(result.is_err());
     }
 
-    #[test_case(4; "number of shares (validators) is a power of 2")]
-    #[test_case(7; "number of shares (validators) is not a power of 2")]
-    fn test_server_api_tdec_simple(shares_num: u32) {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn test_server_api_tdec_simple(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
 
         let security_threshold = shares_num / 2 + 1;
 
-        let (messages, validators, validator_keypairs) =
-            make_test_inputs(rng, TAU, security_threshold, shares_num);
+        let (messages, validators, validator_keypairs) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
@@ -578,7 +598,7 @@ mod test_ferveo_api {
         .unwrap();
 
         let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-        assert!(pvss_aggregated.verify(shares_num, &messages).unwrap());
+        assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
         let public_key = dkg.public_key();
@@ -600,7 +620,7 @@ mod test_ferveo_api {
                 )
                 .unwrap();
                 let aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-                assert!(aggregate.verify(shares_num, &messages).unwrap());
+                assert!(aggregate.verify(validators_num, &messages).unwrap());
                 aggregate
                     .create_decryption_share_simple(
                         &dkg,
@@ -640,104 +660,152 @@ mod test_ferveo_api {
     // implementation for aggregation and aggregate verification.
     // Here, we focus on testing user-facing APIs for server and client users.
 
-    #[test]
-    fn server_side_local_verification() {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn server_side_local_verification(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
+        let security_threshold = shares_num / 2 + 1;
 
-        let (messages, validators, _) =
-            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        let (messages, validators, _) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
         let me = validators[0].clone();
         let mut dkg =
-            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
 
-        let local_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
-        assert!(local_aggregate
-            .verify(dkg.0.dkg_params.shares_num(), &messages)
-            .is_ok());
+        let good_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(good_aggregate.verify(validators_num, &messages).is_ok());
 
         // Test negative cases
 
         // Notice that the dkg instance is mutable, so we need to get a fresh one
         // for every test case
 
+        // Should fail if the number of validators is less than the number of messages
+        assert!(matches!(
+            good_aggregate.verify(messages.len() as u32 - 1, &messages),
+            Err(Error::InvalidAggregateVerificationParameters(_, _))
+        ));
+
         // Should fail if no transcripts are provided
         let mut dkg =
-            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let result = dkg.aggregate_transcripts(&[]);
-        assert!(result.is_err());
+        assert!(matches!(
+            dkg.aggregate_transcripts(&[]),
+            Err(Error::NoTranscriptsToAggregate)
+        ));
 
         // Not enough transcripts
         let mut dkg =
-            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let not_enough_messages = &messages[..SECURITY_THRESHOLD as usize - 1];
-        assert!(not_enough_messages.len() < SECURITY_THRESHOLD as usize);
+        let not_enough_messages = &messages[..security_threshold as usize - 1];
+        assert!(not_enough_messages.len() < security_threshold as usize);
         let insufficient_aggregate =
             dkg.aggregate_transcripts(not_enough_messages).unwrap();
-        let result = insufficient_aggregate.verify(SHARES_NUM, &messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            insufficient_aggregate.verify(validators_num, &messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
 
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
         let mut dkg =
-            Dkg::new(TAU, SHARES_NUM, SECURITY_THRESHOLD, &validators, &me)
+            Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let (bad_messages, _, _) =
-            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        let (bad_messages, _, _) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = dkg.aggregate_transcripts(&mixed_messages).unwrap();
-        let result = bad_aggregate.verify(SHARES_NUM, &messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            bad_aggregate.verify(validators_num, &messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
     }
 
-    #[test]
-    fn client_side_local_verification() {
+    #[test_case(4, 4; "number of shares (validators) is a power of 2")]
+    #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
+    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    fn client_side_local_verification(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
+        let security_threshold = shares_num / 2 + 1;
 
-        let (messages, _, _) =
-            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        let (messages, _, _) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
 
         // We only need `security_threshold` transcripts to aggregate
-        let messages = &messages[..SECURITY_THRESHOLD as usize];
+        let messages = &messages[..security_threshold as usize];
 
         // Create an aggregated transcript on the client side
-        let aggregated_transcript =
-            AggregatedTranscript::new(messages).unwrap();
+        let good_aggregate = AggregatedTranscript::new(messages).unwrap();
 
         // We are separating the verification from the aggregation since the client may fetch
         // the aggregate from a side-channel or decide to persist it and verify it later
 
         // Now, the client can verify the aggregated transcript
-        let result = aggregated_transcript.verify(SHARES_NUM, messages);
+        let result = good_aggregate.verify(validators_num, messages);
         assert!(result.is_ok());
         assert!(result.unwrap());
 
         // Test negative cases
 
+        // Should fail if the number of validators is less than the number of messages
+        assert!(matches!(
+            good_aggregate.verify(messages.len() as u32 - 1, messages),
+            Err(Error::InvalidAggregateVerificationParameters(_, _))
+        ));
+
         // Should fail if no transcripts are provided
-        let result = AggregatedTranscript::new(&[]);
-        assert!(result.is_err());
+        assert!(matches!(
+            AggregatedTranscript::new(&[]),
+            Err(Error::NoTranscriptsToAggregate)
+        ));
 
         // Not enough transcripts
-        let not_enough_messages = &messages[..SECURITY_THRESHOLD as usize - 1];
-        assert!(not_enough_messages.len() < SECURITY_THRESHOLD as usize);
+        let not_enough_messages = &messages[..security_threshold as usize - 1];
+        assert!(not_enough_messages.len() < security_threshold as usize);
         let insufficient_aggregate =
             AggregatedTranscript::new(not_enough_messages).unwrap();
-        let result = insufficient_aggregate.verify(SHARES_NUM, messages);
-        assert!(result.is_err());
+        let _result = insufficient_aggregate.verify(validators_num, messages);
+        assert!(matches!(
+            insufficient_aggregate.verify(validators_num, messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
 
         // Unexpected transcripts in the aggregate or transcripts from a different ritual
         // Using same DKG parameters, but different DKG instances and validators
-        let (bad_messages, _, _) =
-            make_test_inputs(rng, TAU, SECURITY_THRESHOLD, SHARES_NUM);
+        let (bad_messages, _, _) = make_test_inputs(
+            rng,
+            TAU,
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let mixed_messages = [&messages[..2], &bad_messages[..1]].concat();
         let bad_aggregate = AggregatedTranscript::new(&mixed_messages).unwrap();
-        let result = bad_aggregate.verify(SHARES_NUM, messages);
-        assert!(result.is_err());
+        assert!(matches!(
+            bad_aggregate.verify(validators_num, messages),
+            Err(Error::InvalidTranscriptAggregate)
+        ));
     }
 }

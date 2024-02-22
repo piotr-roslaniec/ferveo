@@ -18,6 +18,7 @@ pub const MSG: &[u8] = b"my-msg";
 pub const AAD: &[u8] = b"my-aad";
 pub const SECURITY_THRESHOLD: u32 = 3;
 pub const SHARES_NUM: u32 = 4;
+pub const VALIDATORS_NUM: u32 = SHARES_NUM + 2;
 
 pub fn gen_keypairs(n: u32) -> Vec<Keypair<E>> {
     let rng = &mut ark_std::test_rng();
@@ -46,8 +47,9 @@ pub fn setup_dkg_for_n_validators(
     security_threshold: u32,
     shares_num: u32,
     my_validator_index: usize,
+    validators_num: u32,
 ) -> TestSetup {
-    let keypairs = gen_keypairs(shares_num);
+    let keypairs = gen_keypairs(validators_num);
     let validators = gen_validators(keypairs.as_slice());
     let me = validators[my_validator_index].clone();
     let dkg = PubliclyVerifiableDkg::new(
@@ -67,6 +69,7 @@ pub fn setup_dkg(my_validator_index: usize) -> TestSetup {
         SECURITY_THRESHOLD,
         SHARES_NUM,
         my_validator_index,
+        VALIDATORS_NUM,
     )
 }
 
@@ -81,15 +84,28 @@ pub fn setup_dealt_dkg_with(
     security_threshold: u32,
     shares_num: u32,
 ) -> TestSetup {
+    setup_dealt_dkg_with_n_validators(
+        security_threshold,
+        shares_num,
+        shares_num,
+    )
+}
+
+pub fn setup_dealt_dkg_with_n_validators(
+    security_threshold: u32,
+    shares_num: u32,
+    validators_num: u32,
+) -> TestSetup {
     let rng = &mut ark_std::test_rng();
 
     // Gather everyone's transcripts
-    let mut messages: Vec<_> = (0..shares_num)
+    let mut messages: Vec<_> = (0..validators_num)
         .map(|my_index| {
             let (mut dkg, _) = setup_dkg_for_n_validators(
                 security_threshold,
                 shares_num,
                 my_index as usize,
+                validators_num,
             );
             let me = dkg.me.clone();
             let message = dkg.share(rng).unwrap();
@@ -98,8 +114,12 @@ pub fn setup_dealt_dkg_with(
         .collect();
 
     // Create a test DKG instance
-    let (mut dkg, keypairs) =
-        setup_dkg_for_n_validators(security_threshold, shares_num, 0);
+    let (mut dkg, keypairs) = setup_dkg_for_n_validators(
+        security_threshold,
+        shares_num,
+        0,
+        validators_num,
+    );
 
     // The ordering of messages should not matter
     messages.shuffle(rng);

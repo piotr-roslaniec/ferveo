@@ -4,7 +4,7 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_ff::{Field, Zero};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, DenseUVPolynomial,
-    EvaluationDomain,
+    EvaluationDomain, Polynomial,
 };
 use ferveo_tdec::{
     prepare_combine_simple, CiphertextHeader, DecryptionSharePrecomputed,
@@ -140,7 +140,13 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
         );
 
         // Evaluations of the polynomial over the domain
-        let evals = phi.0.evaluate_over_domain_by_ref(dkg.domain);
+        let evals = dkg
+            .domain_points()
+            .iter()
+            .map(|x| phi.0.evaluate(x))
+            .collect::<Vec<_>>();
+        debug_assert_eq!(evals.len(), dkg.validators.len());
+
         // commitment to coeffs, F_i
         let coeffs = fast_multiexp(&phi.0.coeffs, dkg.pvss_params.g);
         let shares = dkg
@@ -148,9 +154,10 @@ impl<E: Pairing, T> PubliclyVerifiableSS<E, T> {
             .values()
             .map(|validator| {
                 // ek_{i}^{eval_i}, i = validator index
+                // TODO: Replace with regular, single-element exponentiation
                 fast_multiexp(
                     // &evals.evals[i..i] = &evals.evals[i]
-                    &[evals.evals[validator.share_index as usize]], // one share per validator
+                    &[evals[validator.share_index as usize]], // one share per validator
                     validator.public_key.encryption_key.into_group(),
                 )[0]
             })
@@ -262,7 +269,7 @@ pub fn do_verify_aggregation<E: Pairing>(
 
     // Now, we verify that the aggregated PVSS transcript is a valid aggregation
     let mut y = E::G1::zero();
-    for (_, pvss) in vss.iter() {
+    for pvss in vss.values() {
         y += pvss.coeffs[0].into_group();
     }
     if y.into_affine() == pvss_agg_coefficients[0] {
@@ -276,7 +283,7 @@ pub fn do_verify_aggregation<E: Pairing>(
 impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     /// Verify that this PVSS instance is a valid aggregation of
     /// the PVSS instances, produced by [`aggregate`],
-    /// and received by the DKG context `dkg`
+    /// and received by the DKG context `dkg`.
     /// Returns the total nr of shares in the aggregated PVSS
     pub fn verify_aggregation(
         &self,
@@ -393,9 +400,9 @@ pub(crate) fn aggregate<E: Pairing>(
 
     let mut shares = batch_to_projective_g2::<E>(&first_pvss.shares);
 
-    // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their sigma
+    // So now we're iterating over the PVSS instances, and adding their coefficients and shares, and their
     // sigma is the sum of all the sigma_i, which is the proof of knowledge of the secret polynomial
-    // Aggregating is just adding the corresponding values in pvss instances, so pvss = pvss + pvss_j
+    // Aggregating is just adding the corresponding values in PVSS instances, so PVSS = PVSS + PVSS_i
     for next_pvss in pvss_iter {
         sigma = (sigma + next_pvss.sigma).into();
         coeffs
@@ -422,16 +429,24 @@ mod test_pvss {
     use ark_bls12_381::Bls12_381 as EllipticCurve;
     use ark_ec::AffineRepr;
     use ark_ff::UniformRand;
+    use test_case::test_case;
 
     use super::*;
-    use crate::{test_common::*, DkgParams};
+    use crate::test_common::*;
 
-    /// Test the happy flow that a pvss with the correct form is created
+    /// Test the happy flow such that the PVSS with the correct form is created
     /// and that appropriate validations pass
-    #[test]
-    fn test_new_pvss() {
+    #[test_case(4,4; "number of validators is equal to the number of shares")]
+    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    fn test_new_pvss(shares_num: u32, validators_num: u32) {
         let rng = &mut ark_std::test_rng();
-        let (dkg, _) = setup_dkg(0);
+        let security_threshold = shares_num - 1;
+
+        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let s = ScalarField::rand(rng);
         let pvss = PubliclyVerifiableSS::<EllipticCurve>::new(&s, &dkg, rng)
             .expect("Test failed");
@@ -453,7 +468,7 @@ mod test_pvss {
     }
 
     /// Check that if the proof of knowledge is wrong,
-    /// the optimistic verification of PVSS fails
+    /// then the optimistic verification of the PVSS fails
     #[test]
     fn test_verify_pvss_wrong_proof_of_knowledge() {
         let rng = &mut ark_std::test_rng();
@@ -494,39 +509,17 @@ mod test_pvss {
         assert!(!bad_pvss.verify_full(&dkg));
     }
 
-    // TODO: Move this code to dkg.rs
-    /// Check that the canonical share indices of validators are expected and enforced
-    /// by the DKG methods.
-    #[test]
-    fn test_canonical_share_indices_are_enforced() {
-        let shares_num = 4;
-        let security_threshold = shares_num - 1;
-        let keypairs = gen_keypairs(shares_num);
-        let mut validators = gen_validators(&keypairs);
-        let me = validators[0].clone();
-
-        // Validators (share indices) are not unique
-        let duplicated_index = 0;
-        validators.insert(duplicated_index, me.clone());
-
-        // And because of that the DKG should fail
-        let result = PubliclyVerifiableDkg::new(
-            &validators,
-            &DkgParams::new(0, security_threshold, shares_num).unwrap(),
-            &me,
-        );
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            Error::DuplicatedShareIndex(duplicated_index as u32).to_string()
-        );
-    }
-
     /// Check that happy flow of aggregating PVSS transcripts
-    /// Should have the correct form and validations pass
-    #[test]
-    fn test_aggregate_pvss() {
-        let (dkg, _) = setup_dealt_dkg();
+    /// has the correct form and it's validations passes
+    #[test_case(4,4; "number of validators is equal to the number of shares")]
+    #[test_case(4,6; "number of validators is greater than the number of shares")]
+    fn test_aggregate_pvss(shares_num: u32, validators_num: u32) {
+        let security_threshold = shares_num - 1;
+        let (dkg, _) = setup_dealt_dkg_with_n_validators(
+            security_threshold,
+            shares_num,
+            validators_num,
+        );
         let pvss_list = dkg.vss.values().cloned().collect::<Vec<_>>();
         let aggregate = aggregate(&pvss_list).unwrap();
         // Check that a polynomial of the correct degree was created
