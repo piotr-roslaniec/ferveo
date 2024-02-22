@@ -89,8 +89,8 @@ impl<E: Pairing> PrivateKeyShare<E> {
         validator_keypair: &Keypair<E>,
         share_index: u32,
         domain_points: &[DomainPoint<E>],
-        g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
+        let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
         // In precomputed variant, we offload some of the decryption related computation to the server-side:
         // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
         let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
@@ -104,7 +104,7 @@ impl<E: Pairing> PrivateKeyShare<E> {
             ciphertext_header,
             aad,
             lagrange_coeff,
-            g_inv,
+            &g_inv,
         )
         .map_err(|e| e.into())
     }

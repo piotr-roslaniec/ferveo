@@ -308,7 +308,6 @@ mod test_dkg_full {
                             validator_keypair,
                             validator.share_index,
                             &domain_points,
-                            &dkg.pvss_params.g_inv(),
                         )
                         .unwrap()
                 })

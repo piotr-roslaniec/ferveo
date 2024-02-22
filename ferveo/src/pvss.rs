@@ -359,7 +359,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
         validator_keypair: &Keypair<E>,
         share_index: u32,
         domain_points: &[DomainPoint<E>],
-        g_inv: &E::G1Prepared,
     ) -> Result<DecryptionSharePrecomputed<E>> {
         self.decrypt_private_key_share(validator_keypair, share_index)?
             .create_decryption_share_simple_precomputed(
@@ -368,7 +367,6 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
                 validator_keypair,
                 share_index,
                 domain_points,
-                g_inv,
             )
     }
 

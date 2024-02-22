@@ -323,7 +323,6 @@ impl AggregatedTranscript {
             validator_keypair,
             dkg.0.me.share_index,
             &dkg.0.domain_points(),
-            &dkg.0.pvss_params.g_inv(),
         )
     }
 
@@ -547,14 +546,12 @@ impl PrivateKeyShare {
         share_index: u32,
         domain_points: &[DomainPoint<E>],
     ) -> Result<DecryptionSharePrecomputed> {
-        let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
         let share = self.0.create_decryption_share_simple_precomputed(
             &ciphertext_header.0,
             aad,
             validator_keypair,
             share_index,
             domain_points,
-            &g_inv,
         )?;
         Ok(share)
     }
