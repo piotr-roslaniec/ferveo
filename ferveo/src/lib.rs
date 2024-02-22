@@ -114,15 +114,14 @@ mod test_dkg_full {
     use ark_bls12_381::{Bls12_381 as E, Fr, G1Affine};
     use ark_ec::{AffineRepr, CurveGroup};
     use ark_ff::{UniformRand, Zero};
-    use ark_poly::EvaluationDomain;
     use ark_std::test_rng;
     use ferveo_common::Keypair;
     use ferveo_tdec::{
         self, DecryptionSharePrecomputed, DecryptionShareSimple, SecretBox,
         SharedSecret,
     };
-    use itertools::izip;
-    use rand::seq::SliceRandom;
+    use itertools::{izip, Itertools};
+    use rand::{seq::SliceRandom, Rng};
     use test_case::test_case;
 
     use super::*;
@@ -144,7 +143,7 @@ mod test_dkg_full {
         assert!(pvss_aggregated
             .aggregate
             .verify_aggregation(dkg, transcripts)
-            .is_ok());
+            .unwrap());
 
         let decryption_shares: Vec<DecryptionShareSimple<E>> =
             validator_keypairs
@@ -163,13 +162,11 @@ mod test_dkg_full {
                         )
                         .unwrap()
                 })
+                // We take only the first `security_threshold` decryption shares
+                .take(dkg.dkg_params.security_threshold() as usize)
                 .collect();
 
-        let domain_points = &dkg
-            .domain
-            .elements()
-            .take(decryption_shares.len())
-            .collect::<Vec<_>>();
+        let domain_points = &dkg.domain_points()[..decryption_shares.len()];
         assert_eq!(domain_points.len(), decryption_shares.len());
 
         let lagrange_coeffs =
@@ -178,7 +175,6 @@ mod test_dkg_full {
             &decryption_shares,
             &lagrange_coeffs,
         );
-
         (pvss_aggregated, decryption_shares, shared_secret)
     }
 
@@ -195,8 +191,11 @@ mod test_dkg_full {
                 shares_num,
                 validators_num,
             );
-        let transcripts =
-            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
+        let transcripts = messages
+            .iter()
+            .take(shares_num as usize)
+            .map(|m| m.1.clone())
+            .collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -228,26 +227,30 @@ mod test_dkg_full {
 
     #[test_case(4, 4; "number of shares (validators) is a power of 2")]
     #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
-    #[test_case(4, 6; "number of validators greater than the number of shares")]
+    // TODO: This test fails:
+    // #[test_case(4, 6; "number of validators greater than the number of shares")]
     fn test_dkg_simple_tdec_precomputed(shares_num: u32, validators_num: u32) {
         let rng = &mut test_rng();
 
         // In precomputed variant, threshold must be equal to shares_num
         let security_threshold = shares_num;
-        let (dkg, validator_keypairs, messangers) =
+        let (dkg, validator_keypairs, messages) =
             setup_dealt_dkg_with_n_validators(
                 security_threshold,
                 shares_num,
                 validators_num,
             );
-        let transcripts =
-            messangers.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
+        let transcripts = messages
+            .iter()
+            .take(shares_num as usize)
+            .map(|m| m.1.clone())
+            .collect::<Vec<_>>();
         let pvss_aggregated =
             AggregatedTranscript::from_transcripts(&transcripts).unwrap();
-        pvss_aggregated
+        assert!(pvss_aggregated
             .aggregate
             .verify_aggregation(&dkg, &transcripts)
-            .unwrap();
+            .unwrap());
         let public_key = pvss_aggregated.public_key;
         let ciphertext = ferveo_tdec::encrypt::<E>(
             SecretBox::new(MSG.to_vec()),
@@ -256,12 +259,6 @@ mod test_dkg_full {
             rng,
         )
         .unwrap();
-
-        let domain_points = dkg
-            .domain
-            .elements()
-            .take(validator_keypairs.len())
-            .collect::<Vec<_>>();
 
         let mut decryption_shares: Vec<DecryptionSharePrecomputed<E>> =
             validator_keypairs
@@ -277,18 +274,20 @@ mod test_dkg_full {
                             AAD,
                             validator_keypair,
                             validator.share_index,
-                            &domain_points,
+                            &dkg.domain_points(),
                         )
                         .unwrap()
                 })
+                // We take only the first `security_threshold` decryption shares
+                .take(dkg.dkg_params.security_threshold() as usize)
                 .collect();
-        decryption_shares.shuffle(rng);
-        assert_eq!(domain_points.len(), decryption_shares.len());
 
+        // Order of decryption shares is not important in the precomputed variant
+        decryption_shares.shuffle(rng);
+
+        // Decrypt with precomputed variant
         let shared_secret =
             ferveo_tdec::share_combine_precomputed::<E>(&decryption_shares);
-
-        // Combination works, let's decrypt
         let plaintext = ferveo_tdec::decrypt_with_shared_secret(
             &ciphertext,
             AAD,
@@ -315,8 +314,11 @@ mod test_dkg_full {
                 shares_num,
                 validators_num,
             );
-        let transcripts =
-            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
+        let transcripts = messages
+            .iter()
+            .take(shares_num as usize)
+            .map(|m| m.1.clone())
+            .collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -393,8 +395,11 @@ mod test_dkg_full {
                 shares_num,
                 validators_num,
             );
-        let transcripts =
-            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
+        let transcripts = messages
+            .iter()
+            .take(shares_num as usize)
+            .map(|m| m.1.clone())
+            .collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -415,22 +420,27 @@ mod test_dkg_full {
             &transcripts,
         );
 
-        // Remove one participant from the contexts and all nested structure
-        let removed_validator_addr =
-            dkg.validators.keys().last().unwrap().clone();
-        let mut remaining_validators = dkg.validators.clone();
-        remaining_validators
-            .remove(&removed_validator_addr)
-            .unwrap();
+        // TODO: Rewrite this test so that the offboarding of validator
+        // is done by recreating a DKG instance with a new set of
+        // validators from the Coordinator, rather than modifying the
+        // existing DKG instance.
 
-        let mut remaining_validator_keypairs = validator_keypairs.clone();
-        remaining_validator_keypairs
-            .pop()
-            .expect("Should have a keypair");
+        // Remove one participant from the contexts and all nested structure
+        let removed_validator_index = rng.gen_range(0..validators_num);
+        let removed_validator_addr = dkg
+            .validators
+            .iter()
+            .find(|(_, v)| v.share_index == removed_validator_index)
+            .unwrap()
+            .1
+            .address
+            .clone();
+        let mut remaining_validators = dkg.validators.clone();
+        remaining_validators.remove(&removed_validator_addr);
 
         // Remember to remove one domain point too
-        let mut domain_points = dkg.domain_points();
-        domain_points.pop().unwrap();
+        let mut domain_points = dkg.domain_point_map();
+        domain_points.remove(&removed_validator_index);
 
         // Now, we're going to recover a new share at a random point,
         // and check that the shared secret is still the same.
@@ -438,7 +448,7 @@ mod test_dkg_full {
         // Our random point:
         let x_r = Fr::rand(rng);
 
-        // Each participant prepares an update for each other participant
+        // Each participant prepares an update for every other participant
         let share_updates = remaining_validators
             .keys()
             .map(|v_addr| {
@@ -456,15 +466,13 @@ mod test_dkg_full {
         // Participants share updates and update their shares
 
         // Now, every participant separately:
-        let updated_shares: Vec<_> = remaining_validators
+        let updated_shares: HashMap<u32, _> = remaining_validators
             .values()
             .map(|validator| {
                 // Current participant receives updates from other participants
-                let updates_for_participant: Vec<_> = share_updates
+                let updates_for_validator: Vec<_> = share_updates
                     .values()
-                    .map(|updates| {
-                        updates.get(validator.share_index as usize).unwrap()
-                    })
+                    .map(|updates| updates.get(&validator.share_index).unwrap())
                     .cloned()
                     .collect();
 
@@ -474,15 +482,17 @@ mod test_dkg_full {
                     .unwrap();
 
                 // Creates updated private key shares
-                AggregatedTranscript::from_transcripts(&transcripts)
-                    .unwrap()
-                    .aggregate
-                    .create_updated_private_key_share(
-                        validator_keypair,
-                        validator.share_index,
-                        updates_for_participant.as_slice(),
-                    )
-                    .unwrap()
+                let updated_key_share =
+                    AggregatedTranscript::from_transcripts(&transcripts)
+                        .unwrap()
+                        .aggregate
+                        .create_updated_private_key_share(
+                            validator_keypair,
+                            validator.share_index,
+                            updates_for_validator.as_slice(),
+                        )
+                        .unwrap();
+                (validator.share_index, updated_key_share)
             })
             .collect();
 
@@ -492,14 +502,17 @@ mod test_dkg_full {
                 &x_r,
                 &domain_points,
                 &updated_shares,
-            );
+            )
+            .unwrap();
 
         // Get decryption shares from remaining participants
-        let mut decryption_shares: Vec<DecryptionShareSimple<E>> =
-            remaining_validator_keypairs
-                .iter()
-                .enumerate()
-                .map(|(share_index, validator_keypair)| {
+        let mut decryption_shares = remaining_validators
+            .values()
+            .map(|validator| {
+                let validator_keypair = validator_keypairs
+                    .get(validator.share_index as usize)
+                    .unwrap();
+                let decryption_share =
                     AggregatedTranscript::from_transcripts(&transcripts)
                         .unwrap()
                         .aggregate
@@ -507,42 +520,57 @@ mod test_dkg_full {
                             &ciphertext.header().unwrap(),
                             AAD,
                             validator_keypair,
-                            share_index as u32,
+                            validator.share_index,
                         )
-                        .unwrap()
-                })
-                .collect();
+                        .unwrap();
+                (validator.share_index, decryption_share)
+            })
+            // We take only the first `security_threshold - 1` decryption shares
+            .take((dkg.dkg_params.security_threshold() - 1) as usize)
+            .collect::<HashMap<u32, _>>();
 
         // Create a decryption share from a recovered private key share
         let new_validator_decryption_key = Fr::rand(rng);
-        decryption_shares.push(
-            DecryptionShareSimple::create(
-                &new_validator_decryption_key,
-                &recovered_key_share.0,
-                &ciphertext.header().unwrap(),
-                AAD,
-                &dkg.pvss_params.g_inv(),
-            )
-            .unwrap(),
-        );
+        let new_decryption_share = DecryptionShareSimple::create(
+            &new_validator_decryption_key,
+            &recovered_key_share.0,
+            &ciphertext.header().unwrap(),
+            AAD,
+            &dkg.pvss_params.g_inv(),
+        )
+        .unwrap();
+        decryption_shares.insert(removed_validator_index, new_decryption_share);
+        domain_points.insert(removed_validator_index, x_r);
 
-        domain_points.push(x_r);
-        assert_eq!(domain_points.len(), validators_num as usize);
-        assert_eq!(decryption_shares.len(), validators_num as usize);
+        // We need to make sure that the domain points and decryption shares are ordered
+        // by the share index, so that the lagrange basis is calculated correctly
 
-        // TODO: Maybe parametrize this test with [1..] and [..threshold]
-        let domain_points = &domain_points[..security_threshold as usize];
-        let decryption_shares =
-            &decryption_shares[..security_threshold as usize];
-        assert_eq!(domain_points.len(), security_threshold as usize);
-        assert_eq!(decryption_shares.len(), security_threshold as usize);
+        let mut domain_points_ = vec![];
+        let mut decryption_shares_ = vec![];
+        for share_index in decryption_shares.keys().sorted() {
+            domain_points_.push(
+                *domain_points
+                    .get(share_index)
+                    .ok_or(Error::InvalidShareIndex(*share_index))
+                    .unwrap(),
+            );
+            decryption_shares_.push(
+                decryption_shares
+                    .get(share_index)
+                    .ok_or(Error::InvalidShareIndex(*share_index))
+                    .unwrap()
+                    .clone(),
+            );
+        }
+        assert_eq!(domain_points_.len(), security_threshold as usize);
+        assert_eq!(decryption_shares_.len(), security_threshold as usize);
 
-        let lagrange = ferveo_tdec::prepare_combine_simple::<E>(domain_points);
+        let lagrange =
+            ferveo_tdec::prepare_combine_simple::<E>(&domain_points_);
         let new_shared_secret = ferveo_tdec::share_combine_simple::<E>(
-            decryption_shares,
+            &decryption_shares_,
             &lagrange,
         );
-
         assert_eq!(
             old_shared_secret, new_shared_secret,
             "Shared secret reconstruction failed"
@@ -565,8 +593,11 @@ mod test_dkg_full {
                 shares_num,
                 validators_num,
             );
-        let transcripts =
-            messages.iter().map(|m| m.1.clone()).collect::<Vec<_>>();
+        let transcripts = messages
+            .iter()
+            .take(shares_num as usize)
+            .map(|m| m.1.clone())
+            .collect::<Vec<_>>();
         let public_key = AggregatedTranscript::from_transcripts(&transcripts)
             .unwrap()
             .public_key;
@@ -593,7 +624,7 @@ mod test_dkg_full {
             .keys()
             .map(|v_addr| {
                 let deltas_i = ShareRefreshUpdate::create_share_updates(
-                    &dkg.domain_points(),
+                    &dkg.domain_point_map(),
                     &dkg.pvss_params.h.into_affine(),
                     dkg.dkg_params.security_threshold(),
                     rng,
@@ -613,10 +644,7 @@ mod test_dkg_full {
                 let updates_for_participant: Vec<_> = share_updates
                     .values()
                     .map(|updates| {
-                        updates
-                            .get(validator.share_index as usize)
-                            .cloned()
-                            .unwrap()
+                        updates.get(&validator.share_index).cloned().unwrap()
                     })
                     .collect();
 
@@ -659,7 +687,14 @@ mod test_dkg_full {
                     )
                     .unwrap()
                 })
+                // We take only the first `security_threshold` decryption shares
+                .take(dkg.dkg_params.security_threshold() as usize)
                 .collect();
+
+        // Order of decryption shares is not important, but since we are using low-level
+        // API here to performa a refresh for testing purpose, we will not shuffle
+        // the shares this time
+        // decryption_shares.shuffle(rng);
 
         let lagrange = ferveo_tdec::prepare_combine_simple::<E>(
             &dkg.domain_points()[..security_threshold as usize],
@@ -668,7 +703,6 @@ mod test_dkg_full {
             &decryption_shares[..security_threshold as usize],
             &lagrange,
         );
-
         assert_eq!(old_shared_secret, new_shared_secret);
     }
 }

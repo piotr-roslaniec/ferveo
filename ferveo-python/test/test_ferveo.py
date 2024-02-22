@@ -39,7 +39,7 @@ def combine_shares_for_variant(v: FerveoVariant, decryption_shares):
 
 
 def scenario_for_variant(
-    variant: FerveoVariant, shares_num, validators_num, threshold, shares_to_use
+    variant: FerveoVariant, shares_num, validators_num, threshold, dec_shares_to_use
 ):
     if variant not in [FerveoVariant.Simple, FerveoVariant.Precomputed]:
         raise ValueError("Unknown variant: " + variant)
@@ -47,10 +47,11 @@ def scenario_for_variant(
     if validators_num < shares_num:
         raise ValueError("validators_num must be >= shares_num")
 
-    if variant == FerveoVariant.Precomputed and shares_to_use != validators_num:
-        raise ValueError(
-            "In precomputed variant, shares_to_use must be equal to validators_num"
-        )
+    # TODO: Validate that
+    # if variant == FerveoVariant.Precomputed and dec_shares_to_use != validators_num:
+    #     raise ValueError(
+    #         "In precomputed variant, dec_shares_to_use must be equal to validators_num"
+    #     )
 
     tau = 1
     validator_keypairs = [Keypair.random() for _ in range(0, validators_num)]
@@ -71,6 +72,9 @@ def scenario_for_variant(
             me=sender,
         )
         messages.append(ValidatorMessage(sender, dkg.generate_transcript()))
+
+    # We only need `shares_num` messages to aggregate the transcript
+    messages = messages[:shares_num]
 
     # Both client and server should be able to verify the aggregated transcript
     dkg = Dkg(
@@ -113,7 +117,7 @@ def scenario_for_variant(
         decryption_shares.append(decryption_share)
 
     # We are limiting the number of decryption shares to use for testing purposes
-    # decryption_shares = decryption_shares[:shares_to_use]
+    decryption_shares = decryption_shares[:dec_shares_to_use]
 
     # Client combines the decryption shares and decrypts the ciphertext
     shared_secret = combine_shares_for_variant(variant, decryption_shares)
@@ -141,7 +145,7 @@ def test_simple_tdec_has_enough_messages():
             shares_num=shares_num,
             validators_num=validators_num,
             threshold=threshold,
-            shares_to_use=threshold,
+            dec_shares_to_use=threshold,
         )
 
 
@@ -154,7 +158,7 @@ def test_simple_tdec_doesnt_have_enough_messages():
             shares_num=shares_num,
             validators_num=validators_num,
             threshold=threshold,
-            shares_to_use=validators_num - 1,
+            dec_shares_to_use=validators_num - 1,
         )
 
 
@@ -167,7 +171,7 @@ def test_precomputed_tdec_has_enough_messages():
             shares_num=shares_num,
             validators_num=validators_num,
             threshold=threshold,
-            shares_to_use=validators_num,
+            dec_shares_to_use=validators_num,
         )
 
 
@@ -180,7 +184,7 @@ def test_precomputed_tdec_doesnt_have_enough_messages():
             shares_num=shares_num,
             validators_num=validators_num,
             threshold=threshold,
-            shares_to_use=threshold - 1,
+            dec_shares_to_use=threshold - 1,
         )
 
 

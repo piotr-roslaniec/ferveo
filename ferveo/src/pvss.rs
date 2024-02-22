@@ -240,22 +240,28 @@ pub fn do_verify_full<E: Pairing>(
     domain.fft_in_place(&mut commitment);
 
     // Each validator checks that their share is correct
-    Ok(validators
-        .iter()
-        .zip(pvss_encrypted_shares.iter())
-        .enumerate()
-        .all(|(share_index, (validator, y_i))| {
-            // TODO: Check #3 is missing
-            // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+    for validator in validators {
+        // TODO: Check #3 is missing
+        // See #3 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
 
-            // Validator checks aggregated shares against commitment
-            let ek_i = validator.public_key.encryption_key.into_group();
-            let a_i = &commitment[share_index];
-            // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
-            // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
-            // e(G,Y) = e(A, ek)
-            E::pairing(pvss_params.g, *y_i) == E::pairing(a_i, ek_i)
-        }))
+        let y_i = pvss_encrypted_shares
+            .get(validator.share_index as usize)
+            .ok_or(Error::InvalidShareIndex(validator.share_index))?;
+        // Validator checks aggregated shares against commitment
+        let ek_i = validator.public_key.encryption_key.into_group();
+        let a_i = commitment
+            .get(validator.share_index as usize)
+            .ok_or(Error::InvalidShareIndex(validator.share_index))?;
+        // We verify that e(G, Y_i) = e(A_i, ek_i) for validator i
+        // See #4 in 4.2.3 section of https://eprint.iacr.org/2022/898.pdf
+        // e(G,Y) = e(A, ek)
+        let is_valid = E::pairing(pvss_params.g, *y_i) == E::pairing(a_i, ek_i);
+        if !is_valid {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 pub fn do_verify_aggregation<E: Pairing>(

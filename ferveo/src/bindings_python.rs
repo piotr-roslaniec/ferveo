@@ -816,7 +816,7 @@ mod test_ferveo_python {
             .collect();
 
         // Each validator holds their own DKG instance and generates a transcript every
-        // every validator, including themselves
+        // validator, including themselves
         let messages: Vec<_> = validators
             .iter()
             .cloned()
@@ -864,7 +864,7 @@ mod test_ferveo_python {
         )
         .unwrap();
 
-        // Lets say that we've only received `security_threshold` transcripts
+        // Let's say that we've only received `security_threshold` transcripts
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
@@ -912,7 +912,6 @@ mod test_ferveo_python {
         // This part is part of the client API
         let shared_secret =
             combine_decryption_shares_precomputed(decryption_shares);
-
         let plaintext =
             decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret)
                 .unwrap();
@@ -942,7 +941,7 @@ mod test_ferveo_python {
         )
         .unwrap();
 
-        // Lets say that we've only receives `security_threshold` transcripts
+        // Let's say that we've only receives `security_threshold` transcripts
         let messages = messages[..security_threshold as usize].to_vec();
         let pvss_aggregated =
             dkg.aggregate_transcripts(messages.clone()).unwrap();
@@ -989,9 +988,7 @@ mod test_ferveo_python {
 
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
-
         let shared_secret = combine_decryption_shares_simple(decryption_shares);
-
         let plaintext =
             decrypt_with_shared_secret(&ciphertext, AAD, &shared_secret)
                 .unwrap();

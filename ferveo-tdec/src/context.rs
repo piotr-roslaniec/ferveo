@@ -100,7 +100,7 @@ impl<E: Pairing> PrivateDecryptionContextSimple<E> {
             .collect::<Vec<_>>();
         let lagrange_coeffs = prepare_combine_simple::<E>(&domain);
 
-        DecryptionSharePrecomputed::new(
+        DecryptionSharePrecomputed::create(
             self.index,
             &self.setup_params.b,
             &self.private_key_share,

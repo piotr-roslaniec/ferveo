@@ -1,4 +1,4 @@
-//! Test suite for the Nodejs.
+//! Test suite for the Node.js.
 
 extern crate wasm_bindgen_test;
 
@@ -45,7 +45,6 @@ fn setup_dkg(
         )
         .unwrap();
         let transcript = validator_dkg.generate_transcript().unwrap();
-
         ValidatorMessage::new(sender, &transcript).unwrap()
     });
 
@@ -61,6 +60,8 @@ fn setup_dkg(
     )
     .unwrap();
 
+    // We only need `shares_num` messages to aggregate the transcripts
+    let messages = messages.take(shares_num as usize).collect::<Vec<_>>();
     let messages_js = into_js_array(messages);
 
     // Server can aggregate the transcripts and verify them
@@ -125,7 +126,6 @@ fn tdec_simple() {
                 let is_valid =
                     aggregate.verify(validators_num, &messages_js).unwrap();
                 assert!(is_valid);
-
                 aggregate
                     .create_decryption_share_simple(
                         &dkg,
@@ -135,16 +135,16 @@ fn tdec_simple() {
                     )
                     .unwrap()
             })
+            // We only need `security_threshold` decryption shares in simple variant
+            .take(security_threshold as usize)
             .collect::<Vec<DecryptionShareSimple>>();
+
         let decryption_shares_js = into_js_array(decryption_shares);
 
-        // Now, the decryption share can be used to decrypt the ciphertext
-        // This part is in the client API
-
+        // Now, decryption shares can be used to decrypt the ciphertext
+        // This part happens in the client API
         let shared_secret =
             combine_decryption_shares_simple(&decryption_shares_js).unwrap();
-
-        // The client should have access to the public parameters of the DKG
         let plaintext =
             decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret)
                 .unwrap();
@@ -183,7 +183,6 @@ fn tdec_precomputed() {
                 let is_valid =
                     aggregate.verify(validators_num, &messages_js).unwrap();
                 assert!(is_valid);
-
                 aggregate
                     .create_decryption_share_precomputed(
                         &dkg,
@@ -193,17 +192,17 @@ fn tdec_precomputed() {
                     )
                     .unwrap()
             })
+            // We need `shares_num` decryption shares in precomputed variant
+            // TODO: This fails if shares_num != validators_num
+            .take(validators_num as usize)
             .collect::<Vec<DecryptionSharePrecomputed>>();
         let decryption_shares_js = into_js_array(decryption_shares);
 
-        // Now, the decryption share can be used to decrypt the ciphertext
-        // This part is in the client API
-
+        // Now, decryption shares can be used to decrypt the ciphertext
+        // This part happens in the client API
         let shared_secret =
             combine_decryption_shares_precomputed(&decryption_shares_js)
                 .unwrap();
-
-        // The client should have access to the public parameters of the DKG
         let plaintext =
             decrypt_with_shared_secret(&ciphertext, &aad, &shared_secret)
                 .unwrap();

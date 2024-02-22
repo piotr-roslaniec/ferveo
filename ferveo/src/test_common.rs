@@ -127,6 +127,7 @@ pub fn make_messages(
         let sender = dkg.me.clone();
         messages.push((sender, transcript));
     }
+    messages.shuffle(rng);
     messages
 }
 
@@ -139,7 +140,7 @@ pub fn setup_dealt_dkg_with_n_transcript_dealt(
     let rng = &mut ark_std::test_rng();
 
     // Gather everyone's transcripts
-    // Use only the first `transcripts_to_use` transcripts
+    // Use only need the first `transcripts_to_use` transcripts
     let mut transcripts: Vec<_> = (0..transcripts_to_use)
         .map(|my_index| {
             let (dkg, _) = setup_dkg_for_n_validators(
