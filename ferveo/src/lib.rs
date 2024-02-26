@@ -30,22 +30,6 @@ pub enum Error {
     #[error(transparent)]
     ThresholdEncryptionError(#[from] ferveo_tdec::Error),
 
-    /// DKG is not in a valid state to deal PVSS shares
-    #[error("Invalid DKG state to deal PVSS shares")]
-    InvalidDkgStateToDeal,
-
-    /// DKG is not in a valid state to aggregate PVSS transcripts
-    #[error("Invalid DKG state to aggregate PVSS transcripts")]
-    InvalidDkgStateToAggregate,
-
-    /// DKG is not in a valid state to verify PVSS transcripts
-    #[error("Invalid DKG state to verify PVSS transcripts")]
-    InvalidDkgStateToVerify,
-
-    /// DKG is not in a valid state to ingest PVSS transcripts
-    #[error("Invalid DKG state to ingest PVSS transcripts")]
-    InvalidDkgStateToIngest,
-
     /// DKG validator set must contain the validator with the given address
     #[error("Expected validator to be a part of the DKG validator set: {0}")]
     DealerNotInValidatorSet(EthereumAddress),
@@ -61,16 +45,6 @@ pub enum Error {
     /// DKG received an invalid transcript for which optimistic verification failed
     #[error("DKG received an invalid transcript from validator: {0}")]
     InvalidPvssTranscript(EthereumAddress),
-
-    /// Aggregation failed because the DKG did not receive enough PVSS transcripts
-    #[error(
-        "Insufficient transcripts for aggregation (expected {0}, got {1})"
-    )]
-    InsufficientTranscriptsForAggregate(u32, u32),
-
-    /// Failed to derive a valid final key for the DKG
-    #[error("Failed to derive a valid final key for the DKG")]
-    InvalidDkgPublicKey,
 
     /// Not enough validators to perform the DKG for a given number of shares
     #[error("Not enough validators (expected {0}, got {1})")]
@@ -121,10 +95,6 @@ pub enum Error {
     /// The number of messages may not be greater than the number of validators
     #[error("Invalid aggregate verification parameters: number of validators {0}, number of messages: {1}")]
     InvalidAggregateVerificationParameters(u32, u32),
-
-    /// Validator not found in the DKG set of validators
-    #[error("Validator not found: {0}")]
-    UnknownValidator(EthereumAddress),
 
     /// Too many transcripts received by the DKG
     #[error("Too many transcripts. Expected: {0}, got: {1}")]

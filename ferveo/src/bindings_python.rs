@@ -37,18 +37,6 @@ impl From<FerveoPythonError> for PyErr {
                 Error::ThresholdEncryptionError(err) => {
                     ThresholdEncryptionError::new_err(err.to_string())
                 }
-                Error::InvalidDkgStateToDeal => {
-                    InvalidDkgStateToDeal::new_err("")
-                }
-                Error::InvalidDkgStateToAggregate => {
-                    InvalidDkgStateToAggregate::new_err("")
-                }
-                Error::InvalidDkgStateToVerify => {
-                    InvalidDkgStateToVerify::new_err("")
-                }
-                Error::InvalidDkgStateToIngest => {
-                    InvalidDkgStateToIngest::new_err("")
-                }
                 Error::DealerNotInValidatorSet(dealer) => {
                     DealerNotInValidatorSet::new_err(dealer.to_string())
                 }
@@ -61,13 +49,6 @@ impl From<FerveoPythonError> for PyErr {
                 Error::InvalidPvssTranscript(validator_addr) => {
                     InvalidPvssTranscript::new_err(validator_addr.to_string())
                 }
-                Error::InsufficientTranscriptsForAggregate(
-                    expected,
-                    actual,
-                ) => InsufficientTranscriptsForAggregate::new_err(format!(
-                    "expected: {expected}, actual: {actual}"
-                )),
-                Error::InvalidDkgPublicKey => InvalidDkgPublicKey::new_err(""),
                 Error::InsufficientValidators(expected, actual) => {
                     InsufficientValidators::new_err(format!(
                         "expected: {expected}, actual: {actual}"
@@ -120,9 +101,6 @@ impl From<FerveoPythonError> for PyErr {
                     InvalidAggregateVerificationParameters::new_err(format!(
                         "validators_num: {validators_num}, messages_num: {messages_num}"
                     ))
-                },
-                Error::UnknownValidator(validator) => {
-                    UnknownValidator::new_err(validator.to_string())
                 },
                 Error::TooManyTranscripts(expected, received) => {
                     TooManyTranscripts::new_err(format!(

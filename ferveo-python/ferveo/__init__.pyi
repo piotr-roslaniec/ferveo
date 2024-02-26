@@ -158,18 +158,6 @@ def decrypt_with_shared_secret(
 class ThresholdEncryptionError(Exception):
     pass
 
-class InvalidDkgStateToDeal(Exception):
-    pass
-
-class InvalidDkgStateToAggregate(Exception):
-    pass
-
-class InvalidDkgStateToVerify(Exception):
-    pass
-
-class InvalidDkgStateToIngest(Exception):
-    pass
-
 class DealerNotInValidatorSet(Exception):
     pass
 
@@ -180,12 +168,6 @@ class DuplicateDealer(Exception):
     pass
 
 class InvalidPvssTranscript(Exception):
-    pass
-
-class InsufficientTranscriptsForAggregate(Exception):
-    pass
-
-class InvalidDkgPublicKey(Exception):
     pass
 
 class InsufficientValidators(Exception):
@@ -219,9 +201,6 @@ class NoTranscriptsToAggregate(Exception):
     pass
 
 class InvalidAggregateVerificationParameters(Exception):
-    pass
-
-class UnknownValidator(Exception):
     pass
 
 class TooManyTranscripts(Exception):
