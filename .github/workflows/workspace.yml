@@ -38,13 +38,13 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - run: cargo clippy --all --all-features -- -D warnings
       - run: cargo fmt --all -- --check
-      # TODO: Re-enable after bumping MSRV to 1.7.0+
-      #- uses: bnjbvr/cargo-machete@main
-      - name: Install cargo-sort
-        uses: baptiste0928/cargo-install@v1
-        with:
-          crate: cargo-sort
-      - run: cargo sort --check
+#       TODO: Re-enable after bumping MSRV to 1.7.0+
+#      - uses: bnjbvr/cargo-machete@main
+#      - name: Install cargo-sort
+#        uses: baptiste0928/cargo-install@v1
+#        with:
+#          crate: cargo-sort
+#      - run: cargo sort --check
 
   test:
     runs-on: ubuntu-latest
