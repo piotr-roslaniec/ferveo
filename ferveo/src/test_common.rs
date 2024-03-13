@@ -90,8 +90,6 @@ pub fn setup_dealt_dkg() -> DealtTestSetup {
     setup_dealt_dkg_with(SECURITY_THRESHOLD, SHARES_NUM)
 }
 
-// TODO: Rewrite setup_utils to return messages separately
-
 pub fn setup_dealt_dkg_with(
     security_threshold: u32,
     shares_num: u32,

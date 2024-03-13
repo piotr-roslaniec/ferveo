@@ -1,4 +1,4 @@
-use std::{hash::Hash, marker::PhantomData, ops::Mul};
+use std::{collections::HashMap, hash::Hash, marker::PhantomData, ops::Mul};
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
 use ark_ff::{Field, Zero};
@@ -358,16 +358,16 @@ impl<E: Pairing, T: Aggregate> PubliclyVerifiableSS<E, T> {
     /// Make a decryption share (precomputed variant) for a given ciphertext
     /// With this method, we wrap the PrivateKeyShare method to avoid exposing the private key share
     // TODO: Consider deprecating to use PrivateKeyShare method directly
-    pub fn create_decryption_share_simple_precomputed(
+    pub fn create_decryption_share_precomputed(
         &self,
         ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_keypair: &Keypair<E>,
         share_index: u32,
-        domain_points: &[DomainPoint<E>],
+        domain_points: &HashMap<u32, DomainPoint<E>>,
     ) -> Result<DecryptionSharePrecomputed<E>> {
         self.decrypt_private_key_share(validator_keypair, share_index)?
-            .create_decryption_share_simple_precomputed(
+            .create_decryption_share_precomputed(
                 ciphertext_header,
                 aad,
                 validator_keypair,

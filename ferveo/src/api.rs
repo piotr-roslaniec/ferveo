@@ -308,22 +308,23 @@ impl AggregatedTranscript {
         ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
+        selected_validators: &[Validator],
     ) -> Result<DecryptionSharePrecomputed> {
-        // Prevent users from using the precomputed variant with improper DKG parameters
-        if dkg.0.dkg_params.shares_num()
-            != dkg.0.dkg_params.security_threshold()
-        {
-            return Err(Error::InvalidDkgParametersForPrecomputedVariant(
-                dkg.0.dkg_params.shares_num(),
-                dkg.0.dkg_params.security_threshold(),
-            ));
-        }
-        self.0.aggregate.create_decryption_share_simple_precomputed(
+        let selected_domain_points = selected_validators
+            .iter()
+            .filter_map(|v| {
+                dkg.0
+                    .get_domain_point(v.share_index)
+                    .ok()
+                    .map(|domain_point| (v.share_index, domain_point))
+            })
+            .collect::<HashMap<u32, crate::DomainPoint<E>>>();
+        self.0.aggregate.create_decryption_share_precomputed(
             &ciphertext_header.0,
             aad,
             validator_keypair,
             dkg.0.me.share_index,
-            &dkg.0.domain_points(),
+            &selected_domain_points,
         )
     }
 
@@ -544,22 +545,21 @@ impl PrivateKeyShare {
     }
 
     /// Make a decryption share (precomputed variant) for a given ciphertext
-    pub fn create_decryption_share_simple_precomputed(
+    pub fn create_decryption_share_precomputed(
         &self,
         ciphertext_header: &CiphertextHeader,
         aad: &[u8],
         validator_keypair: &Keypair,
         share_index: u32,
-        domain_points: &[DomainPoint],
+        domain_points: &HashMap<u32, DomainPoint>,
     ) -> Result<DecryptionSharePrecomputed> {
-        let share = self.0.create_decryption_share_simple_precomputed(
+        self.0.create_decryption_share_precomputed(
             &ciphertext_header.0,
             aad,
             validator_keypair,
             share_index,
             domain_points,
-        )?;
-        Ok(share)
+        )
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
@@ -641,10 +641,8 @@ mod test_ferveo_api {
     #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
     #[test_case(4, 6; "number of validators greater than the number of shares")]
     fn test_server_api_tdec_precomputed(shares_num: u32, validators_num: u32) {
+        let security_threshold = shares_num * 2 / 3;
         let rng = &mut StdRng::seed_from_u64(0);
-
-        // In precomputed variant, the security threshold is equal to the number of shares
-        let security_threshold = shares_num;
         let (messages, validators, validator_keypairs) = make_test_inputs(
             rng,
             TAU,
@@ -660,52 +658,65 @@ mod test_ferveo_api {
         let dkg =
             Dkg::new(TAU, shares_num, security_threshold, &validators, &me)
                 .unwrap();
-        let pvss_aggregated = dkg.aggregate_transcripts(messages).unwrap();
-        assert!(pvss_aggregated.verify(validators_num, messages).unwrap());
+        let local_aggregate = dkg.aggregate_transcripts(messages).unwrap();
+        assert!(local_aggregate.verify(validators_num, messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let dkg_public_key = pvss_aggregated.public_key();
+        let dkg_public_key = local_aggregate.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext =
             encrypt(SecretBox::new(MSG.to_vec()), AAD, &dkg_public_key)
                 .unwrap();
 
-        // Having aggregated the transcripts, the validators can now create decryption shares
-        let mut decryption_shares: Vec<_> =
-            izip!(&validators, &validator_keypairs)
-                .map(|(validator, validator_keypair)| {
-                    // Each validator holds their own instance of DKG and creates their own aggregate
-                    let dkg = Dkg::new(
-                        TAU,
-                        shares_num,
-                        security_threshold,
-                        &validators,
-                        validator,
-                    )
-                    .unwrap();
-                    let aggregate =
-                        dkg.aggregate_transcripts(messages).unwrap();
-                    assert!(pvss_aggregated
-                        .verify(validators_num, messages)
-                        .unwrap());
+        // In precomputed variant, client selects a specific subset of validators to create
+        // decryption shares
+        let selected_validators: Vec<_> = validators
+            .choose_multiple(rng, security_threshold as usize)
+            .cloned()
+            .collect();
 
-                    // And then each validator creates their own decryption share
-                    aggregate
-                        .create_decryption_share_precomputed(
-                            &dkg,
-                            &ciphertext.header().unwrap(),
-                            AAD,
-                            validator_keypair,
-                        )
-                        .unwrap()
-                })
-                .collect();
+        // Having aggregated the transcripts, the validators can now create decryption shares
+        let mut decryption_shares = selected_validators
+            .iter()
+            .map(|validator| {
+                let validator_keypair = validator_keypairs
+                    .iter()
+                    .find(|kp| kp.public_key() == validator.public_key)
+                    .unwrap();
+                // Each validator holds their own instance of DKG and creates their own aggregate
+                let dkg = Dkg::new(
+                    TAU,
+                    shares_num,
+                    security_threshold,
+                    &validators,
+                    validator,
+                )
+                .unwrap();
+                let server_aggregate =
+                    dkg.aggregate_transcripts(messages).unwrap();
+                assert!(server_aggregate
+                    .verify(validators_num, messages)
+                    .unwrap());
+
+                // And then each validator creates their own decryption share
+                server_aggregate
+                    .create_decryption_share_precomputed(
+                        &dkg,
+                        &ciphertext.header().unwrap(),
+                        AAD,
+                        validator_keypair,
+                        &selected_validators,
+                    )
+                    .unwrap()
+            })
+            // We only need `security_threshold` shares to be able to decrypt
+            .take(security_threshold as usize)
+            .collect::<Vec<DecryptionSharePrecomputed>>();
         decryption_shares.shuffle(rng);
 
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
-
         let shared_secret = share_combine_precomputed(&decryption_shares);
         let plaintext = decrypt_with_shared_secret(
             &ciphertext,
@@ -715,10 +726,13 @@ mod test_ferveo_api {
         .unwrap();
         assert_eq!(plaintext, MSG);
 
-        // Since we're using a precomputed variant, we need all the shares to be able to decrypt
+        // We need `security_threshold` shares to be able to decrypt
         // So if we remove one share, we should not be able to decrypt
-        let decryption_shares =
-            decryption_shares[..shares_num as usize - 1].to_vec();
+        let decryption_shares = decryption_shares
+            .iter()
+            .take(security_threshold as usize - 1)
+            .cloned()
+            .collect::<Vec<_>>();
         let shared_secret = share_combine_precomputed(&decryption_shares);
         let result = decrypt_with_shared_secret(
             &ciphertext,
@@ -733,7 +747,6 @@ mod test_ferveo_api {
     #[test_case(4, 6; "number of validators greater than the number of shares")]
     fn test_server_api_tdec_simple(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
-
         let security_threshold = shares_num / 2 + 1;
         let (messages, validators, validator_keypairs) = make_test_inputs(
             rng,
@@ -747,19 +760,11 @@ mod test_ferveo_api {
 
         // Now that every validator holds a dkg instance and a transcript for every other validator,
         // every validator can aggregate the transcripts
-        let dkg = Dkg::new(
-            TAU,
-            shares_num,
-            security_threshold,
-            &validators,
-            &validators[0],
-        )
-        .unwrap();
-        let pvss_aggregated = dkg.aggregate_transcripts(messages).unwrap();
-        assert!(pvss_aggregated.verify(validators_num, messages).unwrap());
+        let local_aggregate = AggregatedTranscript::new(messages).unwrap();
+        assert!(local_aggregate.verify(validators_num, messages).unwrap());
 
         // At this point, any given validator should be able to provide a DKG public key
-        let public_key = pvss_aggregated.public_key();
+        let public_key = local_aggregate.public_key();
 
         // In the meantime, the client creates a ciphertext and decryption request
         let ciphertext =
@@ -778,12 +783,12 @@ mod test_ferveo_api {
                         validator,
                     )
                     .unwrap();
-                    let aggregate =
+                    let server_aggregate =
                         dkg.aggregate_transcripts(messages).unwrap();
-                    assert!(aggregate
+                    assert!(server_aggregate
                         .verify(validators_num, messages)
                         .unwrap());
-                    aggregate
+                    server_aggregate
                         .create_decryption_share_simple(
                             &dkg,
                             &ciphertext.header().unwrap(),
@@ -792,13 +797,13 @@ mod test_ferveo_api {
                         )
                         .unwrap()
                 })
+                // We only need `security_threshold` shares to be able to decrypt
+                .take(security_threshold as usize)
                 .collect();
         decryption_shares.shuffle(rng);
 
         // Now, the decryption share can be used to decrypt the ciphertext
         // This part is part of the client API
-
-        // In simple variant, we only need `security_threshold` shares to be able to decrypt
         let decryption_shares =
             decryption_shares[..security_threshold as usize].to_vec();
 
@@ -808,8 +813,8 @@ mod test_ferveo_api {
                 .unwrap();
         assert_eq!(plaintext, MSG);
 
-        // Let's say that we've only received `security_threshold - 1` shares
-        // In this case, we should not be able to decrypt
+        // We need `security_threshold` shares to be able to decrypt
+        // So if we remove one share, we should not be able to decrypt
         let decryption_shares =
             decryption_shares[..security_threshold as usize - 1].to_vec();
 
@@ -819,9 +824,9 @@ mod test_ferveo_api {
         assert!(result.is_err());
     }
 
-    // Note that the server and client code are using the same underlying
-    // implementation for aggregation and aggregate verification.
-    // Here, we focus on testing user-facing APIs for server and client users.
+    /// Note that the server and client code are using the same underlying
+    /// implementation for aggregation and aggregate verification.
+    /// Here, we focus on testing user-facing APIs for server and client users.
 
     #[test_case(4, 4; "number of shares (validators) is a power of 2")]
     #[test_case(7, 7; "number of shares (validators) is not a power of 2")]
@@ -829,7 +834,6 @@ mod test_ferveo_api {
     fn server_side_local_verification(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
         let security_threshold = shares_num / 2 + 1;
-
         let (messages, validators, _) = make_test_inputs(
             rng,
             TAU,
@@ -940,7 +944,6 @@ mod test_ferveo_api {
     fn client_side_local_verification(shares_num: u32, validators_num: u32) {
         let rng = &mut StdRng::seed_from_u64(0);
         let security_threshold = shares_num / 2 + 1;
-
         let (messages, _, _) = make_test_inputs(
             rng,
             TAU,
@@ -1041,11 +1044,11 @@ mod test_ferveo_api {
 
         // Creating a copy to avoiding accidentally changing DKG state
         let dkg = dkgs[0].clone();
-        let pvss_aggregated = dkg.aggregate_transcripts(&messages).unwrap();
-        assert!(pvss_aggregated.verify(validators_num, &messages).unwrap());
+        let server_aggregate = dkg.aggregate_transcripts(&messages).unwrap();
+        assert!(server_aggregate.verify(validators_num, &messages).unwrap());
 
         // Create an initial shared secret for testing purposes
-        let public_key = pvss_aggregated.public_key();
+        let public_key = server_aggregate.public_key();
         let ciphertext =
             encrypt(SecretBox::new(MSG.to_vec()), AAD, &public_key).unwrap();
         let ciphertext_header = ciphertext.header().unwrap();
@@ -1062,7 +1065,6 @@ mod test_ferveo_api {
                 validator_keypairs.as_slice(),
                 &transcripts,
             );
-
         (
             messages,
             validators,
@@ -1084,7 +1086,6 @@ mod test_ferveo_api {
     ) {
         let rng = &mut StdRng::seed_from_u64(0);
         let security_threshold = shares_num / 2 + 1;
-
         let (
             mut messages,
             mut validators,
@@ -1240,8 +1241,6 @@ mod test_ferveo_api {
             .unwrap();
         decryption_shares.push(new_decryption_share);
         domain_points.insert(new_validator_share_index, x_r);
-        assert_eq!(domain_points.len(), validators_num as usize);
-        assert_eq!(decryption_shares.len(), validators_num as usize);
 
         let domain_points = domain_points
             .values()
@@ -1269,7 +1268,6 @@ mod test_ferveo_api {
     ) {
         let rng = &mut StdRng::seed_from_u64(0);
         let security_threshold = shares_num / 2 + 1;
-
         let (
             messages,
             _validators,
@@ -1355,6 +1353,8 @@ mod test_ferveo_api {
                     )
                     .unwrap()
                 })
+                // We only need `security_threshold` shares to be able to decrypt
+                .take(security_threshold as usize)
                 .collect();
         decryption_shares.shuffle(rng);
 

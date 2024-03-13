@@ -169,10 +169,10 @@ impl<E: Pairing> PubliclyVerifiableDkg<E> {
 
     /// Return a map of domain points for the DKG
     pub fn domain_point_map(&self) -> HashMap<u32, DomainPoint<E>> {
-        self.domain_points()
-            .iter()
+        self.domain
+            .elements()
             .enumerate()
-            .map(|(i, point)| (i as u32, *point))
+            .map(|(i, point)| (i as u32, point))
             .collect::<HashMap<_, _>>()
     }
 

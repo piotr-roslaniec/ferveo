@@ -102,21 +102,51 @@ impl<E: Pairing> PrivateKeyShare<E> {
         .map_err(|e| e.into())
     }
 
-    pub fn create_decryption_share_simple_precomputed(
+    /// In precomputed variant, we offload some of the decryption related computation to the server-side:
+    /// We use the `prepare_combine_simple` function to precompute the lagrange coefficients
+    pub fn create_decryption_share_precomputed(
         &self,
         ciphertext_header: &CiphertextHeader<E>,
         aad: &[u8],
         validator_keypair: &Keypair<E>,
         share_index: u32,
-        domain_points: &[DomainPoint<E>],
+        domain_points_map: &HashMap<u32, DomainPoint<E>>,
     ) -> Result<DecryptionSharePrecomputed<E>> {
-        let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
-        // In precomputed variant, we offload some of the decryption related computation to the server-side:
-        // We use the `prepare_combine_simple` function to precompute the lagrange coefficients
-        let lagrange_coeffs = prepare_combine_simple::<E>(domain_points);
-        let lagrange_coeff = &lagrange_coeffs
-            .get(share_index as usize)
+        // We need to turn the domain points into a vector, and sort it by share index
+        let mut domain_points = domain_points_map
+            .iter()
+            .map(|(share_index, domain_point)| (*share_index, *domain_point))
+            .collect::<Vec<_>>();
+        domain_points.sort_by_key(|(share_index, _)| *share_index);
+
+        // Now, we have to pass the domain points to the `prepare_combine_simple` function
+        // and use the resulting lagrange coefficients to create the decryption share
+
+        let only_domain_points = domain_points
+            .iter()
+            .map(|(_, domain_point)| *domain_point)
+            .collect::<Vec<_>>();
+        let lagrange_coeffs = prepare_combine_simple::<E>(&only_domain_points);
+
+        // Before we pick the lagrange coefficient for the current share index, we need
+        // to map the share index to the index in the domain points vector
+        // Given that we sorted the domain points by share index, the first element in the vector
+        // will correspond to the smallest share index, second to the second smallest, and so on
+
+        let sorted_share_indices = domain_points
+            .iter()
+            .enumerate()
+            .map(|(adjusted_share_index, (share_index, _))| {
+                (*share_index, adjusted_share_index)
+            })
+            .collect::<HashMap<u32, usize>>();
+        let adjusted_share_index = *sorted_share_indices
+            .get(&share_index)
             .ok_or(Error::InvalidShareIndex(share_index))?;
+
+        // Finally, pick the lagrange coefficient for the current share index
+        let lagrange_coeff = &lagrange_coeffs[adjusted_share_index];
+        let g_inv = PubliclyVerifiableParams::<E>::default().g_inv();
         DecryptionSharePrecomputed::create(
             share_index as usize,
             &validator_keypair.decryption_key,
@@ -368,8 +398,8 @@ mod tests_refresh {
         let security_threshold = shares_num * 2 / 3;
 
         let (_, _, mut contexts) = setup_simple::<E>(
-            security_threshold as usize,
             shares_num as usize,
+            security_threshold as usize,
             rng,
         );
 
@@ -447,8 +477,8 @@ mod tests_refresh {
         let security_threshold = shares_num * 2 / 3;
 
         let (_, shared_private_key, mut contexts) = setup_simple::<E>(
-            security_threshold as usize,
             shares_num as usize,
+            security_threshold as usize,
             rng,
         );
 
@@ -537,7 +567,7 @@ mod tests_refresh {
         let security_threshold = shares_num * 2 / 3;
 
         let (_, private_key_share, contexts) =
-            setup_simple::<E>(security_threshold, shares_num, rng);
+            setup_simple::<E>(shares_num, security_threshold, rng);
         let domain_points = &contexts
             .iter()
             .map(|ctxt| {
