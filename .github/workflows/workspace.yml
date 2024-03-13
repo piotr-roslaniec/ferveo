@@ -38,12 +38,8 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - run: cargo clippy --all --all-features -- -D warnings
       - run: cargo fmt --all -- --check
-      - name: Install cargo-machete
-        uses: baptiste0928/cargo-install@v1
-        with:
-          crate: cargo-machete
-          version: "=0.6.0"
-      - run: cargo machete
+      # TODO: Re-enable after bumping MSRV to 1.7.0+
+      #- uses: bnjbvr/cargo-machete@main
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v1
         with:
