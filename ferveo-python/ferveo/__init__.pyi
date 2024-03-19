@@ -219,3 +219,6 @@ class NoTranscriptsToAggregate(Exception):
 
 class InvalidAggregateVerificationParameters(Exception):
     pass
+
+class UnknownValidator(Exception):
+    pass

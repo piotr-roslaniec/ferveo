@@ -3,10 +3,14 @@ use std::ops::Mul;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::One;
 use ark_std::UniformRand;
+use ferveo_common::serialization;
 use rand_core::RngCore;
-use zeroize::ZeroizeOnDrop;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Debug, Clone)]
+// TODO: Should we rename it to PublicKey or SharedPublicKey?
 pub struct PublicKeyShare<E: Pairing> {
     pub public_key_share: E::G1Affine, // A_{i, \omega_i}
 }
@@ -15,16 +19,6 @@ pub struct PublicKeyShare<E: Pairing> {
 pub struct BlindedKeyShare<E: Pairing> {
     pub blinding_key: E::G2Affine,      // [b] H
     pub blinded_key_share: E::G2Affine, // [b] Z_{i, \omega_i}
-    pub blinding_key_prepared: E::G2Prepared,
-}
-
-pub fn generate_random<R: RngCore, E: Pairing>(
-    n: usize,
-    rng: &mut R,
-) -> Vec<E::ScalarField> {
-    (0..n)
-        .map(|_| E::ScalarField::rand(rng))
-        .collect::<Vec<_>>()
 }
 
 impl<E: Pairing> BlindedKeyShare<E> {
@@ -58,8 +52,13 @@ impl<E: Pairing> BlindedKeyShare<E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ZeroizeOnDrop)]
+#[serde_as]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Zeroize, ZeroizeOnDrop,
+)]
 pub struct PrivateKeyShare<E: Pairing> {
+    // TODO: Replace with a tuple?
+    #[serde_as(as = "serialization::SerdeAs")]
     pub private_key_share: E::G2Affine,
 }
 
@@ -68,7 +67,6 @@ impl<E: Pairing> PrivateKeyShare<E> {
         let blinding_key = E::G2Affine::generator().mul(b).into_affine();
         BlindedKeyShare::<E> {
             blinding_key,
-            blinding_key_prepared: E::G2Prepared::from(blinding_key),
             blinded_key_share: self.private_key_share.mul(b).into_affine(),
         }
     }

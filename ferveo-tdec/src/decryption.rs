@@ -2,6 +2,7 @@ use std::ops::Mul;
 
 use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_ff::{Field, One, Zero};
+use ark_std::UniformRand;
 use ferveo_common::serialization;
 use itertools::{izip, zip_eq};
 use rand_core::RngCore;
@@ -9,8 +10,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    generate_random, Ciphertext, CiphertextHeader, PrivateKeyShare,
-    PublicDecryptionContextFast, PublicDecryptionContextSimple, Result,
+    Ciphertext, CiphertextHeader, PrivateKeyShare, PublicDecryptionContextFast,
+    PublicDecryptionContextSimple, Result,
 };
 
 #[serde_as]
@@ -36,9 +37,6 @@ impl<E: Pairing> ValidatorShareChecksum<E> {
         // C_i = dk_i^{-1} * U
         let checksum = ciphertext_header
             .commitment
-            // TODO: Should we panic here? I think we should since that would mean that the decryption key is invalid.
-            //   And so, the validator should not be able to create a decryption share.
-            //   And so, the validator should remake their keypair.
             .mul(
                 validator_decryption_key
                     .inverse()
@@ -226,6 +224,15 @@ impl<E: Pairing> DecryptionSharePrecomputed<E> {
     }
 }
 
+pub fn generate_random_scalars<R: RngCore, E: Pairing>(
+    n: usize,
+    rng: &mut R,
+) -> Vec<E::ScalarField> {
+    (0..n)
+        .map(|_| E::ScalarField::rand(rng))
+        .collect::<Vec<_>>()
+}
+
 // TODO: Remove this code? Currently only used in benchmarks. Move to benchmark suite?
 pub fn batch_verify_decryption_shares<R: RngCore, E: Pairing>(
     pub_contexts: &[PublicDecryptionContextFast<E>],
@@ -240,16 +247,17 @@ pub fn batch_verify_decryption_shares<R: RngCore, E: Pairing>(
     let blinding_keys = decryption_shares[0]
         .iter()
         .map(|d| {
-            pub_contexts[d.decrypter_index]
-                .blinded_key_share
-                .blinding_key_prepared
-                .clone()
+            E::G2Prepared::from(
+                pub_contexts[d.decrypter_index]
+                    .blinded_key_share
+                    .blinding_key,
+            )
         })
         .collect::<Vec<_>>();
 
     // For each ciphertext, generate num_shares random scalars
     let alpha_ij = (0..num_ciphertexts)
-        .map(|_| generate_random::<_, E>(num_shares, rng))
+        .map(|_| generate_random_scalars::<_, E>(num_shares, rng))
         .collect::<Vec<_>>();
 
     let mut pairings_a = Vec::with_capacity(num_shares + 1);
@@ -302,10 +310,11 @@ pub fn verify_decryption_shares_fast<E: Pairing>(
     let blinding_keys = decryption_shares
         .iter()
         .map(|d| {
-            pub_contexts[d.decrypter_index]
-                .blinded_key_share
-                .blinding_key_prepared
-                .clone()
+            E::G2Prepared::from(
+                pub_contexts[d.decrypter_index]
+                    .blinded_key_share
+                    .blinding_key,
+            )
         })
         .collect::<Vec<_>>();
 
