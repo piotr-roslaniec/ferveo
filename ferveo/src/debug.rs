@@ -1,3 +1,4 @@
+use core::str::FromStr;
 use std::{
     fs::File,
     io::{self, BufRead},
@@ -5,12 +6,15 @@ use std::{
 };
 
 use hex::FromHex;
+use crate::api::{PublicKey, Transcript};
+use ferveo_common::FromBytes;
+use crate::EthereumAddress;
 
 #[derive(Debug)]
-struct ValidatorTranscript {
-    validator_address: String,
-    validator_pk: Vec<u8>,
-    transcript: Vec<u8>,
+struct ValidatorTranscript{
+    validator_address: EthereumAddress,
+    validator_pk: PublicKey,
+    transcript: Transcript
 }
 
 fn parse_file(file_path: &PathBuf) -> io::Result<Vec<ValidatorTranscript>> {
@@ -60,6 +64,10 @@ fn parse_file(file_path: &PathBuf) -> io::Result<Vec<ValidatorTranscript>> {
                 "Invalid transcript length",
             ));
         }
+
+        let validator_address = EthereumAddress::from_str(&validator_address).unwrap();
+        let validator_pk = PublicKey::from_bytes(&validator_pk).unwrap();
+        let transcript = Transcript::from_bytes(&transcript).unwrap();
 
         records.push(ValidatorTranscript {
             validator_address,
