@@ -17,6 +17,8 @@ pub mod refresh;
 pub mod validator;
 
 #[cfg(test)]
+mod debug;
+#[cfg(test)]
 mod test_common;
 
 pub use dkg::*;
